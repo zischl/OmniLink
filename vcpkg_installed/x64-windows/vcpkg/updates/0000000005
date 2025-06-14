@@ -1,0 +1,8 @@
+Package: lz4
+Version: 1.10.0
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 0dea518a8d4751b226f5af2a83393cef12a4dd52b442feadef4c4e598c2083f2
+Description: Lossless compression algorithm, providing compression speed at 400 MB/s per core.
+Status: install ok installed

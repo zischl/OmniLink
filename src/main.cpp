@@ -3,6 +3,8 @@
 #include <thread>
 #include <chrono>
 #include <unordered_set>
+#include <SessionHandler.h>
+
 
 class connections {
     
@@ -152,15 +154,15 @@ int main()
         std::cout << IP << ", ";
     }
 
-    std::cout << "Server : ";
+    /*std::cout << "Server : ";
     unsigned short server;
     std::cin >> server;
     std::cout << "Client : ";
     unsigned short client;
     std::cin >> client;
-    std::cout << "Server is starting..." << std::endl;
+    std::cout << "Server is starting..." << std::endl;*/
 
-    std::thread sender([&]() {
+    /*std::thread sender([&]() {
         start_sender(io_context, server);
         });
     std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -169,7 +171,19 @@ int main()
         });
 
     sender.join();
-    listener.join();
+    listener.join();*/
+
+    sessions sessions;
+    sessions._init_winsock();
+    SOCKET socketR;
+    socketR = sessions._create_socket();
+
+    sockaddr_in address = sessions._create_address("192.168.1.7", 62485);
+
+    const char* buffer = "bleh";
+    sendto(socketR, buffer, strlen(buffer), 0, (sockaddr*)&address, sizeof(address));
+
+    std::cin.get();
 
     std::cout << "Server shutting down. Press Enter to exit...";
     std::cin.get();

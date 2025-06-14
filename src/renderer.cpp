@@ -41,7 +41,7 @@ Renderer::Renderer(HWND hwnd, int bufferWidth, int bufferHeight, bool swap) {
 
 	HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, creationFlags,
 		featureLevels, _countof(featureLevels), D3D11_SDK_VERSION,
-		&D3D11Device, &selectedFeatureLevel, &context);
+		&D3D11Device, &selectedFeatureLevel, &D3D11Context);
 	if (FAILED(hr)) {
 		OutputDebugString("D3D11 Device Creation Failed.");
 	}
@@ -89,7 +89,6 @@ Renderer::Renderer(HWND hwnd, int bufferWidth, int bufferHeight, bool swap) {
 	}
 	
 	//CreateRTV(D3D11Device.Get(), mainBuffer.Get());
-	
 };
 
 
@@ -101,12 +100,10 @@ void Renderer::CreateRTV(ID3D11Device* D3D11Device, ID3D11Texture2D* targetBuffe
 }
 
 
-
 ComPtr<ID3D11Device> Renderer::getDevice() const { return D3D11Device; }
-ComPtr<ID3D11DeviceContext> Renderer::getContext() const { return context; }
+ComPtr<ID3D11DeviceContext> Renderer::getContext() const { return D3D11Context; }
 ComPtr<IDXGISwapChain> Renderer::getSwapchain() const { return swapchain; }
 ComPtr<ID3D11RenderTargetView> Renderer::getRTV() const { return renderTargetView; }
 ComPtr<ID3D11Texture2D> Renderer::getMainBuffer() const { return mainBuffer; }
 
 
-	

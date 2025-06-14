@@ -2,6 +2,9 @@
 #define UNICODE
 #endif
 
+#include <SessionHandler.h>
+#include "renderer.h"
+
 #include <Windows.h>
 #include <string>
 #include <wrl/client.h>
@@ -10,7 +13,6 @@
 #include <dxgi1_2.h>
 #include <d3dcompiler.h>
 #include <directxmath.h>
-#include "renderer.h"
 #include <dcomp.h>
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -19,6 +21,8 @@
 #include <vector>
 #include <wincodec.h>
 #include <comdef.h>
+#include <lz4.h>
+#include <thread>
 
 
 
@@ -71,7 +75,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	ComPtr<IDXGISwapChain> swapchain = Renderer.getSwapchain() ;
 	ComPtr<ID3D11RenderTargetView> renderTargetView = Renderer.getRTV();
 	ComPtr<ID3D11Texture2D> mainBuffer = Renderer.getMainBuffer();
-
 	/*##############################################################*/
 
 	ComPtr<IDXGIDevice> DXGIDevice;
@@ -185,9 +188,38 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 
+	///* ################################################################ */
+
+	ComPtr <ID3D11Texture2D> stagingTexture;
+
+
+	D3D11_TEXTURE2D_DESC stagingBufferDesc = {};
+	stagingBufferDesc.Width = wdWidth;
+	stagingBufferDesc.Height = wdHeight;
+	stagingBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	stagingBufferDesc.Usage = D3D11_USAGE_STAGING;
+	stagingBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	stagingBufferDesc.BindFlags = 0;
+	stagingBufferDesc.SampleDesc.Count = 1;
+	stagingBufferDesc.SampleDesc.Quality = 0;
+	stagingBufferDesc.ArraySize = 1;
+	stagingBufferDesc.MipLevels = 1;
+	stagingBufferDesc.MiscFlags = 0;
+
+	D3D11Device->CreateTexture2D(&stagingBufferDesc, nullptr, stagingTexture.GetAddressOf());
+
+	sessions sessions;
+	sessions._init_winsock();
+	sockaddr_in address = sessions._create_address("192.168.1.7", 62485);
+	SOCKET socketR = sessions._create_socket();
+	int packetSize = 1920 * 1080 * 4;
+	const char* buffer = "bleh";
+	
+	///* ################################################################ */
+
 	ComPtr<ID3D11Texture2D> tempBuffer;
 
-	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
+	/*D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
 	custommainBufferDesc.Width = wdWidth;
 	custommainBufferDesc.Height = wdHeight;
 	custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -195,11 +227,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 	custommainBufferDesc.SampleDesc.Count = 1;
 	custommainBufferDesc.SampleDesc.Quality = 0;
-	custommainBufferDesc.ArraySize = 1;
+	custommainBufferDesc.ArraySize = 1;*/
 	//custommainBufferDesc.MipLevels = 1;
 
 
-	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, tempBuffer.GetAddressOf());
+	//D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, tempBuffer.GetAddressOf());
 
 	hr = D3D11Device->CreateRenderTargetView(mainBuffer.Get(), nullptr, &renderTargetView);
 	if (FAILED(hr)) {
@@ -234,19 +266,17 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 		DXGI_OUTDUPL_FRAME_INFO frameinfo;
 		ComPtr<IDXGIResource> framepixeldata;
-		//ComPtr<ID3D11Texture2D> frame;
+
 
 		hr = DXGIOutDuplication->AcquireNextFrame(500, &frameinfo, &framepixeldata);
 		if (SUCCEEDED(hr)) {
 			framepixeldata.As(&tempBuffer);
-			D3D11Context->ClearRenderTargetView(renderTargetView.Get(), clearColor);
+			///* ################################################################ */
+
+
 			
-			//swapchain->ResizeBuffers(16, wdWidth, wdHeight, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
 
-
-			//D3D11Context->CopyResource(test.Get(), tempBuffer.Get());
-			/*D3D11Context->CopyResource(mainBuffer.Get(), frame.Get());
-			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);*/
+			D3D11Context->ClearRenderTargetView(renderTargetView.Get(), clearColor);
 
 			D3D11_VIEWPORT viewport = {};
 			viewport.TopLeftX = 0.0f;
@@ -258,8 +288,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			D3D11Context->RSSetViewports(1, &viewport);
 
-			//LoadWICTexture(D3D11Device.Get(), D3D11Context.Get(), L"CapturedFrame.png", textureView, width, height);
-			//SaveTextureToFile(tempBuffer.Get(), L"CapturedFrame.png", D3D11Context.Get());
 
 			hr = D3D11Device->CreateShaderResourceView(tempBuffer.Get(), &srvDesc, textureView.GetAddressOf());
 			if (FAILED(hr)) {
@@ -283,41 +311,27 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			D3D11Context->OMSetRenderTargets(1, renderTargetView.GetAddressOf(), nullptr);
 			D3D11Context->Draw(4, 0);
+
 			///* ################################################################ */
-				
 
-
-			/*D3D11_BOX bbox = {};
-			bbox.left = 0;
-			bbox.top = 0;
-			bbox.front = 0;
-			bbox.right = min(1920, 1920);
-			bbox.bottom = min(1080, 1080);
-			bbox.back = 1;
-
-			D3D11Context->CopySubresourceRegion(mainBuffer.Get(), 0, 0, 0, 0, tempBuffer.Get(), 0, &bbox);*/
 			
-			
-			D3D11_TEXTURE2D_DESC desc;
-			tempBuffer.Get()->GetDesc(&desc);
-			std::string format = std::to_string(desc.Width);
-			std::wstring stemp = std::wstring(format.begin(), format.end());
-			LPCWSTR sw = stemp.c_str();
-			OutputDebugString(sw);
 
-			//D3D11Context->CopyResource(mainBuffer.Get(), tempBuffer.Get());
+			/*for (UINT y = 0; y < 1080; y++) {
+				for (UINT x = 0; x < rowPitch; x += chunkSize) { 
+					BYTE chunk[7680]; 
+					memcpy(chunk, pixelResource + (y * rowPitch) + x, chunkSize);
+					sendto(socketR, reinterpret_cast<const char*>(chunk), 7680, 0, (sockaddr*)&address, sizeof(address));
+
+				}
+			}*/
+			
+
+
+
+
+			///* ################################################################ */
 
 			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
-
-
-
-			/*DXGIOutDuplication->ReleaseFrame();
-			ID3D11Debug* pDebug = nullptr;
-			D3D11Device->QueryInterface(__uuidof(ID3D11Debug), (void**)&pDebug);
-			if (pDebug) {
-				pDebug->ReportLiveDeviceObjects(D3D11_RLDO_SUMMARY);
-				pDebug->Release();
-			}*/
 
 			DXGIOutDuplication->ReleaseFrame();
 
@@ -344,10 +358,72 @@ LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 }
 			
 	
+void staging_texture_for_compression(ID3D11Device* D3D11Device, UINT width, UINT height) {
+	ComPtr <ID3D11Texture2D> stagingTexture;
 
-	
+
+	D3D11_TEXTURE2D_DESC stagingBufferDesc = {};
+	stagingBufferDesc.Width = width;
+	stagingBufferDesc.Height = height;
+	stagingBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	stagingBufferDesc.Usage = D3D11_USAGE_STAGING;
+	stagingBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	stagingBufferDesc.BindFlags = 0;
+	stagingBufferDesc.SampleDesc.Count = 1;
+	stagingBufferDesc.SampleDesc.Quality = 0;
+	stagingBufferDesc.ArraySize = 1;
+	stagingBufferDesc.MipLevels = 1;
+	stagingBufferDesc.MiscFlags = 0;
+
+	D3D11Device->CreateTexture2D(&stagingBufferDesc, nullptr, stagingTexture.GetAddressOf());
+}
+
+void lz4_compression(ID3D11DeviceContext* D3D11Context, ID3D11Texture2D* stagingTexture, ID3D11Texture2D* mainBuffer) {
+
+	D3D11Context->CopyResource(stagingTexture, mainBuffer);
+
+	D3D11_MAPPED_SUBRESOURCE mappedResource;
+	D3D11Context->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
+	BYTE* pixelResource = static_cast<BYTE*>(mappedResource.pData);
+	UINT rowPitch = mappedResource.RowPitch;
+	D3D11Context->Unmap(stagingTexture, 0);
+	UINT chunkSize = 270;
+
+	std::thread t1([pixelResource] {
+		std::vector<BYTE> chunk1(4147200);
+		memcpy(chunk1.data(), pixelResource + (0 * 7680), 4147200);
+		int maxCompressedSize = LZ4_compressBound(4147200);
+		std::vector<char> compressedBuffer(maxCompressedSize);
+		int compressedSize = LZ4_compress_default(reinterpret_cast<const char*>(chunk1.data()),
+			compressedBuffer.data(),
+			4147200,
+			maxCompressedSize);
+		if (compressedSize <= 0) {
+			OutputDebugString(L"FAILED");
+		}
+		else {
+			OutputDebugString((std::to_wstring(compressedSize) + L"aaa\n").c_str());
+		}
+		});
+
+	std::thread t2([pixelResource] {
+		std::vector<BYTE> chunk1(4147200);
+		memcpy(chunk1.data(), pixelResource + (540 * 7680), 4147200);
+		int maxCompressedSize = LZ4_compressBound(4147200);
+		std::vector<char> compressedBuffer(maxCompressedSize);
+		int compressedSize = LZ4_compress_default(reinterpret_cast<const char*>(chunk1.data()),
+			compressedBuffer.data(),
+			4147200,
+			maxCompressedSize);
+		if (compressedSize <= 0) {
+			OutputDebugString(L"FAILED");
+		}
+		else {
+			OutputDebugString((std::to_wstring(compressedSize) + L"bbb\n").c_str());
+		}
+		});
 
 
-
-	
-
+	t1.join();
+	t2.join();
+}
