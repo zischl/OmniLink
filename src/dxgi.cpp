@@ -433,7 +433,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	NvInitParams.bufferFormat = NvencBufferFormat;
 	NvInitParams.encodeGUID = NvencEncodeGUID;
 	NvInitParams.presetGUID = NvencPresetGUID;
-	NvInitParams.tuningInfo = NvencTuningInfo;
+	NvInitParams.tuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
 	NvInitParams.encodeWidth = wdWidth;
 	NvInitParams.encodeHeight = wdHeight;
 	NvInitParams.darWidth = wdWidth;
