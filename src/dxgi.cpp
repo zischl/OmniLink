@@ -9,6 +9,7 @@
 #include <string>
 #include <wrl/client.h>
 #include <iostream>
+#include <fstream>
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <d3dcompiler.h>
@@ -23,6 +24,93 @@
 #include <comdef.h>
 #include <lz4.h>
 #include <thread>
+#include <nvEncodeAPI.h>
+#pragma comment(lib, "nvencodeapi.lib")
+//#include <NvEncoder.h>
+//#include <NvEncoderD3D11.h>
+
+
+void nvenc_output_test(NV_ENC_LOCK_BITSTREAM& NVBitstreamLock, const char* fileName) {
+
+	FILE* outFile = fopen(fileName, "wb");
+	if (outFile) {
+		fwrite(NVBitstreamLock.bitstreamBufferPtr, 1, NVBitstreamLock.bitstreamSizeInBytes, outFile);
+		fclose(outFile);
+	}
+	else {
+		OutputDebugString(L"Failed to open output file\n");
+	}
+}
+
+void staging_texture_for_compression(ID3D11Device* D3D11Device, ID3D11Texture2D* stagingTexture, UINT width, UINT height, DXGI_FORMAT Format) {
+
+	D3D11_TEXTURE2D_DESC stagingBufferDesc = {};
+	stagingBufferDesc.Width = width;
+	stagingBufferDesc.Height = height;
+	stagingBufferDesc.Format = Format;
+	stagingBufferDesc.Usage = D3D11_USAGE_STAGING;
+	stagingBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+	stagingBufferDesc.BindFlags = 0;
+	stagingBufferDesc.SampleDesc.Count = 1;
+	stagingBufferDesc.SampleDesc.Quality = 0;
+	stagingBufferDesc.ArraySize = 1;
+	stagingBufferDesc.MipLevels = 1;
+	stagingBufferDesc.MiscFlags = 0;
+
+	D3D11Device->CreateTexture2D(&stagingBufferDesc, nullptr, &stagingTexture);
+}
+
+void lz4_compression(ID3D11DeviceContext* D3D11Context, ID3D11Texture2D* stagingTexture, ID3D11Texture2D* mainBuffer, unsigned int Width, unsigned int Height) {
+
+	D3D11Context->CopyResource(stagingTexture, mainBuffer);
+
+	D3D11_MAPPED_SUBRESOURCE mappedResource;
+	D3D11Context->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
+	BYTE* pixelResource = static_cast<BYTE*>(mappedResource.pData);
+	UINT rowPitch = mappedResource.RowPitch;
+	D3D11Context->Unmap(stagingTexture, 0);
+
+
+	UINT TotalChunkedBytes = (rowPitch * Height) / 2;
+
+	std::thread t1([pixelResource, rowPitch, TotalChunkedBytes] {
+		std::vector<BYTE> chunk1(TotalChunkedBytes);
+		memcpy(chunk1.data(), pixelResource + (0 * rowPitch), TotalChunkedBytes);
+		int maxCompressedSize = LZ4_compressBound(TotalChunkedBytes);
+		std::vector<char> compressedBuffer(maxCompressedSize);
+		int compressedSize = LZ4_compress_default(reinterpret_cast<const char*>(chunk1.data()),
+			compressedBuffer.data(),
+			TotalChunkedBytes,
+			maxCompressedSize);
+		if (compressedSize <= 0) {
+			OutputDebugString(L"FAILED");
+		}
+		else {
+			OutputDebugString((std::to_wstring(compressedSize) + L"aaa\n").c_str());
+		}
+		});
+
+	std::thread t2([pixelResource, Height, rowPitch, TotalChunkedBytes] {
+		std::vector<BYTE> chunk1(TotalChunkedBytes);
+		memcpy(chunk1.data(), pixelResource + ((Height / 2) * rowPitch), TotalChunkedBytes);
+		int maxCompressedSize = LZ4_compressBound(TotalChunkedBytes);
+		std::vector<char> compressedBuffer(maxCompressedSize);
+		int compressedSize = LZ4_compress_default(reinterpret_cast<const char*>(chunk1.data()),
+			compressedBuffer.data(),
+			TotalChunkedBytes,
+			maxCompressedSize);
+		if (compressedSize <= 0) {
+			OutputDebugString(L"FAILED");
+		}
+		else {
+			OutputDebugString((std::to_wstring(compressedSize) + L"bbb\n").c_str());
+		}
+		});
+
+
+	t1.join();
+	t2.join();
+}
 
 
 
@@ -65,14 +153,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	ShowWindow(hwnd, nCmdShow);
 
-	
+
 
 	/*##############################################################*/
 
 	Renderer Renderer(hwnd, wdWidth, wdHeight, true);
 	ComPtr<ID3D11Device> D3D11Device = Renderer.getDevice();
 	ComPtr<ID3D11DeviceContext> D3D11Context = Renderer.getContext();
-	ComPtr<IDXGISwapChain> swapchain = Renderer.getSwapchain() ;
+	ComPtr<IDXGISwapChain> swapchain = Renderer.getSwapchain();
 	ComPtr<ID3D11RenderTargetView> renderTargetView = Renderer.getRTV();
 	ComPtr<ID3D11Texture2D> mainBuffer = Renderer.getMainBuffer();
 	/*##############################################################*/
@@ -93,7 +181,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	HRESULT hr = DXGIOutputEnhanced->DuplicateOutput(D3D11Device.Get(), &DXGIOutDuplication);
 
 	/*##############################################################*/
-	
+
 	ComPtr<ID3DBlob> pixelShaderBlob = nullptr;
 	D3DReadFileToBlob(L"PixelShader.cso", &pixelShaderBlob);
 
@@ -190,36 +278,19 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	///* ################################################################ */
 
-	ComPtr <ID3D11Texture2D> stagingTexture;
-
-
-	D3D11_TEXTURE2D_DESC stagingBufferDesc = {};
-	stagingBufferDesc.Width = wdWidth;
-	stagingBufferDesc.Height = wdHeight;
-	stagingBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	stagingBufferDesc.Usage = D3D11_USAGE_STAGING;
-	stagingBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	stagingBufferDesc.BindFlags = 0;
-	stagingBufferDesc.SampleDesc.Count = 1;
-	stagingBufferDesc.SampleDesc.Quality = 0;
-	stagingBufferDesc.ArraySize = 1;
-	stagingBufferDesc.MipLevels = 1;
-	stagingBufferDesc.MiscFlags = 0;
-
-	D3D11Device->CreateTexture2D(&stagingBufferDesc, nullptr, stagingTexture.GetAddressOf());
-
 	sessions sessions;
 	sessions._init_winsock();
 	sockaddr_in address = sessions._create_address("192.168.1.7", 62485);
 	SOCKET socketR = sessions._create_socket();
 	int packetSize = 1920 * 1080 * 4;
 	const char* buffer = "bleh";
-	
+
 	///* ################################################################ */
 
-	ComPtr<ID3D11Texture2D> tempBuffer;
 
-	/*D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
+	ComPtr<ID3D11Texture2D> tempBuffer;
+	ComPtr<ID3D11Texture2D> NvencBuffer;
+	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
 	custommainBufferDesc.Width = wdWidth;
 	custommainBufferDesc.Height = wdHeight;
 	custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -227,28 +298,269 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 	custommainBufferDesc.SampleDesc.Count = 1;
 	custommainBufferDesc.SampleDesc.Quality = 0;
-	custommainBufferDesc.ArraySize = 1;*/
-	//custommainBufferDesc.MipLevels = 1;
+	custommainBufferDesc.ArraySize = 1;
+	custommainBufferDesc.MipLevels = 1;
+	custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
 
 
-	//D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, tempBuffer.GetAddressOf());
+	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, NvencBuffer.GetAddressOf());
+
+
+
+
+
 
 	hr = D3D11Device->CreateRenderTargetView(mainBuffer.Get(), nullptr, &renderTargetView);
 	if (FAILED(hr)) {
-		OutputDebugString(L"RTV Creation Failed.");
+		OutputDebugString(L"RTV Creation Failed. \n");
 	}
+
+
+
+	SetEnvironmentVariableA("NVENC_DBG_FILE", "C:\\Temp\\nvenc_log.txt");
+
+	HMODULE ModuleHandle = LoadLibrary(L"nvencodeapi64.dll");
+	if (!ModuleHandle) {
+		OutputDebugString(L"LoadLibrary Died!! \n");
+	}
+
+#define NVENC_STATUS(call) do { \
+		NVENCSTATUS status = call; \
+		if (status != NV_ENC_SUCCESS) { \
+			OutputDebugString((L"well well.. hello there."+(std::to_wstring(status))).c_str()); \
+		} \
+	} while (0)
+
+	typedef NVENCSTATUS(NVENCAPI* PFN_NvEncodeAPICreateInstance)(NV_ENCODE_API_FUNCTION_LIST*);
+
+	auto NvEncodeAPICreateInstance = (PFN_NvEncodeAPICreateInstance)GetProcAddress(ModuleHandle, "NvEncodeAPICreateInstance");
+	if (!NvEncodeAPICreateInstance) {
+		OutputDebugString(L"Encode API Instance Creation Failed -_- \n");
+	}
+	NV_ENCODE_API_FUNCTION_LIST NVFunctions = { };
+	NVFunctions.version = NV_ENCODE_API_FUNCTION_LIST_VER;
+	NVENCSTATUS status = NvEncodeAPICreateInstance(&NVFunctions);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString(L"Encode API Function Filling Failed -_- \n");
+	}
+
+	void* NVEncoder;
+	NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS NVSessionParams = {};
+	NVSessionParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
+	NVSessionParams.apiVersion = NVENCAPI_VERSION;
+	NVSessionParams.device = (void*)D3D11Device.Get();
+	NVSessionParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;
+	status = NVFunctions.nvEncOpenEncodeSessionEx(&NVSessionParams, &NVEncoder);
+
+	if (status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
+		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+		OutputDebugString(L"Encoder did not feel like coming home. Prolly \n");
+	}
+
+	GUID NvencEncodeGUID = NV_ENC_CODEC_H264_GUID;
+	GUID NvencPresetGUID = NV_ENC_PRESET_P1_GUID;
+	NV_ENC_TUNING_INFO NvencTuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
+	GUID NvencProfileGUID = NV_ENC_H264_PROFILE_HIGH_GUID;
+
+
+	uint32_t NvencGUIDCount;
+	NVFunctions.nvEncGetEncodeGUIDCount(NVEncoder, &NvencGUIDCount);
+	std::vector<GUID> NvencGUIDs(NvencGUIDCount);
+	status = NVFunctions.nvEncGetEncodeGUIDs(NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString(L"RIP Encode GUIDS \n");
+	}
+	for (GUID guid : NvencGUIDs) {
+		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data1) + L"\n").c_str());
+		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data2) + L"\n").c_str());
+		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data3) + L"\n").c_str());
+		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[0]) + L"\n").c_str());
+		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[1]) + L"\n").c_str());
+		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[2]) + L"\n").c_str());
+	}
+
+	/*uint32_t NvencPresetCount;
+	NVFunctions.nvEncGetEncodePresetCount(NVEncoder, , &NvencPresetCount);
+	GUID NVPresetGUIDs;
+	status = NVFunctions.nvEncGetEncodePresetGUIDs(NVEncoder, NvencEncodeGUID, &NVPresetGUIDs, NvencPresetCount, &NvencPresetCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString(L"RIP Encode Preset GUIDS \n");
+	}*/
+
+
+
+	/*uint32_t NvenvProfileGUIDCount;
+	GUID NvProfileGUIDs;
+	NVFunctions.nvEncGetEncodeProfileGUIDCount(NVEncoder, NvencEncodeGUID, &NvenvProfileGUIDCount);
+	status = NVFunctions.nvEncGetEncodeProfileGUIDs(NVEncoder, NvencEncodeGUID, &NvProfileGUIDs, NvenvProfileGUIDCount, &NvenvProfileGUIDCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString((L"RIP Encode Profile GUID \n" + std::to_wstring(status)).c_str());
+	}*/
+
+	uint32_t NvenvInputFormatCount = 0;
+	status = NVFunctions.nvEncGetInputFormatCount(NVEncoder, NvencEncodeGUID, &NvenvInputFormatCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString((L"RIP Encode Input Format Count \n" + std::to_wstring(status)).c_str());
+	}
+
+	std::vector<NV_ENC_BUFFER_FORMAT> NvBufferFormats(NvenvInputFormatCount);
+	status = NVFunctions.nvEncGetInputFormats(NVEncoder, NvencEncodeGUID, NvBufferFormats.data(), NvenvInputFormatCount, &NvenvInputFormatCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString((L"RIP Encode Input Formats \n" + std::to_wstring(status)).c_str());
+	}
+
+	for (auto fmt : NvBufferFormats) {
+		OutputDebugString((L"Supported Input format: " + std::to_wstring(fmt) + L"\n").c_str());
+	}
+	NV_ENC_BUFFER_FORMAT NvencBufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
+	NV_ENC_INITIALIZE_PARAMS NvInitParams = {};
+	NV_ENC_PRESET_CONFIG NVPresetConfig = {};
+	NV_ENC_CONFIG_H264 NVH264Cfg = {};
+	NV_ENC_CONFIG NVInitConfig = {};
+
+	NVPresetConfig.version = NV_ENC_PRESET_CONFIG_VER;
+	NVPresetConfig.presetCfg.version = NV_ENC_CONFIG_VER;
+	NVFunctions.nvEncGetEncodePresetConfig(NVEncoder, NvencEncodeGUID, NvencPresetGUID, &NVPresetConfig);
+
+	NVPresetConfig.presetCfg.gopLength = 1;
+	NVPresetConfig.presetCfg.encodeCodecConfig.h264Config.idrPeriod = 1;
+	NVPresetConfig.presetCfg.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
+
+	NvInitParams.encodeConfig = &NVPresetConfig.presetCfg;
+
+	
+	NvInitParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
+	NvInitParams.bufferFormat = NvencBufferFormat;
+	NvInitParams.encodeGUID = NvencEncodeGUID;
+	NvInitParams.presetGUID = NvencPresetGUID;
+	NvInitParams.tuningInfo = NvencTuningInfo;
+	NvInitParams.encodeWidth = wdWidth;
+	NvInitParams.encodeHeight = wdHeight;
+	NvInitParams.darWidth = wdWidth;
+	NvInitParams.darHeight = wdHeight;
+	NvInitParams.frameRateNum = 60;
+	NvInitParams.frameRateDen = 1;
+	NvInitParams.enablePTD = 1;
+	NvInitParams.enableEncodeAsync = 0;
+
+
+
+	status = NVFunctions.nvEncInitializeEncoder(NVEncoder, &NvInitParams);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+		OutputDebugString((L" RIP Encoder Init " + std::to_wstring(status) + L"\n").c_str());
+	}
+
+	NV_ENC_REGISTER_RESOURCE NVRegisterResource = { };
+	NVRegisterResource.version = NV_ENC_REGISTER_RESOURCE_VER;
+	NVRegisterResource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
+	NVRegisterResource.resourceToRegister = NvencBuffer.Get();
+	NVRegisterResource.width = wdWidth;
+	NVRegisterResource.height = wdHeight;
+	NVRegisterResource.bufferFormat = NvencBufferFormat;
+	NVRegisterResource.pitch = wdWidth*4;
+
+	status = NVFunctions.nvEncRegisterResource(NVEncoder, &NVRegisterResource);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+		OutputDebugString((L"RIP Encoder Input Resource Marriage \n" + std::to_wstring(status)).c_str());
+	}
+
+
+	NV_ENC_CREATE_BITSTREAM_BUFFER NVOutputBufferDesc = { };
+	NVOutputBufferDesc.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
+	
+
+	status = NVFunctions.nvEncCreateBitstreamBuffer(NVEncoder, &NVOutputBufferDesc);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString((L"RIP Encode Output Stream Buffer \n" + std::to_wstring(status)).c_str());
+	}
+	NV_ENC_OUTPUT_PTR NvencOutput = NVOutputBufferDesc.bitstreamBuffer;
+
 
 
 	/*##############################################################*/
 
+	ComPtr<ID3D11Texture2D> PlaneYTexture;
+	ComPtr<ID3D11Texture2D> PlaneUVTexture;
 
+	D3D11_TEXTURE2D_DESC YTextureDesc = {};
+	YTextureDesc.Width = wdWidth;
+	YTextureDesc.Height = wdHeight;
+	YTextureDesc.Format = DXGI_FORMAT_R8_UNORM;
+	YTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	YTextureDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+	YTextureDesc.SampleDesc.Count = 1;
+	YTextureDesc.ArraySize = 1;
+	YTextureDesc.MipLevels = 1;
+
+	D3D11_TEXTURE2D_DESC UVTextureDesc = {};
+	UVTextureDesc.Width = wdWidth / 2;
+	UVTextureDesc.Height = wdHeight / 2;
+	UVTextureDesc.Format = DXGI_FORMAT_R8G8_UNORM;
+	UVTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	UVTextureDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+	UVTextureDesc.SampleDesc.Count = 1;
+	UVTextureDesc.ArraySize = 1;
+	UVTextureDesc.MipLevels = 1;
+
+	D3D11Device->CreateTexture2D(&YTextureDesc, nullptr, PlaneYTexture.GetAddressOf());
+	D3D11Device->CreateTexture2D(&UVTextureDesc, nullptr, PlaneUVTexture.GetAddressOf());
+
+	ComPtr<ID3D11UnorderedAccessView> UAViewY;
+	ComPtr<ID3D11UnorderedAccessView> UAViewUV;
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC UAViewYDesc = {};
+	UAViewYDesc.Format = YTextureDesc.Format;
+	UAViewYDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	UAViewYDesc.Texture2D.MipSlice = 0;
+	D3D11Device->CreateUnorderedAccessView(PlaneYTexture.Get(), &UAViewYDesc, UAViewY.GetAddressOf());
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC UAViewUVDesc = {};
+	UAViewUVDesc.Format = UVTextureDesc.Format;
+	UAViewUVDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	UAViewUVDesc.Texture2D.MipSlice = 0;
+	D3D11Device->CreateUnorderedAccessView(PlaneUVTexture.Get(), &UAViewUVDesc, UAViewUV.GetAddressOf());
+
+	ComPtr<ID3D11ComputeShader> NV12ComputeShader;
+	ComPtr<ID3DBlob> computeShaderBlob = nullptr;
+
+	hr = D3DReadFileToBlob(L"BGRA2NV12Shader.cso", &computeShaderBlob);
+	if (FAILED(hr)) {
+		OutputDebugString(L"\nBGRA2NV12Shader Read File Failed Miserably");
+	}
+	hr = D3D11Device->CreateComputeShader(computeShaderBlob->GetBufferPointer(), computeShaderBlob->GetBufferSize(), nullptr, &NV12ComputeShader);
+	if (FAILED(hr)) {
+		OutputDebugString(L"\nCompute Shader Creation Failed Miserably");
+	}
+	D3D11Context->CSSetShader(NV12ComputeShader.Get(), nullptr, 0);
+
+	D3D11_BOX NV12BoxY = {};
+	NV12BoxY.top = 0;
+	NV12BoxY.left = 0;
+	NV12BoxY.front = 0;
+	NV12BoxY.bottom = wdHeight;
+	NV12BoxY.right = wdWidth;
+	NV12BoxY.back = 1;
+
+	D3D11_BOX NV12BoxUV = {};
+	NV12BoxUV.top = 0;
+	NV12BoxUV.left = 0;
+	NV12BoxUV.front = 0;
+	NV12BoxUV.bottom = wdHeight / 2;
+	NV12BoxUV.right = wdWidth / 2;
+	NV12BoxUV.back = 1;
+
+
+
+	//##########################################################################################//
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.MipLevels = 1;
-	
+
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 
@@ -260,9 +572,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			if (msg.message == WM_QUIT)
 				return 0;
 
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
 
 		DXGI_OUTDUPL_FRAME_INFO frameinfo;
 		ComPtr<IDXGIResource> framepixeldata;
@@ -271,10 +583,77 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		hr = DXGIOutDuplication->AcquireNextFrame(500, &frameinfo, &framepixeldata);
 		if (SUCCEEDED(hr)) {
 			framepixeldata.As(&tempBuffer);
-			///* ################################################################ */
+
+			//#############################################################################################//
+
+			D3D11Context->CopyResource(NvencBuffer.Get(), tempBuffer.Get());
+
+
+			NV_ENC_MAP_INPUT_RESOURCE NVInputResource = { };
+			NVInputResource.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
+			NVInputResource.registeredResource = NVRegisterResource.registeredResource;
+			status = NVFunctions.nvEncMapInputResource(NVEncoder, &NVInputResource);
+			if (status != NV_ENC_SUCCESS) {
+				OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+				OutputDebugString((L"RIP Input Resource Map \n" + std::to_wstring(status)).c_str());
+			}
+
+			
+			
+
+			NV_ENC_PIC_PARAMS NvencPicParams = { };
+			memset(&NvencPicParams, 0, sizeof(NV_ENC_PIC_PARAMS));
+
+			NvencPicParams.version = NV_ENC_PIC_PARAMS_VER;
+			NvencPicParams.inputWidth = wdWidth;
+			NvencPicParams.inputHeight = wdHeight;
+			NvencPicParams.inputBuffer = NVInputResource.mappedResource;
+			NvencPicParams.bufferFmt = NVInputResource.mappedBufferFmt;
+			NvencPicParams.outputBitstream = NvencOutput;
+			NvencPicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
+			NvencPicParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
+			NvencPicParams.completionEvent = nullptr;
+			NvencPicParams.inputPitch = wdWidth * 4;
+
+
+
+
+			status = NVFunctions.nvEncEncodePicture((void*) NVEncoder, &NvencPicParams);
+			NVFunctions.nvEncUnmapInputResource(NVEncoder, NVInputResource.mappedResource);
+			if (status == NV_ENC_SUCCESS) {
+
+				NV_ENC_LOCK_BITSTREAM NVBitstreamLock = { };
+				NVBitstreamLock.version = NV_ENC_LOCK_BITSTREAM_VER;
+				NVBitstreamLock.outputBitstream = NvencOutput;
+				NVBitstreamLock.doNotWait = false;
+
+				status = NVFunctions.nvEncLockBitstream(NVEncoder, &NVBitstreamLock);
+				if (status != NV_ENC_SUCCESS) {
+					OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+					OutputDebugString((L"\n RIP Output Lock " + std::to_wstring(status)).c_str());
+				}
+
+				size_t bitstreamSize = NVBitstreamLock.bitstreamSizeInBytes;
+				OutputDebugString((std::to_wstring(bitstreamSize)+ L"\n").c_str());
+
+				nvenc_output_test(NVBitstreamLock, "bleh1.h264");
+				nvenc_output_test(NVBitstreamLock, "bleh2.h264");
+				nvenc_output_test(NVBitstreamLock, "bleh3.h264");
+				nvenc_output_test(NVBitstreamLock, "bleh4.h264");
+
+				NVFunctions.nvEncUnlockBitstream(NVEncoder, NvencOutput);
+			}
+			else {
+				OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+				OutputDebugString((L"\n RIP Encoding " + std::to_wstring(status)).c_str());
+				break;
+			}
 
 
 			
+
+			///* ################################################################ */
+
 
 			D3D11Context->ClearRenderTargetView(renderTargetView.Get(), clearColor);
 
@@ -298,6 +677,23 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 				continue;
 			}
 
+			//#########################################################################################//
+
+			D3D11Context->CSSetShaderResources(0, 1, textureView.GetAddressOf());
+			ID3D11UnorderedAccessView* UAViewsYUV[] = { UAViewY.Get(), UAViewUV.Get() };
+			D3D11Context->CSSetUnorderedAccessViews(0, 2, UAViewsYUV, nullptr);
+
+			UINT threadGroupX = (wdWidth + 15) / 16;
+			UINT threadGroupY = (wdHeight + 15) / 16;
+			D3D11Context->Dispatch(threadGroupX, threadGroupY, 1);
+
+			ID3D11ShaderResourceView* CleanupSRV[1] = { nullptr };
+			D3D11Context->CSSetShaderResources(0, 1, CleanupSRV);
+
+			ID3D11UnorderedAccessView* CleanupUAV[2] = { nullptr, nullptr };
+			D3D11Context->CSSetUnorderedAccessViews(0, 2, CleanupUAV, nullptr);
+
+			//########################################################################################################//
 
 			D3D11Context->IASetInputLayout(inputLayout.Get());
 			D3D11Context->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), &stride, &offset);
@@ -314,23 +710,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			///* ################################################################ */
 
-			
-
-			/*for (UINT y = 0; y < 1080; y++) {
-				for (UINT x = 0; x < rowPitch; x += chunkSize) { 
-					BYTE chunk[7680]; 
-					memcpy(chunk, pixelResource + (y * rowPitch) + x, chunkSize);
-					sendto(socketR, reinterpret_cast<const char*>(chunk), 7680, 0, (sockaddr*)&address, sizeof(address));
-
-				}
-			}*/
-			
-
-
-
-
-			///* ################################################################ */
-
 			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 
 			DXGIOutDuplication->ReleaseFrame();
@@ -339,91 +718,27 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	}
 
+	//NVFunctions.nvEncDestroyInputBuffer(NVEncoder, NVRegisterResource.registeredResource);
+	//NVFunctions.nvEncUnregisterResource(NVEncoder, &NVRegisterResource);
+	NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
+	NVFunctions.nvEncDestroyEncoder(NVEncoder);
 }
 
 LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	switch (uMsg) 
+	switch (uMsg)
 	{
-		case WM_DESTROY:
-			PostQuitMessage(0);
-			return 0;
-		case WM_CLOSE:
-			DestroyWindow(hwnd);
-			return 0;
-		case WM_SETCURSOR:
-			SetCursor(LoadCursor(NULL, IDC_ARROW));
-			return true;
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		return 0;
+	case WM_CLOSE:
+		DestroyWindow(hwnd);
+		return 0;
+	case WM_SETCURSOR:
+		SetCursor(LoadCursor(NULL, IDC_ARROW));
+		return true;
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
-			
-	
-void staging_texture_for_compression(ID3D11Device* D3D11Device, UINT width, UINT height) {
-	ComPtr <ID3D11Texture2D> stagingTexture;
 
 
-	D3D11_TEXTURE2D_DESC stagingBufferDesc = {};
-	stagingBufferDesc.Width = width;
-	stagingBufferDesc.Height = height;
-	stagingBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	stagingBufferDesc.Usage = D3D11_USAGE_STAGING;
-	stagingBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	stagingBufferDesc.BindFlags = 0;
-	stagingBufferDesc.SampleDesc.Count = 1;
-	stagingBufferDesc.SampleDesc.Quality = 0;
-	stagingBufferDesc.ArraySize = 1;
-	stagingBufferDesc.MipLevels = 1;
-	stagingBufferDesc.MiscFlags = 0;
 
-	D3D11Device->CreateTexture2D(&stagingBufferDesc, nullptr, stagingTexture.GetAddressOf());
-}
-
-void lz4_compression(ID3D11DeviceContext* D3D11Context, ID3D11Texture2D* stagingTexture, ID3D11Texture2D* mainBuffer) {
-
-	D3D11Context->CopyResource(stagingTexture, mainBuffer);
-
-	D3D11_MAPPED_SUBRESOURCE mappedResource;
-	D3D11Context->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
-	BYTE* pixelResource = static_cast<BYTE*>(mappedResource.pData);
-	UINT rowPitch = mappedResource.RowPitch;
-	D3D11Context->Unmap(stagingTexture, 0);
-	UINT chunkSize = 270;
-
-	std::thread t1([pixelResource] {
-		std::vector<BYTE> chunk1(4147200);
-		memcpy(chunk1.data(), pixelResource + (0 * 7680), 4147200);
-		int maxCompressedSize = LZ4_compressBound(4147200);
-		std::vector<char> compressedBuffer(maxCompressedSize);
-		int compressedSize = LZ4_compress_default(reinterpret_cast<const char*>(chunk1.data()),
-			compressedBuffer.data(),
-			4147200,
-			maxCompressedSize);
-		if (compressedSize <= 0) {
-			OutputDebugString(L"FAILED");
-		}
-		else {
-			OutputDebugString((std::to_wstring(compressedSize) + L"aaa\n").c_str());
-		}
-		});
-
-	std::thread t2([pixelResource] {
-		std::vector<BYTE> chunk1(4147200);
-		memcpy(chunk1.data(), pixelResource + (540 * 7680), 4147200);
-		int maxCompressedSize = LZ4_compressBound(4147200);
-		std::vector<char> compressedBuffer(maxCompressedSize);
-		int compressedSize = LZ4_compress_default(reinterpret_cast<const char*>(chunk1.data()),
-			compressedBuffer.data(),
-			4147200,
-			maxCompressedSize);
-		if (compressedSize <= 0) {
-			OutputDebugString(L"FAILED");
-		}
-		else {
-			OutputDebugString((std::to_wstring(compressedSize) + L"bbb\n").c_str());
-		}
-		});
-
-
-	t1.join();
-	t2.join();
-}
