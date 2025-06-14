@@ -8,7 +8,7 @@
 
 class NVENCODER {
 private:
-	void* D3DDevice;
+	void* _D3DDevice;
 	NVENCSTATUS status;
 
 	UINT bufferWidth;
@@ -25,29 +25,39 @@ private:
 	NV_ENC_CONFIG_H264 NVH264Cfg = {};
 	NV_ENC_CONFIG NVInitConfig = {};
 
+	NV_ENC_REGISTER_RESOURCE NVRegisterResource = { };
+
 	NV_ENC_CREATE_BITSTREAM_BUFFER NVOutputBufferDesc = { };
-	NV_ENC_OUTPUT_PTR NvencOutput = NVOutputBufferDesc.bitstreamBuffer;
+	NV_ENC_OUTPUT_PTR NvencOutput;
 
 public:
 	NV_ENCODE_API_FUNCTION_LIST NVFunctions = { };
 	void* NVEncoder;
 
-	NVENCODER(void* D3DDevice, ID3D11Texture2D* inputResource) {
-		void* D3DDevice = D3DDevice;
+	NVENCODER(void* D3DDevice, ID3D11Texture2D* inputResource, UINT encodeWidth, UINT encodeHeight) {
+		_D3DDevice = D3DDevice;
+		bufferWidth = encodeWidth;
+		bufferHeight = encodeHeight;
 		LoadNvencAPI();
 		OpenNvEncSession();
 		LoadDefaultInitParams();
 		NVEncoderInit();
-		ResgisterResource(inputResource);
-		void CreateBitStream();
+		RegisterResource(inputResource);
+		CreateBitStream();
 	}
 
 	void LoadNvencAPI();
 	void OpenNvEncSession();
 	void LoadDefaultInitParams();
 	void NVEncoderInit();
-	void ResgisterResource(ID3D11Texture2D* inputResource);
+	void RegisterResource(ID3D11Texture2D* inputResource);
 	void CreateBitStream();
+	void Encode();
+
+
+	NV_ENC_OUTPUT_PTR getBitstream() const { return NvencOutput; }
+	NV_ENC_REGISTER_RESOURCE getRegisteredResource() const { return NVRegisterResource; }
+
 };
 
 #endif

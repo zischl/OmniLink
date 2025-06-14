@@ -27,7 +27,7 @@ void NVENCODER::OpenNvEncSession() {
 	NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS NVSessionParams = {};
 	NVSessionParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
 	NVSessionParams.apiVersion = NVENCAPI_VERSION;
-	NVSessionParams.device = D3DDevice;
+	NVSessionParams.device = _D3DDevice;
 	NVSessionParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;
 	status = NVFunctions.nvEncOpenEncodeSessionEx(&NVSessionParams, &NVEncoder);
 
@@ -75,8 +75,7 @@ void NVENCODER::NVEncoderInit() {
 	}
 }
 
-void NVENCODER::ResgisterResource(ID3D11Texture2D* inputResource) {
-	NV_ENC_REGISTER_RESOURCE NVRegisterResource = { };
+void NVENCODER::RegisterResource(ID3D11Texture2D* inputResource) {
 	NVRegisterResource.version = NV_ENC_REGISTER_RESOURCE_VER;
 	NVRegisterResource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
 	NVRegisterResource.resourceToRegister = inputResource;
@@ -97,6 +96,65 @@ void NVENCODER::CreateBitStream() {
 
 	status = NVFunctions.nvEncCreateBitstreamBuffer(NVEncoder, &NVOutputBufferDesc);
 	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString(("RIP Encode Output Stream Buffer \n" + std::to_wstring(status)).c_str());
+		OutputDebugString(("RIP Encode Output Stream Buffer \n" + std::to_string(status)).c_str());
+	}
+	NvencOutput = NVOutputBufferDesc.bitstreamBuffer;
+}
+
+void NVENCODER::Encode() {
+	NV_ENC_MAP_INPUT_RESOURCE NVInputResource = { };
+	NVInputResource.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
+	NVInputResource.registeredResource = NVRegisterResource.registeredResource;
+	status = NVFunctions.nvEncMapInputResource(NVEncoder, &NVInputResource);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+		OutputDebugString(("RIP Input Resource Map \n" + std::to_string(status)).c_str());
+	}
+
+
+
+
+	NV_ENC_PIC_PARAMS NvencPicParams = { };
+	memset(&NvencPicParams, 0, sizeof(NV_ENC_PIC_PARAMS));
+
+	NvencPicParams.version = NV_ENC_PIC_PARAMS_VER;
+	NvencPicParams.inputWidth = bufferWidth;
+	NvencPicParams.inputHeight = bufferHeight;
+	NvencPicParams.inputBuffer = NVInputResource.mappedResource;
+	NvencPicParams.bufferFmt = NVInputResource.mappedBufferFmt;
+	NvencPicParams.outputBitstream = NvencOutput;
+	NvencPicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
+	NvencPicParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
+	NvencPicParams.completionEvent = nullptr;
+	NvencPicParams.inputPitch = bufferWidth * 4;
+
+
+
+
+	status = NVFunctions.nvEncEncodePicture((void*)NVEncoder, &NvencPicParams);
+	NVFunctions.nvEncUnmapInputResource(NVEncoder, NVInputResource.mappedResource);
+	if (status == NV_ENC_SUCCESS) {
+
+		NV_ENC_LOCK_BITSTREAM NVBitstreamLock = { };
+		NVBitstreamLock.version = NV_ENC_LOCK_BITSTREAM_VER;
+		NVBitstreamLock.outputBitstream = NvencOutput;
+		NVBitstreamLock.doNotWait = false;
+
+		status = NVFunctions.nvEncLockBitstream(NVEncoder, &NVBitstreamLock);
+		if (status != NV_ENC_SUCCESS) {
+			OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+			OutputDebugString(("\n RIP Output Lock " + std::to_string(status)).c_str());
+		}
+
+		size_t bitstreamSize = NVBitstreamLock.bitstreamSizeInBytes;
+		OutputDebugString((std::to_string(bitstreamSize) + "\n").c_str());
+
+		
+
+		NVFunctions.nvEncUnlockBitstream(NVEncoder, NvencOutput);
+	}
+	else {
+		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+		OutputDebugString(("\n RIP Encoding " + std::to_string(status)).c_str());
 	}
 }

@@ -4,6 +4,7 @@
 
 #include <SessionHandler.h>
 #include "renderer.h"
+#include <nvenc.h>
 
 #include <Windows.h>
 #include <string>
@@ -317,53 +318,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 
-	SetEnvironmentVariableA("NVENC_DBG_FILE", "C:\\Temp\\nvenc_log.txt");
+	
 
-	HMODULE ModuleHandle = LoadLibrary(L"nvencodeapi64.dll");
-	if (!ModuleHandle) {
-		OutputDebugString(L"LoadLibrary Died!! \n");
-	}
-
-#define NVENC_STATUS(call) do { \
-		NVENCSTATUS status = call; \
-		if (status != NV_ENC_SUCCESS) { \
-			OutputDebugString((L"well well.. hello there."+(std::to_wstring(status))).c_str()); \
-		} \
-	} while (0)
-
-	typedef NVENCSTATUS(NVENCAPI* PFN_NvEncodeAPICreateInstance)(NV_ENCODE_API_FUNCTION_LIST*);
-
-	auto NvEncodeAPICreateInstance = (PFN_NvEncodeAPICreateInstance)GetProcAddress(ModuleHandle, "NvEncodeAPICreateInstance");
-	if (!NvEncodeAPICreateInstance) {
-		OutputDebugString(L"Encode API Instance Creation Failed -_- \n");
-	}
-	NV_ENCODE_API_FUNCTION_LIST NVFunctions = { };
-	NVFunctions.version = NV_ENCODE_API_FUNCTION_LIST_VER;
-	NVENCSTATUS status = NvEncodeAPICreateInstance(&NVFunctions);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString(L"Encode API Function Filling Failed -_- \n");
-	}
-
-	void* NVEncoder;
-	NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS NVSessionParams = {};
-	NVSessionParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
-	NVSessionParams.apiVersion = NVENCAPI_VERSION;
-	NVSessionParams.device = (void*)D3D11Device.Get();
-	NVSessionParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;
-	status = NVFunctions.nvEncOpenEncodeSessionEx(&NVSessionParams, &NVEncoder);
-
-	if (status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
-		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-		OutputDebugString(L"Encoder did not feel like coming home. Prolly \n");
-	}
-
-	GUID NvencEncodeGUID = NV_ENC_CODEC_H264_GUID;
-	GUID NvencPresetGUID = NV_ENC_PRESET_P1_GUID;
-	NV_ENC_TUNING_INFO NvencTuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
-	GUID NvencProfileGUID = NV_ENC_H264_PROFILE_HIGH_GUID;
-
-
-	uint32_t NvencGUIDCount;
+	/*uint32_t NvencGUIDCount;
 	NVFunctions.nvEncGetEncodeGUIDCount(NVEncoder, &NvencGUIDCount);
 	std::vector<GUID> NvencGUIDs(NvencGUIDCount);
 	status = NVFunctions.nvEncGetEncodeGUIDs(NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount);
@@ -377,7 +334,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[0]) + L"\n").c_str());
 		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[1]) + L"\n").c_str());
 		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[2]) + L"\n").c_str());
-	}
+	}*/
 
 	/*uint32_t NvencPresetCount;
 	NVFunctions.nvEncGetEncodePresetCount(NVEncoder, , &NvencPresetCount);
@@ -397,7 +354,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		OutputDebugString((L"RIP Encode Profile GUID \n" + std::to_wstring(status)).c_str());
 	}*/
 
-	uint32_t NvenvInputFormatCount = 0;
+	/*uint32_t NvenvInputFormatCount = 0;
 	status = NVFunctions.nvEncGetInputFormatCount(NVEncoder, NvencEncodeGUID, &NvenvInputFormatCount);
 	if (status != NV_ENC_SUCCESS) {
 		OutputDebugString((L"RIP Encode Input Format Count \n" + std::to_wstring(status)).c_str());
@@ -407,77 +364,21 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	status = NVFunctions.nvEncGetInputFormats(NVEncoder, NvencEncodeGUID, NvBufferFormats.data(), NvenvInputFormatCount, &NvenvInputFormatCount);
 	if (status != NV_ENC_SUCCESS) {
 		OutputDebugString((L"RIP Encode Input Formats \n" + std::to_wstring(status)).c_str());
-	}
+	}*/
 
-	for (auto fmt : NvBufferFormats) {
+	/*for (auto fmt : NvBufferFormats) {
 		OutputDebugString((L"Supported Input format: " + std::to_wstring(fmt) + L"\n").c_str());
-	}
-	NV_ENC_BUFFER_FORMAT NvencBufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
-	NV_ENC_INITIALIZE_PARAMS NvInitParams = {};
-	NV_ENC_PRESET_CONFIG NVPresetConfig = {};
-	NV_ENC_CONFIG_H264 NVH264Cfg = {};
-	NV_ENC_CONFIG NVInitConfig = {};
-
-	NVPresetConfig.version = NV_ENC_PRESET_CONFIG_VER;
-	NVPresetConfig.presetCfg.version = NV_ENC_CONFIG_VER;
-	NVFunctions.nvEncGetEncodePresetConfig(NVEncoder, NvencEncodeGUID, NvencPresetGUID, &NVPresetConfig);
-
-	NVPresetConfig.presetCfg.gopLength = 1;
-	NVPresetConfig.presetCfg.encodeCodecConfig.h264Config.idrPeriod = 1;
-	NVPresetConfig.presetCfg.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
-
-	NvInitParams.encodeConfig = &NVPresetConfig.presetCfg;
-
-	
-	NvInitParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
-	NvInitParams.bufferFormat = NvencBufferFormat;
-	NvInitParams.encodeGUID = NvencEncodeGUID;
-	NvInitParams.presetGUID = NvencPresetGUID;
-	NvInitParams.tuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
-	NvInitParams.encodeWidth = wdWidth;
-	NvInitParams.encodeHeight = wdHeight;
-	NvInitParams.darWidth = wdWidth;
-	NvInitParams.darHeight = wdHeight;
-	NvInitParams.frameRateNum = 60;
-	NvInitParams.frameRateDen = 1;
-	NvInitParams.enablePTD = 1;
-	NvInitParams.enableEncodeAsync = 0;
-
-
-
-	status = NVFunctions.nvEncInitializeEncoder(NVEncoder, &NvInitParams);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-		OutputDebugString((L" RIP Encoder Init " + std::to_wstring(status) + L"\n").c_str());
-	}
-
-	NV_ENC_REGISTER_RESOURCE NVRegisterResource = { };
-	NVRegisterResource.version = NV_ENC_REGISTER_RESOURCE_VER;
-	NVRegisterResource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
-	NVRegisterResource.resourceToRegister = NvencBuffer.Get();
-	NVRegisterResource.width = wdWidth;
-	NVRegisterResource.height = wdHeight;
-	NVRegisterResource.bufferFormat = NvencBufferFormat;
-	NVRegisterResource.pitch = wdWidth*4;
-
-	status = NVFunctions.nvEncRegisterResource(NVEncoder, &NVRegisterResource);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-		OutputDebugString((L"RIP Encoder Input Resource Marriage \n" + std::to_wstring(status)).c_str());
-	}
-
-
-	NV_ENC_CREATE_BITSTREAM_BUFFER NVOutputBufferDesc = { };
-	NVOutputBufferDesc.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
+	}*/
 	
 
-	status = NVFunctions.nvEncCreateBitstreamBuffer(NVEncoder, &NVOutputBufferDesc);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString((L"RIP Encode Output Stream Buffer \n" + std::to_wstring(status)).c_str());
-	}
-	NV_ENC_OUTPUT_PTR NvencOutput = NVOutputBufferDesc.bitstreamBuffer;
 
+	NVENCSTATUS status;
+	NVENCODER Nv((void*) D3D11Device.Get(), NvencBuffer.Get(), wdWidth, wdHeight);
 
+	auto NVFunctions = Nv.NVFunctions;
+	auto NVEncoder = Nv.NVEncoder;
+	NV_ENC_OUTPUT_PTR NvencOutput = Nv.getBitstream();
+	NV_ENC_REGISTER_RESOURCE NVRegisterResource = Nv.getRegisteredResource();
 
 	/*##############################################################*/
 
@@ -588,68 +489,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			D3D11Context->CopyResource(NvencBuffer.Get(), tempBuffer.Get());
 
-
-			NV_ENC_MAP_INPUT_RESOURCE NVInputResource = { };
-			NVInputResource.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
-			NVInputResource.registeredResource = NVRegisterResource.registeredResource;
-			status = NVFunctions.nvEncMapInputResource(NVEncoder, &NVInputResource);
-			if (status != NV_ENC_SUCCESS) {
-				OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-				OutputDebugString((L"RIP Input Resource Map \n" + std::to_wstring(status)).c_str());
-			}
-
-			
+			Nv.Encode();
 			
 
-			NV_ENC_PIC_PARAMS NvencPicParams = { };
-			memset(&NvencPicParams, 0, sizeof(NV_ENC_PIC_PARAMS));
-
-			NvencPicParams.version = NV_ENC_PIC_PARAMS_VER;
-			NvencPicParams.inputWidth = wdWidth;
-			NvencPicParams.inputHeight = wdHeight;
-			NvencPicParams.inputBuffer = NVInputResource.mappedResource;
-			NvencPicParams.bufferFmt = NVInputResource.mappedBufferFmt;
-			NvencPicParams.outputBitstream = NvencOutput;
-			NvencPicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-			NvencPicParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
-			NvencPicParams.completionEvent = nullptr;
-			NvencPicParams.inputPitch = wdWidth * 4;
-
-
-
-
-			status = NVFunctions.nvEncEncodePicture((void*) NVEncoder, &NvencPicParams);
-			NVFunctions.nvEncUnmapInputResource(NVEncoder, NVInputResource.mappedResource);
-			if (status == NV_ENC_SUCCESS) {
-
-				NV_ENC_LOCK_BITSTREAM NVBitstreamLock = { };
-				NVBitstreamLock.version = NV_ENC_LOCK_BITSTREAM_VER;
-				NVBitstreamLock.outputBitstream = NvencOutput;
-				NVBitstreamLock.doNotWait = false;
-
-				status = NVFunctions.nvEncLockBitstream(NVEncoder, &NVBitstreamLock);
-				if (status != NV_ENC_SUCCESS) {
-					OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-					OutputDebugString((L"\n RIP Output Lock " + std::to_wstring(status)).c_str());
-				}
-
-				size_t bitstreamSize = NVBitstreamLock.bitstreamSizeInBytes;
-				OutputDebugString((std::to_wstring(bitstreamSize)+ L"\n").c_str());
-
-				nvenc_output_test(NVBitstreamLock, "bleh1.h264");
-				nvenc_output_test(NVBitstreamLock, "bleh2.h264");
-				nvenc_output_test(NVBitstreamLock, "bleh3.h264");
-				nvenc_output_test(NVBitstreamLock, "bleh4.h264");
-
-				NVFunctions.nvEncUnlockBitstream(NVEncoder, NvencOutput);
-			}
-			else {
-				OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-				OutputDebugString((L"\n RIP Encoding " + std::to_wstring(status)).c_str());
-				break;
-			}
-
-
+			/*nvenc_output_test(NVBitstreamLock, "bleh1.h264");
+			nvenc_output_test(NVBitstreamLock, "bleh2.h264");
+			nvenc_output_test(NVBitstreamLock, "bleh3.h264");
+			nvenc_output_test(NVBitstreamLock, "bleh4.h264");*/
 			
 
 			///* ################################################################ */
