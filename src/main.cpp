@@ -4,6 +4,10 @@
 #include <chrono>
 #include <unordered_set>
 
+class connections {
+    
+};
+
 void create_listener(asio::ip::tcp::socket& socket) {
     uint32_t length;
     std::vector<char> buffer;
