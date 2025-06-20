@@ -36,18 +36,16 @@ include_directories(G:/git/vcpkg/vcpkg/installed/x64-windows)
 
 set(NVENC_SDK "${CMAKE_CURRENT_SOURCE_DIR}/Nvenc")
 
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/x64)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-add_executable(dxgi WIN32 src/dxgi.cpp "src/renderer.cpp" src/SessionHandler.cpp "src/nvenc.cpp")
+add_executable(dxgi WIN32 src/dxgi.cpp src/renderer.cpp src/SessionHandler.cpp src/nvenc.cpp src/nvdec.cpp)
 
-#add_executable(main src/main.cpp src/SessionHandler.cpp)
-#target_compile_definitions(main PRIVATE _WIN32_WINNT=0x0601)
 
 add_dependencies(dxgi CompileShaders)
 
 
 #lz4 shit
 find_package(lz4 CONFIG REQUIRED)
-target_link_libraries(dxgi PRIVATE lz4::lz4 ${NVENC_SDK}/Lib/x64/nvencodeapi.lib)
+target_link_libraries(dxgi PRIVATE lz4::lz4)

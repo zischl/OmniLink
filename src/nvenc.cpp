@@ -1,7 +1,21 @@
 #include "nvenc.h"
 
+NVENCODER::NVENCODER(void* D3DDevice, ID3D11Texture2D* inputResource, UINT encodeWidth, UINT encodeHeight) {
+		_D3DDevice = D3DDevice;
+		bufferWidth = encodeWidth;
+		bufferHeight = encodeHeight;
 
-void NVENCODER::LoadNvencAPI() {
+		LoadNvEncodeAPI();
+
+
+		OpenNvEncSession();
+		LoadDefaultInitParams();
+		NVEncoderInit();
+		RegisterResource(inputResource);
+		CreateBitStream();
+	}
+
+void NVENCODER::LoadNvEncodeAPI() {
 	HMODULE API_Handle = LoadLibrary("nvencodeapi64.dll");
 	if (!API_Handle) {
 		OutputDebugString("\n LoadLibrary Died!!");
@@ -21,6 +35,8 @@ void NVENCODER::LoadNvencAPI() {
 	if (status != NV_ENC_SUCCESS) {
 		OutputDebugString("Encode API Function Filling Failed -_- \n");
 	}
+
+
 }
 
 void NVENCODER::OpenNvEncSession() {
@@ -135,7 +151,7 @@ void NVENCODER::Encode() {
 	NVFunctions.nvEncUnmapInputResource(NVEncoder, NVInputResource.mappedResource);
 	if (status == NV_ENC_SUCCESS) {
 
-		NV_ENC_LOCK_BITSTREAM NVBitstreamLock = { };
+		NVBitstreamLock = { };
 		NVBitstreamLock.version = NV_ENC_LOCK_BITSTREAM_VER;
 		NVBitstreamLock.outputBitstream = NvencOutput;
 		NVBitstreamLock.doNotWait = false;
@@ -146,15 +162,81 @@ void NVENCODER::Encode() {
 			OutputDebugString(("\n RIP Output Lock " + std::to_string(status)).c_str());
 		}
 
-		size_t bitstreamSize = NVBitstreamLock.bitstreamSizeInBytes;
-		OutputDebugString((std::to_string(bitstreamSize) + "\n").c_str());
+
 
 		
-
-		NVFunctions.nvEncUnlockBitstream(NVEncoder, NvencOutput);
 	}
 	else {
 		OutputDebugStringA(NVFunctions.nvEncGetLastErrorString(NVEncoder));
 		OutputDebugString(("\n RIP Encoding " + std::to_string(status)).c_str());
 	}
+}
+
+
+void NVENCODER::NVUnlockBitStream() {
+	NVFunctions.nvEncUnlockBitstream(NVEncoder, NvencOutput);
+}
+
+void NVENCODER::GetSupportedCodecGUIDs(){
+	uint32_t NvencGUIDCount;
+	NVFunctions.nvEncGetEncodeGUIDCount(NVEncoder, &NvencGUIDCount);
+	std::vector<GUID> NvencGUIDs(NvencGUIDCount);
+	status = NVFunctions.nvEncGetEncodeGUIDs(NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString("RIP Encode GUIDS \n");
+	}
+	for (GUID guid : NvencGUIDs) {
+		OutputDebugString(("Supported format: " + std::to_string(guid.Data1) + "\n").c_str());
+		OutputDebugString(("Supported format: " + std::to_string(guid.Data2) + "\n").c_str());
+		OutputDebugString(("Supported format: " + std::to_string(guid.Data3) + "\n").c_str());
+		OutputDebugString(("Supported format: " + std::to_string(guid.Data4[0]) + "\n").c_str());
+		OutputDebugString(("Supported format: " + std::to_string(guid.Data4[1]) + "\n").c_str());
+		OutputDebugString(("Supported format: " + std::to_string(guid.Data4[2]) + "\n").c_str());
+	}
+}
+
+void NVENCODER::GetAvailablePresetGUIDs(){
+	uint32_t NvencPresetCount;
+	/*NVFunctions.nvEncGetEncodePresetCount(NVEncoder, , &NvencPresetCount);
+	GUID NVPresetGUIDs;
+	status = NVFunctions.nvEncGetEncodePresetGUIDs(NVEncoder, NvencEncodeGUID, &NVPresetGUIDs, NvencPresetCount, &NvencPresetCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString("RIP Encode Preset GUIDS \n");
+	}*/
+}
+
+void NVENCODER::GetAvailableProfileGUIDs(){
+	uint32_t NvenvProfileGUIDCount;
+	GUID NvProfileGUIDs;
+	NVFunctions.nvEncGetEncodeProfileGUIDCount(NVEncoder, NvencEncodeGUID, &NvenvProfileGUIDCount);
+	status = NVFunctions.nvEncGetEncodeProfileGUIDs(NVEncoder, NvencEncodeGUID, &NvProfileGUIDs, NvenvProfileGUIDCount, &NvenvProfileGUIDCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString(("RIP Encode Profile GUID \n" + std::to_string(status)).c_str());
+	}
+}
+
+void NVENCODER::GetSupportedInputFormats(){
+	uint32_t NvenvInputFormatCount = 0;
+	status = NVFunctions.nvEncGetInputFormatCount(NVEncoder, NvencEncodeGUID, &NvenvInputFormatCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString(("RIP Encode Input Format Count \n" + std::to_string(status)).c_str());
+	}
+
+	std::vector<NV_ENC_BUFFER_FORMAT> NvBufferFormats(NvenvInputFormatCount);
+	status = NVFunctions.nvEncGetInputFormats(NVEncoder, NvencEncodeGUID, NvBufferFormats.data(), NvenvInputFormatCount, &NvenvInputFormatCount);
+	if (status != NV_ENC_SUCCESS) {
+		OutputDebugString(("RIP Encode Input Formats \n" + std::to_string(status)).c_str());
+	}
+
+	for (auto fmt : NvBufferFormats) {
+		OutputDebugString(("Supported Input format: " + std::to_string(fmt) + "\n").c_str());
+	}
+}
+
+
+void NVENCODER::NVCleanup(){
+	NVFunctions.nvEncDestroyInputBuffer(NVEncoder, NVRegisterResource.registeredResource);
+	NVFunctions.nvEncUnregisterResource(NVEncoder, &NVRegisterResource);
+	NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
+	NVFunctions.nvEncDestroyEncoder(NVEncoder);
 }

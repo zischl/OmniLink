@@ -2,9 +2,10 @@
 #define UNICODE
 #endif
 
-#include <SessionHandler.h>
+#include "SessionHandler.h"
 #include "renderer.h"
-#include <nvenc.h>
+#include "nvenc.h"
+#include "nvdec.h"
 
 #include <Windows.h>
 #include <string>
@@ -27,8 +28,6 @@
 #include <thread>
 #include <nvEncodeAPI.h>
 #pragma comment(lib, "nvencodeapi.lib")
-//#include <NvEncoder.h>
-//#include <NvEncoderD3D11.h>
 
 
 void nvenc_output_test(NV_ENC_LOCK_BITSTREAM& NVBitstreamLock, const char* fileName) {
@@ -290,6 +289,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 	ComPtr<ID3D11Texture2D> tempBuffer;
+
+	hr = D3D11Device->CreateRenderTargetView(mainBuffer.Get(), nullptr, &renderTargetView);
+	if (FAILED(hr)) {
+		OutputDebugString(L"RTV Creation Failed. \n");
+	}
+
+	/*#####################################################################################################*/
+
 	ComPtr<ID3D11Texture2D> NvencBuffer;
 	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
 	custommainBufferDesc.Width = wdWidth;
@@ -303,84 +310,17 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	custommainBufferDesc.MipLevels = 1;
 	custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
 
-
 	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, NvencBuffer.GetAddressOf());
 
 
 
+	NVENCODER Nv((void*)D3D11Device.Get(), NvencBuffer.Get(), wdWidth, wdHeight);
 
+	/*#####################################################################################################*/
 
+	NVDecoder NVDecoder(wdWidth, wdHeight);
 
-	hr = D3D11Device->CreateRenderTargetView(mainBuffer.Get(), nullptr, &renderTargetView);
-	if (FAILED(hr)) {
-		OutputDebugString(L"RTV Creation Failed. \n");
-	}
-
-
-
-	
-
-	/*uint32_t NvencGUIDCount;
-	NVFunctions.nvEncGetEncodeGUIDCount(NVEncoder, &NvencGUIDCount);
-	std::vector<GUID> NvencGUIDs(NvencGUIDCount);
-	status = NVFunctions.nvEncGetEncodeGUIDs(NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString(L"RIP Encode GUIDS \n");
-	}
-	for (GUID guid : NvencGUIDs) {
-		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data1) + L"\n").c_str());
-		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data2) + L"\n").c_str());
-		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data3) + L"\n").c_str());
-		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[0]) + L"\n").c_str());
-		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[1]) + L"\n").c_str());
-		OutputDebugString((L"Supported format: " + std::to_wstring(guid.Data4[2]) + L"\n").c_str());
-	}*/
-
-	/*uint32_t NvencPresetCount;
-	NVFunctions.nvEncGetEncodePresetCount(NVEncoder, , &NvencPresetCount);
-	GUID NVPresetGUIDs;
-	status = NVFunctions.nvEncGetEncodePresetGUIDs(NVEncoder, NvencEncodeGUID, &NVPresetGUIDs, NvencPresetCount, &NvencPresetCount);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString(L"RIP Encode Preset GUIDS \n");
-	}*/
-
-
-
-	/*uint32_t NvenvProfileGUIDCount;
-	GUID NvProfileGUIDs;
-	NVFunctions.nvEncGetEncodeProfileGUIDCount(NVEncoder, NvencEncodeGUID, &NvenvProfileGUIDCount);
-	status = NVFunctions.nvEncGetEncodeProfileGUIDs(NVEncoder, NvencEncodeGUID, &NvProfileGUIDs, NvenvProfileGUIDCount, &NvenvProfileGUIDCount);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString((L"RIP Encode Profile GUID \n" + std::to_wstring(status)).c_str());
-	}*/
-
-	/*uint32_t NvenvInputFormatCount = 0;
-	status = NVFunctions.nvEncGetInputFormatCount(NVEncoder, NvencEncodeGUID, &NvenvInputFormatCount);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString((L"RIP Encode Input Format Count \n" + std::to_wstring(status)).c_str());
-	}
-
-	std::vector<NV_ENC_BUFFER_FORMAT> NvBufferFormats(NvenvInputFormatCount);
-	status = NVFunctions.nvEncGetInputFormats(NVEncoder, NvencEncodeGUID, NvBufferFormats.data(), NvenvInputFormatCount, &NvenvInputFormatCount);
-	if (status != NV_ENC_SUCCESS) {
-		OutputDebugString((L"RIP Encode Input Formats \n" + std::to_wstring(status)).c_str());
-	}*/
-
-	/*for (auto fmt : NvBufferFormats) {
-		OutputDebugString((L"Supported Input format: " + std::to_wstring(fmt) + L"\n").c_str());
-	}*/
-	
-
-
-	NVENCSTATUS status;
-	NVENCODER Nv((void*) D3D11Device.Get(), NvencBuffer.Get(), wdWidth, wdHeight);
-
-	auto NVFunctions = Nv.NVFunctions;
-	auto NVEncoder = Nv.NVEncoder;
-	NV_ENC_OUTPUT_PTR NvencOutput = Nv.getBitstream();
-	NV_ENC_REGISTER_RESOURCE NVRegisterResource = Nv.getRegisteredResource();
-
-	/*##############################################################*/
+	/*#####################################################################################################*/
 
 	ComPtr<ID3D11Texture2D> PlaneYTexture;
 	ComPtr<ID3D11Texture2D> PlaneUVTexture;
@@ -490,6 +430,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			D3D11Context->CopyResource(NvencBuffer.Get(), tempBuffer.Get());
 
 			Nv.Encode();
+
+			//OutputDebugString((std::to_wstring(Nv.NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
+
+			NVDecoder.NVDecode(reinterpret_cast<const unsigned char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes);
+
+			Nv.NVUnlockBitStream();
 			
 
 			/*nvenc_output_test(NVBitstreamLock, "bleh1.h264");
@@ -564,10 +510,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	}
 
-	//NVFunctions.nvEncDestroyInputBuffer(NVEncoder, NVRegisterResource.registeredResource);
-	//NVFunctions.nvEncUnregisterResource(NVEncoder, &NVRegisterResource);
-	NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
-	NVFunctions.nvEncDestroyEncoder(NVEncoder);
+	Nv.NVCleanup();
 }
 
 LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
