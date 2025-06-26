@@ -1,8 +1,10 @@
-cmake_minimum_required(VERSION 3.15)
-project(OmniLink)
+cmake_minimum_required(VERSION 3.18)
+project(OmniLink LANGUAGES CXX CUDA)
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
-set(CMAKE_CXX_STANDARD 17)
+#set(CMAKE_CXX_STANDARD 17)
+cmake_policy(SET CMP0104 NEW)
+set(CMAKE_CUDA_ARCHITECTURES 50 52 60 61 70 75 80 86 89 90 100 120)
 
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/debug/VertexShader.cso
@@ -38,14 +40,15 @@ set(NVENC_SDK "${CMAKE_CURRENT_SOURCE_DIR}/Nvenc")
 
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/x64)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/cuda)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-add_executable(dxgi WIN32 src/dxgi.cpp src/renderer.cpp src/SessionHandler.cpp src/nvenc.cpp src/nvdec.cpp)
+add_executable(main WIN32 "src/main.cpp" src/renderer.cpp src/SessionHandler.cpp src/nvenc.cpp src/nvdec.cpp src/CuKernel.cu)
 
-
-add_dependencies(dxgi CompileShaders)
+set_target_properties(main PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 14)
+add_dependencies(main CompileShaders)
 
 
 #lz4 shit
 find_package(lz4 CONFIG REQUIRED)
-target_link_libraries(dxgi PRIVATE lz4::lz4)
+target_link_libraries(main PRIVATE lz4::lz4)
