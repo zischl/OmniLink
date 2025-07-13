@@ -268,10 +268,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	sessions sessions;
 	sessions._init_winsock();
-	sockaddr_in address = sessions._create_address("192.168.1.7", 62485);
-	SOCKET socketR = sessions._create_socket();
+	//sockaddr_in address = sessions._create_address("192.168.1.7", 62485);
+	//SOCKET socketR = sessions._create_socket();
+	char* buffer = "bleh";
+	sessions.CreateConnection("192.168.1.7", 62485, buffer);
 	int packetSize = 1920 * 1080 * 4;
-	const char* buffer = "bleh";
 
 	///* ################################################################ */
 
@@ -453,10 +454,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			//#############################################################################################//
 
 			D3D11Context->CopyResource(NvencBuffer.Get(), tempBuffer.Get());
-
+					
 			Nv.Encode();
 
-			//OutputDebugString((std::to_wstring(Nv.NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
+			OutputDebugString((std::to_wstring(Nv.NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
+
+			sessions.ChunkedSend(reinterpret_cast<char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes, 1400);
 
 			NVDecoder.NVDecode(reinterpret_cast<const unsigned char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes);
 
@@ -524,6 +527,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 
 			DXGIOutDuplication->ReleaseFrame();
+
 
 		}
 

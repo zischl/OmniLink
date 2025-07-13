@@ -1,11 +1,6 @@
 #include "SessionHandler.h"
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <stdio.h>
-#include <string>
 
-#pragma comment(lib, "Ws2_32.lib")
 
 
 int sessions::_init_winsock() {
@@ -38,6 +33,10 @@ SOCKET sessions::_create_socket() {
 
 
 }
+
+
+
+
 int sessions::_requestHandshake() {
 	return 0;
 }
@@ -49,4 +48,100 @@ int sessions::_establishLink() {
 }
 int  sessions::openSession() {
 	return 0;
+}
+
+std::string _GetLocalAddr() {
+	return "192.168.1.59";
+}
+
+void sessions::RegIOCP(SOCKET& socket) {
+	if (IOCP == NULL) {
+		ULONG_PTR CompletionKey = 0;
+		IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 1);
+		if (IOCP == NULL) {
+			OutputDebugString("IOCP Port Creation Failed Successfully\n");
+		}
+	}
+
+	std::thread StatusQueue([this]
+		{
+			while (true) {
+				DWORD BufferSize = 0;
+				ULONG_PTR EventKey = 0;
+				OVERLAPPED* OVStruct = nullptr;
+
+				bool WSResult = GetQueuedCompletionStatus(IOCP, &BufferSize, &EventKey, &OVStruct, INFINITE);
+				if (!WSResult)
+				{
+					OutputDebugString("Completion Status Get False\n");
+					if (OVStruct != nullptr) {
+						OutputDebugString("Completion Status Get Failed\n");
+						continue;
+					}
+					else {
+						OutputDebugString("IOCP Thread Going Down...\n");
+						break;
+					}
+				}
+			}
+		}
+			);
+
+	StatusQueue.detach();
+}
+
+void sessions::CreateConnection(PCSTR IP, unsigned short port, CHAR* data) {
+
+	address;
+	address.sin_family = AF_INET;
+	address.sin_port = htons(port);
+	inet_pton(AF_INET, IP, &address.sin_addr);
+
+	int wsResult;
+	socketR = INVALID_SOCKET;
+
+	socketR = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
+	if (socketR == INVALID_SOCKET) {
+		WSACleanup();
+	}
+
+
+	/*int BindError;
+	BindError = bind(socketR, (sockaddr*) &address, sizeof(address));
+	if (BindError == 0) {
+		OutputDebugString("Bind Failed Successfully\n");
+	}*/
+
+
+
+	RegIOCP(socketR);
+
+
+
+
+}
+
+void sessions::ChunkedSend(CHAR* data, int data_size, int MTU) {
+
+	int MTU_slices = data_size - (data_size % MTU);
+
+	for (int offset = 0; offset > MTU_slices; offset += MTU) {
+		WSABUF TransmitBuffer;
+		TransmitBuffer.buf = data + offset;
+		TransmitBuffer.len = MTU;
+
+		OVERLAPPED OVStruct = {};
+
+		WSASendTo(socketR, &TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &OVStruct, NULL);
+
+	}
+
+	WSABUF TransmitBuffer;
+	TransmitBuffer.buf = data + MTU_slices;
+	TransmitBuffer.len = data_size % MTU;
+
+	OVERLAPPED OVStruct = {};
+
+	WSASendTo(socketR, &TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &OVStruct, NULL);
+
 }
