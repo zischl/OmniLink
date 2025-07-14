@@ -88,9 +88,10 @@ void sessions::RegIOCP(SOCKET& socket) {
 			);
 
 	StatusQueue.detach();
+
 }
 
-void sessions::CreateConnection(PCSTR IP, unsigned short port, CHAR* data) {
+void sessions::CreateConnection(PCSTR IP, unsigned short port) {
 
 	address;
 	address.sin_family = AF_INET;
@@ -125,23 +126,36 @@ void sessions::ChunkedSend(CHAR* data, int data_size, int MTU) {
 
 	int MTU_slices = data_size - (data_size % MTU);
 
-	for (int offset = 0; offset > MTU_slices; offset += MTU) {
-		WSABUF TransmitBuffer;
-		TransmitBuffer.buf = data + offset;
-		TransmitBuffer.len = MTU;
+	for (int offset = 0; offset < MTU_slices; offset += MTU) {
 
-		OVERLAPPED OVStruct = {};
+		TransmitStruct* TrsBfrStruct = new TransmitStruct;
 
-		WSASendTo(socketR, &TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &OVStruct, NULL);
+		TrsBfrStruct->TransmitBuffer = {};
+		TrsBfrStruct->TransmitBuffer.buf = data + offset;
+		TrsBfrStruct->TransmitBuffer.len = MTU;
 
+		TrsBfrStruct->OVStruct = {};
+
+		
+		if (WSASendTo(socketR, &TrsBfrStruct->TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &TrsBfrStruct->OVStruct, NULL) == SOCKET_ERROR) {
+			int err = WSAGetLastError();
+			if (err != ERROR_IO_PENDING)
+			{
+				OutputDebugString((std::to_string(err) + "\n").c_str());
+			}
+		}
 	}
 
-	WSABUF TransmitBuffer;
-	TransmitBuffer.buf = data + MTU_slices;
-	TransmitBuffer.len = data_size % MTU;
+	TransmitStruct* TrsBfrStruct = new TransmitStruct;
 
-	OVERLAPPED OVStruct = {};
+	TrsBfrStruct->TransmitBuffer = {};
+	TrsBfrStruct->OVStruct = {};
+	
+	TrsBfrStruct->TransmitBuffer.buf = data + MTU_slices;
+	TrsBfrStruct->TransmitBuffer.len = data_size % MTU;
 
-	WSASendTo(socketR, &TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &OVStruct, NULL);
+	TrsBfrStruct->OVStruct = {};
+
+	WSASendTo(socketR, &TrsBfrStruct->TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &TrsBfrStruct->OVStruct, NULL);
 
 }

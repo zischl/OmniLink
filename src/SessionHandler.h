@@ -37,6 +37,11 @@ private:
 		OVERLAPPED* OVStruct;
 	};
 
+	struct TransmitStruct {
+		WSABUF TransmitBuffer;
+		OVERLAPPED OVStruct;
+	 };
+
 
 public:
 	sockaddr_in address;
@@ -45,7 +50,7 @@ public:
 	int _init_winsock();
 	sockaddr_in _create_address(PCSTR IP, unsigned short port);
 	SOCKET _create_socket();
-	void CreateConnection(PCSTR IP, unsigned short port, CHAR* data);
+	void CreateConnection(PCSTR IP, unsigned short port);
 	void ChunkedSend(CHAR* data, int data_size, int MTU);
 	int  openSession();
 	
