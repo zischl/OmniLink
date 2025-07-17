@@ -270,7 +270,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	sessions._init_winsock();
 	//sockaddr_in address = sessions._create_address("192.168.1.7", 62485);
 	//SOCKET socketR = sessions._create_socket();
-	sessions.CreateConnection("192.168.1.7", 62485);
+	sessions.CreateSesssionIOCP("192.168.1.7", 62485);
+	sessions.GetLocals();
 	int packetSize = 1920 * 1080 * 4;
 
 	///* ################################################################ */
@@ -456,11 +457,11 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 					
 			Nv.Encode();
 
-			OutputDebugString((std::to_wstring(Nv.NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
+			//OutputDebugString((std::to_wstring(Nv.NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
 
 			sessions.ChunkedSend(reinterpret_cast<char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes, 1400);
 
-			//NVDecoder.NVDecode(reinterpret_cast<const unsigned char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes);
+			NVDecoder.NVDecode(reinterpret_cast<const unsigned char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes);
 
 			Nv.NVUnlockBitStream();
 

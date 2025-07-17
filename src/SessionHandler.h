@@ -6,16 +6,25 @@
 #pragma once
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <iphlpapi.h>
 #include <stdio.h>
 #include <string>
 #include <thread>
 
 #pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "IPHLPAPI.lib")
+
+#define MEMALLOC(size) HeapAlloc(GetProcessHeap(), 0, size)
+#define FREE(size) HeapFree(GetProcessHeap(), 0, size)
 
 
 class sessions {
 private:
+	int WSResult;
 	WSADATA wsaData;
+	PIP_ADAPTER_ADDRESSES locals;
+	ULONG locals_size = 15000;
+
 	int _requestHandshake();
 	int _verifyHandshake();
 	int _establishLink();
@@ -28,18 +37,11 @@ private:
 		OP_SEND
 	};
 
-	struct BufferContext {
-		sockaddr_in address;
-		int addrLen;
-		WSABUF Buffer;
-		char BufferData[1400];
-		BufferType Type;
-		OVERLAPPED* OVStruct;
-	};
 
 	struct TransmitStruct {
-		WSABUF TransmitBuffer;
 		OVERLAPPED OVStruct;
+		WSABUF TransmitBuffer;
+		BufferType Type;
 	 };
 
 
@@ -50,9 +52,11 @@ public:
 	int _init_winsock();
 	sockaddr_in _create_address(PCSTR IP, unsigned short port);
 	SOCKET _create_socket();
-	void CreateConnection(PCSTR IP, unsigned short port);
+
+	void GetLocals();
+	void CreateSesssionIOCP(PCSTR IP, unsigned short port);
+	void InitReceiver(unsigned int port);
 	void ChunkedSend(CHAR* data, int data_size, int MTU);
-	int  openSession();
 	
 };
 
