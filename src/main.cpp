@@ -441,7 +441,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
-		}
+		}		
 
 		DXGI_OUTDUPL_FRAME_INFO frameinfo;
 		ComPtr<IDXGIResource> framepixeldata;

@@ -43,7 +43,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/cuda)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-add_executable(main WIN32 "src/main.cpp" src/renderer.cpp src/SessionHandler.cpp src/nvenc.cpp src/nvdec.cpp src/CuKernel.cu)
+add_executable(main WIN32 "src/main.cpp" src/renderer.cpp src/SessionHandler.cpp src/nvenc.cpp src/nvdec.cpp src/CuKernel.cu "src/WinForge.cpp")
 
 set_target_properties(main PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 14)
 add_dependencies(main CompileShaders)
