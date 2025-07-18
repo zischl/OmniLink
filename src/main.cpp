@@ -6,6 +6,7 @@
 #include "renderer.h"
 #include "nvenc.h"
 #include "nvdec.h"
+#include "WinForge.h"
 
 #include <Windows.h>
 #include <string>
@@ -108,40 +109,10 @@ LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR pCmdLine, _In_ int nCmdShow)
 {
-	const wchar_t CLASS_NAME[] = L"Test Window";
 
 	unsigned int wdWidth = 1920;
 	unsigned int wdHeight = 1080;
-
-	WNDCLASS wc = {};
-	wc.lpfnWndProc = WProc;
-	wc.hInstance = hInstance;
-	wc.lpszClassName = CLASS_NAME;
-	RegisterClass(&wc);
-
-	HWND hwnd = CreateWindowEx(
-		0,
-		CLASS_NAME,
-		L"too ez",
-		WS_OVERLAPPEDWINDOW,
-		0,
-		0,
-		wdWidth,
-		wdHeight,
-		NULL,
-		NULL,
-		hInstance,
-		NULL
-	);
-
-	if (hwnd == NULL)
-	{
-		return 0;
-	}
-
-	ShowWindow(hwnd, nCmdShow);
-
-
+	HWND hwnd = CreateWindowAsync(L'Test Window', WProc, hInstance, nCmdShow);
 
 	/*##############################################################*/
 
