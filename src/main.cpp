@@ -16,7 +16,7 @@
 #include <iostream>
 #include <fstream>
 #include <d3d11.h>
-#include <dxgi1_2.h>
+#include <dxgi1_5.h>
 #include <d3dcompiler.h>
 #include <directxmath.h>
 #include <dcomp.h>
@@ -116,16 +116,28 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	/*##############################################################*/
 
-	Renderer Renderer(hwnd, wdWidth, wdHeight, true);
-	ComPtr<ID3D11Device> D3D11Device = Renderer.getDevice();
-	ComPtr<ID3D11DeviceContext> D3D11Context = Renderer.getContext();
-	ComPtr<IDXGISwapChain> swapchain = Renderer.getSwapchain();
-	ComPtr<ID3D11RenderTargetView> renderTargetView = Renderer.getRTV();
-	ComPtr<ID3D11Texture2D> mainBuffer = Renderer.getMainBuffer();
+	Renderer Renderer;
+	HWNDxD3D11 RendererPtrs = Renderer.RendererInit(hwnd, wdWidth, wdHeight);
+	ID3D11Device* D3D11Device = RendererPtrs.D3D11Device.Get();
+	ID3D11DeviceContext* D3D11Context = RendererPtrs.D3D11Context.Get();
+	IDXGISwapChain3* swapchain = RendererPtrs.swapchain.Get();
+	ID3D11RenderTargetView* renderTargetView = RendererPtrs.renderTargetView.Get();
+
+	HWNDxShaders ShaderPtrs = Renderer.ShadersInit(D3D11Device);
+	ID3D11PixelShader* pixelShader = ShaderPtrs.pixelShader.Get();
+	ID3D11VertexShader* vertexShader = ShaderPtrs.vertexShader.Get();
+	ID3D11Buffer* vertexBuffer = ShaderPtrs.vertexBuffer.Get();
+	ID3D11InputLayout* inputLayout = ShaderPtrs.inputLayout.Get();
+	ID3D11Buffer* IndexBuffer = ShaderPtrs.IndexBuffer.Get();
+	ID3D11SamplerState* sampler = ShaderPtrs.sampler.Get();
+
+	UINT stride = ShaderPtrs.VertexBufferStride;
+	UINT offset = ShaderPtrs.VertexBufferOffset;
+
 	/*##############################################################*/
 
 	ComPtr<IDXGIDevice> DXGIDevice;
-	D3D11Device.As(&DXGIDevice);
+	RendererPtrs.D3D11Device.As(&DXGIDevice);
 
 	ComPtr<IDXGIAdapter> DXGIAdapter;
 	DXGIDevice->GetAdapter(&DXGIAdapter);
@@ -137,97 +149,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	DXGIOutput.As(&DXGIOutputEnhanced);
 
 	ComPtr<IDXGIOutputDuplication> DXGIOutDuplication;
-	HRESULT hr = DXGIOutputEnhanced->DuplicateOutput(D3D11Device.Get(), &DXGIOutDuplication);
+	HRESULT hr = DXGIOutputEnhanced->DuplicateOutput(D3D11Device, &DXGIOutDuplication);
+
+	ComPtr<ID3D11Texture2D> tempBuffer = nullptr;
 
 	/*##############################################################*/
 
-	ComPtr<ID3DBlob> pixelShaderBlob = nullptr;
-	D3DReadFileToBlob(L"PixelShader.cso", &pixelShaderBlob);
-
-	ComPtr<ID3DBlob> vertexShaderBlob = nullptr;
-	D3DReadFileToBlob(L"VertexShader.cso", &vertexShaderBlob);
-
-
-	ComPtr<ID3D11PixelShader> pixelShader = nullptr;
-	D3D11Device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(),
-		pixelShaderBlob->GetBufferSize(),
-		nullptr, &pixelShader);
-
-	ComPtr<ID3D11VertexShader> vertexShader = nullptr;
-	D3D11Device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(),
-		vertexShaderBlob->GetBufferSize(),
-		nullptr, &vertexShader);
-
-	D3D11_INPUT_ELEMENT_DESC layout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-	UINT numElements = ARRAYSIZE(layout);
-
-
-	ComPtr<ID3D11InputLayout> inputLayout;
-	D3D11Device->CreateInputLayout(layout, ARRAYSIZE(layout), vertexShaderBlob->GetBufferPointer(),
-		vertexShaderBlob->GetBufferSize(), &inputLayout);
-
-
 	/*##############################################################*/
-
-	struct Vertex {
-		DirectX::XMFLOAT3 POSITION;
-		DirectX::XMFLOAT2 TEXCOORD;
-	};
-
-
-	Vertex vertices[] = {
-		{ DirectX::XMFLOAT3(-1.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.0f, 0.0f) },
-		{ DirectX::XMFLOAT3(1.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(1.0f, 0.0f) },
-		{ DirectX::XMFLOAT3(-1.0f, -1.0f, 0.0f), DirectX::XMFLOAT2(0.0f, 1.0f) },
-		{ DirectX::XMFLOAT3(1.0f, -1.0f, 0.0f), DirectX::XMFLOAT2(1.0f, 1.0f) }
-	};
-
-	/*unsigned short triangleIndices[] =
-	{
-		0, 1, 2, 3, 4, 5
-	};*/
-
-	D3D11_BUFFER_DESC bd = { sizeof(vertices) * _countof(vertices), D3D11_USAGE_DEFAULT, D3D11_BIND_VERTEX_BUFFER, 0,0,0 };
-	D3D11_SUBRESOURCE_DATA initData = { vertices, 0, 0 };
-
-	ComPtr<ID3D11Buffer> vertexBuffer;
-	D3D11Device->CreateBuffer(&bd, &initData, &vertexBuffer);
-
-	/*D3D11_BUFFER_DESC indexBufferDesc;
-	indexBufferDesc.ByteWidth = sizeof(unsigned short) * ARRAYSIZE(triangleIndices);
-	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferDesc.CPUAccessFlags = 0;
-	indexBufferDesc.MiscFlags = 0;
-	indexBufferDesc.StructureByteStride = 0;*/
-
-	/*D3D11_SUBRESOURCE_DATA indexBufferData;
-	indexBufferData.pSysMem = triangleIndices;
-	indexBufferData.SysMemPitch = 0;
-	indexBufferData.SysMemSlicePitch = 0;
-
-	ComPtr<ID3D11Buffer> indexBuffer;
-	D3D11Device->CreateBuffer(&indexBufferDesc, &indexBufferData, &indexBuffer);*/
-
-
-	static ComPtr<ID3D11SamplerState> sampler;
-	D3D11_SAMPLER_DESC sampDesc = {};
-	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
-	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
-	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
-	sampDesc.MaxAnisotropy = 1;
-	sampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	sampDesc.MinLOD = 0;
-	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-
-
-
-	D3D11Device->CreateSamplerState(&sampDesc, &sampler);
 
 
 	ComPtr<ID3D11ShaderResourceView> textureView = nullptr;
@@ -248,12 +176,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	///* ################################################################ */
 
 
-	ComPtr<ID3D11Texture2D> tempBuffer;
-
-	hr = D3D11Device->CreateRenderTargetView(mainBuffer.Get(), nullptr, &renderTargetView);
-	if (FAILED(hr)) {
-		OutputDebugString(L"RTV Creation Failed. \n");
-	}
+	
 
 	/*#####################################################################################################*/
 
@@ -274,7 +197,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 
-	NVENCODER Nv((void*)D3D11Device.Get(), NvencBuffer.Get(), wdWidth, wdHeight);
+	NVENCODER Nv((void*)D3D11Device, NvencBuffer.Get(), wdWidth, wdHeight);
 
 	/*#####################################################################################################*/
 
@@ -302,7 +225,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	/*#####################################################################################################*/
 
-	ComPtr<ID3D11Texture2D> PlaneYTexture;
+	/*ComPtr<ID3D11Texture2D> PlaneYTexture;
 	ComPtr<ID3D11Texture2D> PlaneUVTexture;
 
 	D3D11_TEXTURE2D_DESC YTextureDesc = {};
@@ -370,7 +293,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	NV12BoxUV.front = 0;
 	NV12BoxUV.bottom = wdHeight / 2;
 	NV12BoxUV.right = wdWidth / 2;
-	NV12BoxUV.back = 1;
+	NV12BoxUV.back = 1;*/
 
 
 
@@ -381,9 +304,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 	srvDesc.Texture2D.MipLevels = 1;
-
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
 
 	ComPtr<ID3D11Texture2D> StagingTex;
 
@@ -430,9 +350,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			//OutputDebugString((std::to_wstring(Nv.NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
 
-			sessions.ChunkedSend(reinterpret_cast<char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes, 1400);
+			//sessions.ChunkedSend(reinterpret_cast<char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes, 1400);
 
-			NVDecoder.NVDecode(reinterpret_cast<const unsigned char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes);
+			//NVDecoder.NVDecode(reinterpret_cast<const unsigned char*>(Nv.NVBitstreamLock.bitstreamBufferPtr), Nv.NVBitstreamLock.bitstreamSizeInBytes);
 
 			Nv.NVUnlockBitStream();
 
@@ -440,7 +360,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			///* ################################################################ */
 
 
-			D3D11Context->ClearRenderTargetView(renderTargetView.Get(), clearColor);
+			D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
 
 			D3D11_VIEWPORT viewport = {};
 			viewport.TopLeftX = 0.0f;
@@ -453,7 +373,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			D3D11Context->RSSetViewports(1, &viewport);
 
 
-			hr = D3D11Device->CreateShaderResourceView(NvdecBuffer.Get(), &srvDesc, textureView.GetAddressOf());
+			hr = D3D11Device->CreateShaderResourceView(tempBuffer.Get(), &srvDesc, textureView.GetAddressOf());
 			if (FAILED(hr)) {
 				_com_error err(hr);
 				OutputDebugString(err.ErrorMessage());
@@ -464,7 +384,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			//#########################################################################################//
 
-			D3D11Context->CSSetShaderResources(0, 1, textureView.GetAddressOf());
+			/*D3D11Context->CSSetShaderResources(0, 1, textureView.GetAddressOf());
 			ID3D11UnorderedAccessView* UAViewsYUV[] = { UAViewY.Get(), UAViewUV.Get() };
 			D3D11Context->CSSetUnorderedAccessViews(0, 2, UAViewsYUV, nullptr);
 
@@ -476,21 +396,23 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			D3D11Context->CSSetShaderResources(0, 1, CleanupSRV);
 
 			ID3D11UnorderedAccessView* CleanupUAV[2] = { nullptr, nullptr };
-			D3D11Context->CSSetUnorderedAccessViews(0, 2, CleanupUAV, nullptr);
+			D3D11Context->CSSetUnorderedAccessViews(0, 2, CleanupUAV, nullptr);*/
 
 			//########################################################################################################//
 
-			D3D11Context->IASetInputLayout(inputLayout.Get());
-			D3D11Context->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), &stride, &offset);
-			//D3D11Context->IASetIndexBuffer(indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+			D3D11Context->IASetInputLayout(inputLayout);
+			D3D11Context->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+			//D3D11Context->IASetIndexBuffer(IndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
 			D3D11Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-			D3D11Context->PSSetShader(pixelShader.Get(), nullptr, 0);
-			D3D11Context->VSSetShader(vertexShader.Get(), nullptr, 0);
+			D3D11Context->PSSetShader(pixelShader, nullptr, 0);
+			D3D11Context->VSSetShader(vertexShader, nullptr, 0);
 			D3D11Context->PSSetShaderResources(0, 1, textureView.GetAddressOf());
-			D3D11Context->PSSetSamplers(0, 1, sampler.GetAddressOf());
+			D3D11Context->PSSetSamplers(0, 1, &sampler);
 
-			D3D11Context->OMSetRenderTargets(1, renderTargetView.GetAddressOf(), nullptr);
+
+
+			D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
 			D3D11Context->Draw(4, 0);
 
 			///* ################################################################ */
@@ -498,7 +420,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 
 			DXGIOutDuplication->ReleaseFrame();
-
 
 		}
 

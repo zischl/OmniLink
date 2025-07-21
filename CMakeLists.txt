@@ -6,6 +6,8 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
 cmake_policy(SET CMP0104 NEW)
 set(CMAKE_CUDA_ARCHITECTURES 50 52 60 61 70 75 80 86 89 90 100 120)
 
+
+
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/debug/VertexShader.cso
     COMMAND fxc /T vs_5_0 /E VSMain /Fo debug/VertexShader.cso /Fc vsshaderAssembly.txt ${CMAKE_CURRENT_SOURCE_DIR}/src/vertex_shader.hlsl
@@ -30,6 +32,7 @@ add_custom_target(CompileShaders ALL
         ${CMAKE_CURRENT_BINARY_DIR}/debug/PixelShader.cso
         ${CMAKE_CURRENT_BINARY_DIR}/debug/BGRA2NV12Shader.cso
 )
+
 
 #vcpkg
 set(-DCMAKE_PREFIX_PATH="G:/git/vcpkg/vcpkg/installed/x64-windows")
