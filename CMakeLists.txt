@@ -44,9 +44,28 @@ set(NVENC_SDK "${CMAKE_CURRENT_SOURCE_DIR}/Nvenc")
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/x64)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/cuda)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/imgui)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/imgui/backends)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-add_executable(main WIN32 "src/main.cpp" src/renderer.cpp src/SessionHandler.cpp src/nvenc.cpp src/nvdec.cpp src/CuKernel.cu "src/WinForge.cpp")
+add_executable(main WIN32 
+    "src/main.cpp"
+    "src/RendererCore.cpp"
+    src/SessionHandler.cpp
+    src/nvenc.cpp
+    src/nvdec.cpp
+    src/CuKernel.cu
+    src/WinForge.cpp
+    "src/WinCap.cpp"
+    "src/OmniRenderer.cpp"
+    "include/imgui/imgui.cpp"
+    "include//imgui/imgui_draw.cpp"
+    "include/imgui/imgui_tables.cpp"
+    "include/imgui/imgui_widgets.cpp"
+    "include/imgui/imgui_demo.cpp"
+    "include/imgui/backends/imgui_impl_win32.cpp"
+    "include/imgui/backends/imgui_impl_dx11.cpp"
+ "src/OmniLink.cpp" "src/InputCap.cpp" "src/InputCap.h")
 
 set_target_properties(main PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 14)
 add_dependencies(main CompileShaders)

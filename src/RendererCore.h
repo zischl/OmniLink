@@ -22,7 +22,7 @@
 using Microsoft::WRL::ComPtr;
 
 
-struct Device {
+struct D3DDevice {
 	ComPtr<ID3D11Device> D3D11Device = nullptr;
 	ComPtr<ID3D11DeviceContext> D3D11Context = nullptr;
 };
@@ -63,28 +63,12 @@ struct IndexBufferConfig {
 };
 
 
-struct HWNDxD3D11 {
-	ComPtr<ID3D11Device> D3D11Device = nullptr;
-	ComPtr<ID3D11DeviceContext> D3D11Context = nullptr;
-	ComPtr<IDXGISwapChain3> swapchain = nullptr;
-	ComPtr<ID3D11RenderTargetView> renderTargetView = nullptr;
-};
 
-struct HWNDxShaders {
-	ComPtr<ID3D11PixelShader> pixelShader = nullptr;
-	ComPtr<ID3D11VertexShader> vertexShader = nullptr;
-	ComPtr<ID3D11Buffer> vertexBuffer = nullptr;
-	UINT VertexBufferStride = 0;
-	UINT VertexBufferOffset = 0;
-	ComPtr<ID3D11InputLayout> inputLayout = nullptr;
-	ComPtr<ID3D11Buffer> IndexBuffer = nullptr;
-	ComPtr<ID3D11SamplerState> sampler = nullptr;
-};
 
 
 class Renderer {
 private:
-
+	HRESULT hr = S_OK;
 	ComPtr<ID3DBlob> VertexShaderBlobTemp = nullptr;
 	
 
@@ -93,12 +77,17 @@ private:
 public:
 	Renderer();
 
-	HWNDxD3D11 RendererInit(HWND hwnd, int width, int height);
+	void SetViewPort(ID3D11DeviceContext* D3D11Context);
 
-	HWNDxShaders ShadersInit(ID3D11Device* D3D11Device);
-	
-	Device CreateD3d11Device(D3D_FEATURE_LEVEL(FeatureLevels)[], UINT FeatureLevelCount, UINT& CreationFlags);
+	D3DDevice CreateD3d11Device(D3D_FEATURE_LEVEL(FeatureLevels)[], UINT FeatureLevelCount, UINT& CreationFlags);
 
+	inline void Renderer::GetDeferredContext(ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context) {
+		hr = D3D11Device->CreateDeferredContext(0, &D3D11Context);
+		if (FAILED(hr)) {
+			OutputDebugStringA("Deferred Context Creation Failed!\n");
+		}
+
+	}
 	ComPtr<IDXGIFactory2> CreateDXGIFactory2();
 
 	ComPtr<IDXGISwapChain3> CreateSwapChain(

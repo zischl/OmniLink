@@ -197,13 +197,9 @@ void sessions::ChunkedSend(CHAR* data, int data_size, int MTU) {
 		TrsBfrStruct->Type = OP_SEND;
 
 
-		if (WSASend(socketR, &TrsBfrStruct->TransmitBuffer, 1, NULL, 0, &TrsBfrStruct->OVStruct, NULL) == SOCKET_ERROR) {
-			int err = WSAGetLastError();
-			if (err != ERROR_IO_PENDING)
-			{
-				OutputDebugString((std::to_string(err) + "\n").c_str());
-			}
-		}
+		WSASend(socketR, &TrsBfrStruct->TransmitBuffer, 1, NULL, 0, &TrsBfrStruct->OVStruct, NULL);
+
+		
 	}
 
 	TransmitStruct* TrsBfrStruct = new TransmitStruct;
