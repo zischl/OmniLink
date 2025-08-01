@@ -51,8 +51,13 @@
 
 class OmniLink {
 public:
+	OmniCap OmniCap;
+
+
 	static bool running;
 	void OmniMain(HINSTANCE hInstance, int nCmdShow);
+	void test();
+
 
 private:
 	ID3D11DeviceContext* D3D11Context = nullptr;

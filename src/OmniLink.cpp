@@ -2,7 +2,7 @@
 
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	WinForge Forge;
-	WinConfig config(L'Controller Window', 1280, 720, L'Nexus');
+	WinConfig config(L'Controller Window', 1280, 720, L'Nexus', (LPVOID)this);
 	HWND hwnd = Forge.WindowInit(config, WProc, hInstance, nCmdShow);
 
 	unsigned int wdWidth = 1920;
@@ -28,7 +28,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	/*##############################################################*/
 
 
-	HWND hwnd_cap = Forge.CreateWindowAsync(L'Test Window', WProc2, hInstance, nCmdShow);
+	//HWND hwnd_cap = Forge.CreateWindowAsync(L'Test Window', WProc2, hInstance, nCmdShow);
 
 
 
@@ -60,9 +60,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	///* ################################################################ */
 
-	InputCap InputCap;
-	InputCap.ToggleWindowCap(true);
 
+	OmniCap.ToggleWindowCap(true);
+	OmniCap.ToggleInputEventCap(hwnd, true);
 	OmniMainLoop();
 
 }
@@ -102,7 +102,6 @@ int OmniLink::OmniMainLoop() {
 		// (Your code calls swapchain's Present() function)
 		swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 		Sleep(50);
-		OutputDebugStringW(L"STOP ME!\n");
 
 	}
 }
@@ -131,6 +130,8 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
 		return true;
 
+	OmniLink* omni = reinterpret_cast<OmniLink*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
 	switch (uMsg)
 	{
 	case WM_DESTROY:
@@ -147,6 +148,14 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	case WM_SETCURSOR:
 		SetCursor(LoadCursor(NULL, IDC_ARROW));
 		return true;
+	case WM_INPUT:
+		(omni->OmniCap.*(omni->OmniCap.InputProc))(lParam);
+		break;
+	case WM_NCCREATE:
+		omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(omni));
+		break;
+
 	
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -168,6 +177,11 @@ LRESULT CALLBACK OmniLink::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		return true;
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+
+void OmniLink::test() {
+	OutputDebugString(L"hello there \n");
 }
 
 

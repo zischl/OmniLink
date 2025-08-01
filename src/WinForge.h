@@ -27,12 +27,14 @@ struct WinConfig {
 	const wchar_t Window_Name;
 	UINT wdWidth = 1280;
 	UINT wdHeight = 720;
-	
-	WinConfig(wchar_t ClassName, UINT Width, UINT Height, wchar_t WindowName) : 
+	LPVOID lParam = NULL;
+
+	WinConfig(wchar_t ClassName, UINT Width, UINT Height, wchar_t WindowName, LPVOID lParam_) :
 		class_name(ClassName),
 		wdWidth(Width),
 		wdHeight(Height),
-		Window_Name(WindowName) {}
+		Window_Name(WindowName),
+		lParam(lParam_) {}
 };
 
 

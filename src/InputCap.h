@@ -5,20 +5,40 @@
 
 #include <thread>
 #include <string>
+#include <vector>
 #include <atomic>
 #include <Windows.h>
 #include <WinUser.h>
+#include <hidusage.h>
 
-class InputCap {
+class OmniCap {
 public:
+	UINT MouseX;
+	UINT MouseY;
+
+	OmniCap();
+
 	void ToggleWindowCap(bool state = false);
-	void ToggleMouseCap(bool state = false);
+	void ToggleInputEventCap(HWND hwnd, bool state = false);
+	
+	UINT RawInputSize;
+
+	void (OmniCap::*InputProc)(LPARAM& lParam) = nullptr;
+	void ToggleInputCap(HWND hwnd, bool state = false);
+	
+	void InputProcInit(LPARAM& lParam);
+	void InputProcCallback(LPARAM& lParam);
+	void OmniCap::VoidExitCallback(LPARAM& lParam);
+
 
 private:
+
+	std::atomic_bool MouseEventCapStatus;
 	HWINEVENTHOOK WinCapHook = NULL;
+	HHOOK MouseCapHook = NULL;
 
 
-	static void CALLBACK WinEventProc(
+	static void CALLBACK WinMvEventProc(
 		HWINEVENTHOOK hWinEventHook,
 		DWORD event,
 		HWND hwnd,
@@ -27,6 +47,8 @@ private:
 		DWORD idEventThread,
 		DWORD dwmsEventTime
 	);
+
+
 };
 
 #endif

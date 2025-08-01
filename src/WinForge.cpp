@@ -10,7 +10,7 @@ HWND WinForge::CreateWindowAsync(wchar_t class_name, WNDPROC WProc, HINSTANCE& h
 	std::thread test1([&] {
 
 		//CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-		WinConfig config(class_name, 1920, 1080, L'Linker');
+		WinConfig config(class_name, 1920, 1080, L'Linker', NULL);
 		HWND hwnd = WindowInit(config, WProc, hInstance, nCmdShow);
 		hwnd_p.set_value(hwnd);
 
@@ -144,7 +144,7 @@ HWND WinForge::WindowInit(WinConfig& Config, WNDPROC WProc, HINSTANCE& hInstance
 		NULL,
 		NULL,
 		hInstance,
-		NULL
+		Config.lParam
 	);
 
 
