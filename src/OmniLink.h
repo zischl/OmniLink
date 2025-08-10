@@ -13,7 +13,7 @@
 #include "nvdec.h"
 #include "WinForge.h"
 #include "WinCap.h"
-#include "InputCap.h"
+#include "IOLink.h"
 
 #include <Windows.h>
 #include <shellapi.h>
@@ -49,9 +49,36 @@
 
 
 
+struct OmniDevice {
+	session DeviceSession;
+	HWND ActiveWindow;
+};
+
+class OmniCore {
+private:
+	OmniCap OmniCap;
+	sessions sessions;
+public:
+	void Execute();
+
+	void AddDevice();
+};
+
+
 class OmniLink {
 public:
+	char charArray[90000];
 	OmniCap OmniCap;
+	sessions sessions;
+	session* session1 = nullptr;
+
+	DXGICapture DXGICapture;
+	ComPtr<IDXGIOutputDuplication> DXGIOutDuplication;
+	ComPtr<ID3D11Texture2D> DXGIBuffer = nullptr;
+	ID3D11Texture2D* DXGIBufferPtr = nullptr;
+
+	NVENCODER* Nv = nullptr;
+	ComPtr<ID3D11Texture2D> NvencBuffer;
 
 
 	static bool running;
@@ -60,6 +87,7 @@ public:
 
 
 private:
+	ID3D11Device* D3D11Device = nullptr;
 	ID3D11DeviceContext* D3D11Context = nullptr;
 	IDXGISwapChain3* swapchain = nullptr;
 	ID3D11RenderTargetView* renderTargetView = nullptr;
@@ -83,7 +111,5 @@ private:
 
 	static void PanelRendererSwitch(HWND hwnd);
 };
-
-
 
 #endif

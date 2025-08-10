@@ -1,5 +1,5 @@
-#ifndef INPUTCAP_H
-#define INPUTCAP_H
+#ifndef IOLINK_H
+#define IOLINK_H
 
 #pragma once
 
@@ -48,6 +48,11 @@ private:
 		DWORD dwmsEventTime
 	);
 
+
+};
+
+class OmniSynth {
+public:
 
 };
 

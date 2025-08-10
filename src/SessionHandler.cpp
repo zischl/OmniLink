@@ -1,9 +1,11 @@
 #include "SessionHandler.h"
 
+sessions::sessions() {
+	WinsockInit();
 
+}
 
-
-int sessions::_init_winsock() {
+int sessions::WinsockInit() {
 	int wsResult;
 	wsResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (wsResult != 0) {
@@ -12,7 +14,7 @@ int sessions::_init_winsock() {
 	return 0;
 }
 
-sockaddr_in sessions::_create_address(PCSTR IP, unsigned short port) {
+sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port) {
 	sockaddr_in address;
 	address.sin_family = AF_INET;
 	address.sin_port = htons(port);
@@ -20,8 +22,7 @@ sockaddr_in sessions::_create_address(PCSTR IP, unsigned short port) {
 	return address;
 }
 
-SOCKET sessions::_create_socket() {
-	int wsResult;
+SOCKET sessions::CreateSocket() {
 	SOCKET socketR = INVALID_SOCKET;
 
 	socketR = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -35,15 +36,62 @@ SOCKET sessions::_create_socket() {
 }
 
 
+void sessions::GetLocals() {
+
+	ULONG Flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+
+	locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(15000);
+
+	WSResult = GetAdaptersAddresses(AF_INET, Flags, NULL, locals, &locals_size);
+	if (WSResult != ERROR_SUCCESS) {
+		OutputDebugString("Error : Could Not Retrieve Local Address !\n");
+		FREE(locals);
+	}
 
 
-int sessions::_requestHandshake() {
+	auto* UnicastAddrs = locals->FirstUnicastAddress;
+
+	while (UnicastAddrs) {
+
+		CHAR local_addr[INET_ADDRSTRLEN];
+		SOCKET_ADDRESS local_addrs = UnicastAddrs->Address;
+		InetNtop(AF_INET, (sockaddr*)&local_addrs, local_addr, sizeof(local_addr));
+		OutputDebugString(local_addr);
+		OutputDebugString("\n");
+
+		UnicastAddrs = UnicastAddrs->Next;
+	}
+}
+
+
+session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size) {
+	Sessions = sessions;
+	wsaData = sessions.wsaData;
+	IOCP = Sessions.IOCP;
+
+	SPoolHead = 0;
+	RPoolHead = 0;
+
+	MTU = MTU_Size;
+	PreSetBufferMTU();
+	address = Sessions.CreateAddress(IP, port);
+	socketR = Sessions.CreateSocket();
+	RegIOCP(socketR);
+	InitReceiver(62485);
+	
+	
+}
+
+
+
+
+int session::_requestHandshake() {
 	return 0;
 }
-int sessions::_verifyHandshake() {
+int session::_verifyHandshake() {
 	return 0;
 }
-int sessions::_establishLink() {
+int session::_establishLink() {
 	return 0;
 }
 
@@ -52,7 +100,7 @@ std::string _GetLocalAddr() {
 	return "192.168.1.59";
 }
 
-void sessions::RegIOCP(SOCKET& socket) {
+void session::RegIOCP(SOCKET& socket) {
 	if (IOCP == NULL) {
 		ULONG_PTR CompletionKey = 0;
 		IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 1);
@@ -71,25 +119,60 @@ void sessions::RegIOCP(SOCKET& socket) {
 				bool WSResult = GetQueuedCompletionStatus(IOCP, &BufferSize, &EventKey, &OVStruct, INFINITE);
 				if (!WSResult)
 				{
+					OutputDebugString((std::to_string(GetLastError()) + "type \n").c_str());
 					OutputDebugString("Completion Status Get False\n");
 					if (OVStruct != nullptr) {
-						OutputDebugString("Completion Status Get Failed\n");
-						continue;
+						OutputDebugString("Completion Status Get OVStruct Failed\n");
 					}
 					else {
 						OutputDebugString("IOCP Thread Going Down...\n");
-						break;
 					}
 				}
+				
+				RECV_BUF* Buffer = reinterpret_cast<RECV_BUF*>(OVStruct);
+
+				switch (Buffer->Type) {
+				case OP_RECV:
+					switch (*(Buffer->TransmitBuffer.buf + BufferSize - 1)) {
+					case FrameStart:
+						start = Clock::now();
+						RecvChunkStart = RPoolHead;
+						RecvChunkLen += BufferSize;
+						break;
+					case FrameData:
+						RecvChunkLen += BufferSize;
+						break;
+					case FrameEnd:
+						RecvChunkEnd = RPoolHead;
+						
+
+						if (RecvChunkStart < RecvChunkEnd) {
+							RecvChunkLen = (RecvChunkEnd - RecvChunkStart) * MTU;
+							RecvChunkLen += BufferSize-3;
+							memcpy(FinalRecvBuffer, &RecvBufferPool[RecvChunkStart * MTU], RecvChunkLen);
+						}
+						else {
+							RecvChunkLen = ((256 - RecvChunkStart) * MTU) + (RecvChunkEnd * MTU);
+							RecvChunkLen += BufferSize-3;
+							memcpy(FinalRecvBuffer, &RecvBufferPool[RecvChunkStart * MTU], (256 * MTU) - (RecvChunkStart * MTU));
+							memcpy(&FinalRecvBuffer[(256 * MTU) - (RecvChunkStart * MTU)], &RecvBufferPool[0], RecvChunkEnd * MTU);
+						}
+						//OutputDebugString((std::to_string(RecvChunkLen)+"\n").c_str());
+						RecvChunkLen = 0;
+
+						OutputDebugString((std::to_string(std::chrono::duration_cast<Mlliseconds>((Clock::now() - start)).count()) + "\n").c_str());
 
 
-				TransmitStruct* TrsStruct = reinterpret_cast<TransmitStruct*>(OVStruct);
+						break;
+					}
 
-				switch (TrsStruct->Type)
-					case OP_RECV:
-						OutputDebugString("oiiiiiii");
+					RPoolHead = (RPoolHead + 1) & 255;
+					
+					PostWSARecv();
+					break;
+				}
 
-						delete TrsStruct;
+				
 
 			}
 		}
@@ -99,7 +182,7 @@ void sessions::RegIOCP(SOCKET& socket) {
 
 }
 
-void sessions::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
+void session::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
 
 	socketR = INVALID_SOCKET;
 
@@ -129,89 +212,128 @@ void sessions::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
 }
 
 
-void sessions::GetLocals() {
-
-	ULONG Flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
-
-	locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(15000);
-
-	WSResult = GetAdaptersAddresses(AF_INET, Flags, NULL, locals, &locals_size);
-	if (WSResult != ERROR_SUCCESS) {
-		OutputDebugString("Error : Could Not Retrieve Local Address !\n");
-		FREE(locals);
-	}
-
-	
-	auto* UnicastAddrs = locals->FirstUnicastAddress;
-
-	while (UnicastAddrs) {
-
-		CHAR local_addr[INET_ADDRSTRLEN];
-		SOCKET_ADDRESS local_addrs = UnicastAddrs->Address;
-		InetNtop(AF_INET, (sockaddr*)&local_addrs, local_addr, sizeof(local_addr));
-		OutputDebugString(local_addr);
-		OutputDebugString("\n");
-
-		UnicastAddrs = UnicastAddrs->Next;
-	}
-}
-
-
-void  sessions::InitReceiver(unsigned int port) {
-	
-	GetLocals();
+void  session::InitReceiver(unsigned int port) {
 
 	sockaddr_in local;
 	local.sin_family = AF_INET;
-	local.sin_port = 6;
+	local.sin_port = htons(port);
 	inet_pton(AF_INET, "192.168.1.59", &local.sin_addr);
 
-	WSResult = bind(socketR, (sockaddr*) &address, sizeof(address));
-	if (WSResult == 0) {
+	WSResult = bind(socketR, (sockaddr*) &local, sizeof(local));
+	if (WSResult != 0) {
+		WSResult = WSAGetLastError();
+		OutputDebugString((std::to_string(WSResult) + "\n").c_str());
 		OutputDebugString("Bind Failed Successfully\n");
 	}
 
-	WSABUF RecvBuffer;
-	OVERLAPPED OVStruct;
-
-	WSARecv(socketR, &RecvBuffer, 1, NULL, NULL, &OVStruct, NULL);
-	
+	PostWSARecv();
+	if (WSAGetLastError() != WSA_IO_PENDING) {
+		OutputDebugString((std::to_string(WSResult)+"Recv Pre Post Failed\n").c_str());
+	}
 }
 
 
 
-
-
-void sessions::ChunkedSend(CHAR* data, int data_size, int MTU) {
-
+void session::ChunkedSend(CHAR* data, int data_size) {
 	int MTU_slices = data_size - (data_size % MTU);
-
-	for (int offset = 0; offset < MTU_slices; offset += MTU) {
-
-		TransmitStruct* TrsBfrStruct = new TransmitStruct;
-
-		TrsBfrStruct->OVStruct = {};
-		TrsBfrStruct->TransmitBuffer = {};
-		TrsBfrStruct->TransmitBuffer.buf = data + offset;
-		TrsBfrStruct->TransmitBuffer.len = MTU;
-		TrsBfrStruct->Type = OP_SEND;
+	CHeaderPool[SPoolHead].PacketType = Frame;
+	CHeaderPool[SPoolHead].Target = 0;
+	CHeaderPool[SPoolHead].ChunkIndex = FrameStart;
+	TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
+	TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
 
 
-		WSASend(socketR, &TrsBfrStruct->TransmitBuffer, 1, NULL, 0, &TrsBfrStruct->OVStruct, NULL);
+	WSASendTo(
+		socketR,
+		TransmitPool[SPoolHead].TransmitBuffer,
+		2,
+		NULL, 0,
+		(sockaddr*)&address,
+		sizeof(address),
+		&TransmitPool[SPoolHead].OVStruct,
+		NULL
+	);
 
-		
+
+	SPoolHead = (SPoolHead + 1) & 255;
+
+	for (int offset = MTU; offset < MTU_slices-MTU; offset += MTU) {
+		CHeaderPool[SPoolHead].PacketType = Frame;
+		CHeaderPool[SPoolHead].Target = 0;
+		CHeaderPool[SPoolHead].ChunkIndex = FrameData;
+		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
+		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
+
+
+
+		WSASendTo(
+			socketR,
+			TransmitPool[SPoolHead].TransmitBuffer,
+			2,
+			NULL, 0,
+			(sockaddr*)&address,
+			sizeof(address),
+			&TransmitPool[SPoolHead].OVStruct,
+			NULL
+		);
+
+
+		SPoolHead = (SPoolHead + 1) & 255;
+
 	}
 
-	TransmitStruct* TrsBfrStruct = new TransmitStruct;
+	
 
-	TrsBfrStruct->TransmitBuffer = {};
-	TrsBfrStruct->OVStruct = {};
+	CHeaderPool[SPoolHead].PacketType = Frame;
+	CHeaderPool[SPoolHead].Target = 0;
+	if (MTU_slices != data_size) {
+		CHeaderPool[SPoolHead].ChunkIndex = FrameData;
+	}
+	else {
+		CHeaderPool[SPoolHead].ChunkIndex = FrameEnd;
+	}
+	TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
+	TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices - MTU;
 
-	TrsBfrStruct->TransmitBuffer.buf = data + MTU_slices;
-	TrsBfrStruct->TransmitBuffer.len = data_size % MTU;
 
-	TrsBfrStruct->OVStruct = {};
 
-	WSASend(socketR, &TrsBfrStruct->TransmitBuffer, 1, NULL, 0, &TrsBfrStruct->OVStruct, NULL);
+	WSASendTo(
+		socketR,
+		TransmitPool[SPoolHead].TransmitBuffer,
+		2,
+		NULL, 0,
+		(sockaddr*)&address,
+		sizeof(address),
+		&TransmitPool[SPoolHead].OVStruct,
+		NULL
+	);
+
+
+	SPoolHead = (SPoolHead + 1) & 255;
+
+	if (MTU_slices != data_size) {
+		CHeaderPool[SPoolHead].PacketType = Frame;
+		CHeaderPool[SPoolHead].Target = 0;
+		CHeaderPool[SPoolHead].ChunkIndex = FrameEnd;
+		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
+		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices;
+		TransmitPool[SPoolHead].TransmitBuffer[0].len = data_size % MTU;
+
+
+		WSASendTo(
+			socketR,
+			TransmitPool[SPoolHead].TransmitBuffer,
+			2, NULL, 0,
+			(sockaddr*)&address, sizeof(address),
+			&TransmitPool[SPoolHead].OVStruct, NULL);
+
+		TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
+
+		SPoolHead = (SPoolHead + 1) & 255;
+	}
+
+	
+
 
 }
+

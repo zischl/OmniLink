@@ -65,7 +65,7 @@ add_executable(main WIN32
     "include/imgui/imgui_demo.cpp"
     "include/imgui/backends/imgui_impl_win32.cpp"
     "include/imgui/backends/imgui_impl_dx11.cpp"
- "src/OmniLink.cpp" "src/InputCap.cpp" "src/InputCap.h")
+    "src/OmniLink.cpp" "src/IOLink.cpp" )
 
 set_target_properties(main PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 14)
 add_dependencies(main CompileShaders)

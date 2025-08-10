@@ -1,4 +1,4 @@
-#include <InputCap.h>
+#include <IOLink.h>
 
 OmniCap::OmniCap() {
 	POINT pos = {};
@@ -149,4 +149,5 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 void OmniCap::VoidExitCallback(LPARAM& lParam) { 
 	return;
 }
+
 

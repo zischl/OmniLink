@@ -1,9 +1,22 @@
 #include <OmniLink.h>
 
+
+void OmniCore::Execute() {
+
+}
+
+
+void OmniCore::AddDevice() {
+
+}
+
+
+
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
-	WinForge Forge;
+	WinForge MainPanel(WProc);
 	WinConfig config(L'Controller Window', 1280, 720, L'Nexus', (LPVOID)this);
-	HWND hwnd = Forge.WindowInit(config, WProc, hInstance, nCmdShow);
+	HWND hwnd = MainPanel.WindowInit(config, hInstance, nCmdShow);
+	//ShowWindow(hwnd, SW_HIDE);
 
 	unsigned int wdWidth = 1920;
 	unsigned int wdHeight = 1080;
@@ -21,15 +34,16 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	RendererPtrs.D3D11Device = D3DDevStruct.D3D11Device;
 	RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
 	Renderer.RendererInit(hwnd, 1280, 720, RendererPtrs);
+	D3D11Device = RendererPtrs.D3D11Device.Get();
 	D3D11Context = RendererPtrs.D3D11Context.Get();
 	swapchain = RendererPtrs.swapchain.Get();
 	renderTargetView = RendererPtrs.renderTargetView.Get();
 	
 	/*##############################################################*/
 
-
-	//HWND hwnd_cap = Forge.CreateWindowAsync(L'Test Window', WProc2, hInstance, nCmdShow);
-
+	WinForge Link(WProc2);
+	HWND hwnd_cap = Link.CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+	//Link.SetFPSLimit(60);
 
 
 	/*##############################################################*/
@@ -46,23 +60,47 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	ImGui_ImplDX11_Init(D3DDevStruct.D3D11Device.Get(), D3DDevStruct.D3D11Context.Get());
 	/*##############################################################*/
 
+	HRESULT hr;
+	DXGIOutDuplication = DXGICapture.InitDXGI(RendererPtrs.D3D11Device);
 
+	
+	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
+	custommainBufferDesc.Width = wdWidth;
+	custommainBufferDesc.Height = wdHeight;
+	custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	custommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	custommainBufferDesc.SampleDesc.Count = 1;
+	custommainBufferDesc.SampleDesc.Quality = 0;
+	custommainBufferDesc.ArraySize = 1;
+	custommainBufferDesc.MipLevels = 1;
+	custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+
+	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, NvencBuffer.GetAddressOf());
+
+
+
+	Nv = new NVENCODER((void*)D3D11Device, NvencBuffer.Get(), wdWidth, wdHeight);
 
 	///* ################################################################ */
 
-	sessions sessions;
-	sessions._init_winsock();
-	//sockaddr_in address = sessions._create_address("192.168.1.7", 62485);
-	//SOCKET socketR = sessions._create_socket();
-	sessions.CreateSesssionIOCP("192.168.1.7", 62485);
-	sessions.GetLocals();
-	int packetSize = 1920 * 1080 * 4;
+	
+	session1 = new session(sessions, "192.168.1.7", 62485, 1450);
 
+	constexpr int SIZE = 90000;
+	
+
+	for (int i = 0; i < SIZE; ++i) {
+		charArray[i] = 'A' + (i % 26);
+	}
+
+	//session1->ChunkedSend(charArray, 4380);
 	///* ################################################################ */
 
 
 	OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);
+
 	OmniMainLoop();
 
 }
@@ -89,7 +127,20 @@ int OmniLink::OmniMainLoop() {
 		ImGui::ShowDemoWindow(); // Show demo window! :)
 
 
-		D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
+		CaptureDXGI(DXGIOutDuplication.Get(), DXGIBuffer);
+
+		D3D11Context->CopyResource(NvencBuffer.Get(), DXGIBuffer.Get());
+		DXGIOutDuplication->ReleaseFrame();
+
+		/*Nv->Encode();
+
+		OutputDebugString((std::to_wstring(Nv->NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
+
+		session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+		
+		Nv->NVUnlockBitStream();*/
+
+
 		D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
 		//D3D11Context->Draw(4, 0);
 
@@ -101,7 +152,7 @@ int OmniLink::OmniMainLoop() {
 		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 		// (Your code calls swapchain's Present() function)
 		swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
-		Sleep(50);
+		Sleep(5);
 
 	}
 }
