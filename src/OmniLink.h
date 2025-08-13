@@ -50,6 +50,7 @@
 
 
 struct OmniDevice {
+
 	session DeviceSession;
 	HWND ActiveWindow;
 };
@@ -83,7 +84,8 @@ public:
 
 	static bool running;
 	void OmniMain(HINSTANCE hInstance, int nCmdShow);
-	void test();
+	int test2(HINSTANCE hInstance, int nCmdShow);
+
 
 
 private:
@@ -94,6 +96,8 @@ private:
 	
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	
+	WinForge* Link = nullptr;
+
 	MSG msg = { };
 	
 	

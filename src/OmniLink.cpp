@@ -11,12 +11,9 @@ void OmniCore::AddDevice() {
 }
 
 
-
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
-	WinForge MainPanel(WProc);
 	WinConfig config(L'Controller Window', 1280, 720, L'Nexus', (LPVOID)this);
-	HWND hwnd = MainPanel.WindowInit(config, hInstance, nCmdShow);
-	//ShowWindow(hwnd, SW_HIDE);
+	HWND hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
 
 	unsigned int wdWidth = 1920;
 	unsigned int wdHeight = 1080;
@@ -41,8 +38,8 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	
 	/*##############################################################*/
 
-	WinForge Link(WProc2);
-	HWND hwnd_cap = Link.CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+	Link = new WinForge(WProc2);
+	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
 	//Link.SetFPSLimit(60);
 
 
@@ -85,7 +82,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	///* ################################################################ */
 
 	
-	session1 = new session(sessions, "192.168.1.7", 62485, 1450);
+	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
 
 	constexpr int SIZE = 90000;
 	
@@ -107,6 +104,21 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 bool OmniLink::running = true;
 
+int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
+
+	Link = new WinForge(WProc2);
+	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+	
+	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
+
+
+	while (true) {
+
+		Sleep(5);
+	}
+
+}
+
 int OmniLink::OmniMainLoop() {
 	while (running) {
 
@@ -118,6 +130,7 @@ int OmniLink::OmniMainLoop() {
 			DispatchMessage(&msg);
 		}
 
+		//Link->SetRenderEvent();
 
 		// (Your code process and dispatch Win32 messages)
 		// Start the Dear ImGui frame
@@ -226,15 +239,10 @@ LRESULT CALLBACK OmniLink::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	case WM_SETCURSOR:
 		SetCursor(LoadCursor(NULL, IDC_ARROW));
 		return true;
+
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
-
-
-void OmniLink::test() {
-	OutputDebugString(L"hello there \n");
-}
-
 
 
 

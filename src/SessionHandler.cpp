@@ -44,7 +44,7 @@ void sessions::GetLocals() {
 
 	WSResult = GetAdaptersAddresses(AF_INET, Flags, NULL, locals, &locals_size);
 	if (WSResult != ERROR_SUCCESS) {
-		OutputDebugString("Error : Could Not Retrieve Local Address !\n");
+		OutputDebugStringA("Error : Could Not Retrieve Local Address !\n");
 		FREE(locals);
 	}
 
@@ -55,16 +55,16 @@ void sessions::GetLocals() {
 
 		CHAR local_addr[INET_ADDRSTRLEN];
 		SOCKET_ADDRESS local_addrs = UnicastAddrs->Address;
-		InetNtop(AF_INET, (sockaddr*)&local_addrs, local_addr, sizeof(local_addr));
-		OutputDebugString(local_addr);
-		OutputDebugString("\n");
+		InetNtopA(AF_INET, (sockaddr*)&local_addrs, local_addr, sizeof(local_addr));
+		OutputDebugStringA(local_addr);
+		OutputDebugStringA("\n");
 
 		UnicastAddrs = UnicastAddrs->Next;
 	}
 }
 
 
-session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size) {
+session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_) {
 	Sessions = sessions;
 	wsaData = sessions.wsaData;
 	IOCP = Sessions.IOCP;
@@ -79,7 +79,7 @@ session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size
 	RegIOCP(socketR);
 	InitReceiver(62485);
 	
-	
+	Link = Link_;
 }
 
 
@@ -105,7 +105,7 @@ void session::RegIOCP(SOCKET& socket) {
 		ULONG_PTR CompletionKey = 0;
 		IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 1);
 		if (IOCP == NULL) {
-			OutputDebugString("IOCP Port Creation Failed Successfully\n");
+			OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
 		}
 	}
 
@@ -119,13 +119,13 @@ void session::RegIOCP(SOCKET& socket) {
 				bool WSResult = GetQueuedCompletionStatus(IOCP, &BufferSize, &EventKey, &OVStruct, INFINITE);
 				if (!WSResult)
 				{
-					OutputDebugString((std::to_string(GetLastError()) + "type \n").c_str());
-					OutputDebugString("Completion Status Get False\n");
+					OutputDebugStringA((std::to_string(GetLastError()) + "type \n").c_str());
+					OutputDebugStringA("Completion Status Get False\n");
 					if (OVStruct != nullptr) {
-						OutputDebugString("Completion Status Get OVStruct Failed\n");
+						OutputDebugStringA("Completion Status Get OVStruct Failed\n");
 					}
 					else {
-						OutputDebugString("IOCP Thread Going Down...\n");
+						OutputDebugStringA("IOCP Thread Going Down...\n");
 					}
 				}
 				
@@ -135,39 +135,31 @@ void session::RegIOCP(SOCKET& socket) {
 				case OP_RECV:
 					switch (*(Buffer->TransmitBuffer.buf + BufferSize - 1)) {
 					case FrameStart:
-						start = Clock::now();
+						//start = Clock::now();
 						RecvChunkStart = RPoolHead;
 						RecvChunkLen += BufferSize;
+						RPoolHead = (RPoolHead + 1) & 255;
 						break;
 					case FrameData:
 						RecvChunkLen += BufferSize;
+						RPoolHead = (RPoolHead + 1) & 255;
 						break;
 					case FrameEnd:
 						RecvChunkEnd = RPoolHead;
 						
+						RecvChunkLen = RecvChunkEnd * MTU;
+						RecvChunkLen += BufferSize-3;
+						Link->SetBufferData(&RecvBufferPool[0], RecvChunkLen);
+						Link->SetRenderEvent();
 
-						if (RecvChunkStart < RecvChunkEnd) {
-							RecvChunkLen = (RecvChunkEnd - RecvChunkStart) * MTU;
-							RecvChunkLen += BufferSize-3;
-							memcpy(FinalRecvBuffer, &RecvBufferPool[RecvChunkStart * MTU], RecvChunkLen);
-						}
-						else {
-							RecvChunkLen = ((256 - RecvChunkStart) * MTU) + (RecvChunkEnd * MTU);
-							RecvChunkLen += BufferSize-3;
-							memcpy(FinalRecvBuffer, &RecvBufferPool[RecvChunkStart * MTU], (256 * MTU) - (RecvChunkStart * MTU));
-							memcpy(&FinalRecvBuffer[(256 * MTU) - (RecvChunkStart * MTU)], &RecvBufferPool[0], RecvChunkEnd * MTU);
-						}
-						//OutputDebugString((std::to_string(RecvChunkLen)+"\n").c_str());
 						RecvChunkLen = 0;
-
-						OutputDebugString((std::to_string(std::chrono::duration_cast<Mlliseconds>((Clock::now() - start)).count()) + "\n").c_str());
+						RPoolHead = 0;
+						//OutputDebugStringA((std::to_string(std::chrono::duration_cast<Mlliseconds>((Clock::now() - start)).count()) + "\n").c_str());
 
 
 						break;
 					}
 
-					RPoolHead = (RPoolHead + 1) & 255;
-					
 					PostWSARecv();
 					break;
 				}
@@ -189,7 +181,7 @@ void session::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
 	socketR = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (socketR == INVALID_SOCKET) {
 		WSACleanup();
-		OutputDebugString("Socket Did Not Come Home !");
+		OutputDebugStringA("Socket Did Not Come Home !");
 		return;
 	}
 
@@ -201,10 +193,10 @@ void session::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
 
 	WSResult = connect(socketR, (sockaddr*)&address, sizeof(address));
 	if (WSResult != 0) {
-		OutputDebugString(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
+		OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
 	}
 	else {
-		OutputDebugString("Connected !\n");
+		OutputDebugStringA("Connected !\n");
 	}
 
 
@@ -222,13 +214,13 @@ void  session::InitReceiver(unsigned int port) {
 	WSResult = bind(socketR, (sockaddr*) &local, sizeof(local));
 	if (WSResult != 0) {
 		WSResult = WSAGetLastError();
-		OutputDebugString((std::to_string(WSResult) + "\n").c_str());
-		OutputDebugString("Bind Failed Successfully\n");
+		OutputDebugStringA((std::to_string(WSResult) + "\n").c_str());
+		OutputDebugStringA("Bind Failed Successfully\n");
 	}
 
 	PostWSARecv();
 	if (WSAGetLastError() != WSA_IO_PENDING) {
-		OutputDebugString((std::to_string(WSResult)+"Recv Pre Post Failed\n").c_str());
+		OutputDebugStringA((std::to_string(WSResult)+"Recv Pre Post Failed\n").c_str());
 	}
 }
 

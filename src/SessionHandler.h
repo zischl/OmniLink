@@ -4,14 +4,16 @@
 
 
 #pragma once
-#include <string>
-#include <thread>
-#include <chrono>
-#include <atomic>
+#include "WinForge.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <stdio.h>
+
+#include <string>
+#include <thread>
+#include <chrono>
+#include <atomic>
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "IPHLPAPI.lib")
@@ -90,17 +92,18 @@ class session {
 private:
 	sessions Sessions;
 	WSADATA wsaData;
+	WinForge* Link = nullptr;
 	int WSResult;
 	
 	sockaddr_in address;
 	SOCKET socketR;
 	HANDLE IOCP = NULL;
 	
-	int MTU;
-	int SPoolHead;
+	int MTU = 0;
+	int SPoolHead = 0;
 	SEND_BUF TransmitPool[256];
 
-	int RPoolHead;
+	int RPoolHead = 0;
 	RECV_BUF RecvPool[256];
 	CHAR RecvBufferPool[256 * (OmniMTU + OmniHeaderSize)];
 
@@ -143,7 +146,8 @@ private:
 	}
 
 public:
-	session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size);
+	
+	session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_);
 
 	
 	void RegIOCP(SOCKET& socket);

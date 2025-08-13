@@ -3,28 +3,31 @@
 
 WinForge::WinForge(WNDPROC WindowProc) {
 	WProc = WindowProc;
+	SetFramePoolSize(FrameQueueSize);
 }
 
 
-HWND WinForge::WindowInit(WinConfig& Config, HINSTANCE& hInstance, int nCmdShow) {
+HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc) {
 	const wchar_t CLASS_NAME[] = { Config.class_name };
 
-	WNDCLASS wc = {};
+	WNDCLASSEXW wc = {};
 	wc.lpfnWndProc = WProc;
 	wc.hInstance = hInstance;
-	wc.lpszClassName = CLASS_NAME;
-	RegisterClass(&wc);
+	wc.lpszClassName = &Config.class_name;
+	wc.cbSize = sizeof(WNDCLASSEXW);
 
-	HWND hwnd_ = CreateWindowEx(
+	ATOM WCAtom = RegisterClassExW(&wc);
+
+	HWND hwnd_ = CreateWindowExW(
 		0,
-		CLASS_NAME,
+		MAKEINTATOM(WCAtom),
 		&Config.Window_Name,
-		WS_OVERLAPPEDWINDOW,
+		WS_POPUP,
 		0,
 		0,
 		Config.wdWidth,
 		Config.wdHeight,
-		NULL,
+		nullptr,
 		NULL,
 		hInstance,
 		Config.lParam
@@ -34,22 +37,26 @@ HWND WinForge::WindowInit(WinConfig& Config, HINSTANCE& hInstance, int nCmdShow)
 	if (hwnd_ == NULL)
 	{
 		OutputDebugString(L"Window Creation Failed\n");
+		OutputDebugString((std::to_wstring(GetLastError()) + L"\n").c_str());
 		return hwnd_;
 	}
 
-	ShowWindow(hwnd_, nCmdShow);
 
 	return hwnd_;
 
 }
 
-HWND WinForge::CreateWindowAsync(wchar_t class_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct) {
+HWND WinForge::CreateWindowAsync(wchar_t window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct) {
 
 	std::thread test1([&] {
 
-		//CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-		WinConfig config(class_name, 1920, 1080, L'Linker', NULL);
-		hwnd = WindowInit(config, hInstance, nCmdShow);
+		hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+		WinConfig config(L'Linker', 1920, 1080, window_name, NULL);
+		hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
+		ShowWindow(hwnd, nCmdShow);
+
+		Events = new HANDLE[1];
+		Events[0] = CreateEvent(NULL, FALSE, TRUE, L"OM_RENDER");
 
 		//###############################################################################//
 
@@ -117,7 +124,9 @@ HWND WinForge::CreateWindowAsync(wchar_t class_name, HINSTANCE& hInstance, int n
 		NVDec = new NVDecoder(config.wdWidth, config.wdHeight, NvdecBuffer.Get());
 
 		//###############################################################################//
-
+		ShowWindow(hwnd, SW_SHOW);
+		UpdateWindow(hwnd);
+		
 		MainLoop();
 
 		});
@@ -129,38 +138,56 @@ HWND WinForge::CreateWindowAsync(wchar_t class_name, HINSTANCE& hInstance, int n
 
 }
 
+
+void WinForge::Render() {
+	hr = D3D11Device->CreateShaderResourceView(NvdecBuffer.Get(), &srvDesc, textureView.GetAddressOf());
+	if (FAILED(hr)) {
+		_com_error err(hr);
+		OutputDebugString(err.ErrorMessage());
+		OutputDebugString(L"aaaaaaaaaaaaaaaa\n");
+	}
+
+	D3D11Context->PSSetShaderResources(0, 1, textureView.GetAddressOf());
+
+	D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
+	D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
+	D3D11Context->Draw(4, 0);
+
+	swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+
+	//D3D11Context->FinishCommandList();
+
+	//Sleep(limit.load());
+}
+
 void WinForge::MainLoop() {
 	while (true) {
-		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-			if (msg.message == WM_QUIT)
-				break;
+		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 16, QS_ALLINPUT, 0);
 
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+		switch (EventDW) {
+		case WAIT_OBJECT_0 + 1:
+			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+
+				if (msg.message == WM_QUIT)
+					break;
+
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+
+			break;
+
+		case WAIT_OBJECT_0 + 0:
+			Render();
+			//OutputDebugString(L"AM I RENDERING ??? \n");
+
+			break;
+
+		case WAIT_TIMEOUT:
+			break;
+
 		}
 
-		//NVDec->NVDecode(reinterpret_cast<const unsigned char*>(datastream), size);
-
-
-		hr = D3D11Device->CreateShaderResourceView(NvdecBuffer.Get(), &srvDesc, textureView.GetAddressOf());
-		if (FAILED(hr)) {
-			_com_error err(hr);
-			OutputDebugString(err.ErrorMessage());
-			OutputDebugString(L"aaaaaaaaaaaaaaaa\n");
-			continue;
-		}
-
-		D3D11Context->PSSetShaderResources(0, 1, textureView.GetAddressOf());
-
-		D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
-		D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
-		D3D11Context->Draw(4, 0);
-
-		swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
-
-		//D3D11Context->FinishCommandList();
-
-		Sleep(limit.load());
 	}
 }
 

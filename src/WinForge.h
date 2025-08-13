@@ -8,18 +8,20 @@
 
 #pragma once
 
-#include <OmniRenderer.h>
-#include "WinCap.h"
-#include <nvdec.h>
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#include <comdef.h>
+#include <wrl/client.h>
 
 #include <string>
 #include <future>
 #include <mutex>
 #include <thread>
 
-#include <Windows.h>
-#include <comdef.h>
-#include <wrl/client.h>
+#include <OmniRenderer.h>
+#include "WinCap.h"
+#include <nvdec.h>
 
 using Microsoft::WRL::ComPtr;
 
@@ -32,33 +34,69 @@ struct WinConfig {
 
 	WinConfig(wchar_t ClassName, UINT Width, UINT Height, wchar_t WindowName, LPVOID lParam_) :
 		class_name(ClassName),
+		Window_Name(WindowName),
 		wdWidth(Width),
 		wdHeight(Height),
-		Window_Name(WindowName),
 		lParam(lParam_) {}
 };
 
+
+HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc);
 
 class WinForge {
 public:
 	WinForge(WNDPROC WindowProc);
 
-	HWND WindowInit(WinConfig& Config, HINSTANCE& hInstance, int nCmdShow);
 	
-	HWND CreateWindowAsync(wchar_t class_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct = {});
+	HWND CreateWindowAsync(wchar_t window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct = {});
+	
+	inline void SetFrameBufferSize(int size) {
+		for (int frame_index = 0; frame_index < FrameQueueSize; frame_index++) {
+			FramePool[frame_index].FrameBuffer = new CHAR[FrameSize];
+		}
+	}
 
-	void Render();  
+	inline void SetFramePoolSize(int size) {
+		if (FramePool != nullptr) {
+			delete[] FramePool;
+		}
 
-	void ContextSwitch();
+		FramePool = new Frame[size];
+		SetFrameBufferSize(FrameSize);
+	}
 
-	inline void SetFPSLimit(int FPS)
-	{
+	inline void SetBufferData(char* data, int size) {
+		memcpy(FramePool[NextFrame].FrameBuffer, data, size);
+
+		FramePool[NextFrame].FrameSize = size;
+		NextFrame = NextFrame + 1 & 3;
+	}
+
+	inline void DecodeBuffer() {
+		NVDec->NVDecode(reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer), FramePool[CurrentFrame].FrameSize);
+		CurrentFrame = CurrentFrame + 1 & 3;
+	}
+
+	inline void SetRenderEvent() {
+		DecodeBuffer();
+		SetEvent(Events[0]);
+	}
+	//void ContextSwitch();
+
+	inline void SetFPSLimit(int FPS) {
 		limit.store(1000 / FPS);
 	}
+
+
 private:
 	HRESULT hr = NULL;
 	HWND hwnd = NULL;
 	WNDPROC WProc = NULL;
+	HANDLE* Events = nullptr;
+	DWORD EventDW = NULL;
+
+
+
 
 	ID3D11Device* D3D11Device = nullptr;
 	ID3D11DeviceContext* D3D11Context = nullptr;
@@ -80,17 +118,32 @@ private:
 
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 
+
+
+
 	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
 	ComPtr<ID3D11Texture2D> NvdecBuffer;
 	NVDecoder* NVDec = nullptr;
 
-	CHAR* FrameBuffer[20];
+	struct Frame{
+		CHAR* FrameBuffer;
+		UINT FrameSize = 0;
+	};
+
+	int FrameSize = 130000;
+	int FrameQueueSize = 4;
+	Frame* FramePool = nullptr;
+	uint8_t CurrentFrame = 0;
+	uint8_t NextFrame = 0;
+
 
 	D3D11_DEVICE_CONTEXT_TYPE ContextMode = D3D11_DEVICE_CONTEXT_IMMEDIATE;
 
 	std::atomic<int> limit = 7;
 	MSG msg = { };
 
+	
+	void Render();
 	void MainLoop();
 
 	__forceinline void null() {}
