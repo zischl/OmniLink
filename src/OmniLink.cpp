@@ -108,11 +108,15 @@ int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
 
 	Link = new WinForge(WProc2);
 	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
-	
+	//Nv = new NVENCODER((void*)D3D11Device, NvencBuffer.Get(), 1920, 1080);
+
 	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
 
 
 	while (true) {
+		/*Nv->Encode();
+
+		session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);*/
 
 		Sleep(5);
 	}

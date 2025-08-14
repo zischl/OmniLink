@@ -149,8 +149,15 @@ void session::RegIOCP(SOCKET& socket) {
 						
 						RecvChunkLen = RecvChunkEnd * MTU;
 						RecvChunkLen += BufferSize-3;
+						if (RecvChunkLen > 300000) {
+							OutputDebugString(L"ffffffffffffffffffffffffffff\n");
+							RecvChunkLen = 0;
+							RPoolHead = 0;
+							break;
+						}
 						Link->SetBufferData(&RecvBufferPool[0], RecvChunkLen);
 						Link->SetRenderEvent();
+
 
 						RecvChunkLen = 0;
 						RPoolHead = 0;

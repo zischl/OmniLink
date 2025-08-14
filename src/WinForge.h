@@ -67,7 +67,8 @@ public:
 
 	inline void SetBufferData(char* data, int size) {
 		memcpy(FramePool[NextFrame].FrameBuffer, data, size);
-
+		
+		//OutputDebugString((std::to_wstring(CurrentFrame) + L" " + std::to_wstring(CurrentFrame) + L"\n").c_str());
 		FramePool[NextFrame].FrameSize = size;
 		NextFrame = NextFrame + 1 & 3;
 	}
@@ -78,7 +79,6 @@ public:
 	}
 
 	inline void SetRenderEvent() {
-		DecodeBuffer();
 		SetEvent(Events[0]);
 	}
 	//void ContextSwitch();
@@ -130,7 +130,7 @@ private:
 		UINT FrameSize = 0;
 	};
 
-	int FrameSize = 130000;
+	int FrameSize = 300000;
 	int FrameQueueSize = 4;
 	Frame* FramePool = nullptr;
 	uint8_t CurrentFrame = 0;
