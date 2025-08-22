@@ -12,11 +12,15 @@ void OmniCore::AddDevice() {
 
 
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
+
+	Events = new HANDLE[1];
+	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"LINKS");
+
 	WinConfig config(L'Controller Window', 1280, 720, L'Nexus', (LPVOID)this);
 	HWND hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
+	ShowWindow(hwnd, SW_SHOW);
+	UpdateWindow(hwnd);
 
-	unsigned int wdWidth = 1920;
-	unsigned int wdHeight = 1080;
 
 	/*##############################################################*/
 
@@ -38,8 +42,8 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	
 	/*##############################################################*/
 
-	Link = new WinForge(WProc2);
-	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+	/*Link = new WinForge(WProc2);
+	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);*/
 	//Link.SetFPSLimit(60);
 
 
@@ -57,13 +61,13 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	ImGui_ImplDX11_Init(D3DDevStruct.D3D11Device.Get(), D3DDevStruct.D3D11Context.Get());
 	/*##############################################################*/
 
-	HRESULT hr;
-	DXGIOutDuplication = DXGICapture.InitDXGI(RendererPtrs.D3D11Device);
+	/*HRESULT hr;
+	DXGIOutDuplication = DXGICapture.InitDXGI(RendererPtrs.D3D11Device);*/
 
 	
 	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
-	custommainBufferDesc.Width = wdWidth;
-	custommainBufferDesc.Height = wdHeight;
+	custommainBufferDesc.Width = 1920;
+	custommainBufferDesc.Height = 1080;
 	custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	custommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -73,36 +77,34 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	custommainBufferDesc.MipLevels = 1;
 	custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
 
-	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, NvencBuffer.GetAddressOf());
+	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, &DXGIBuffer);
 
+	
+	WGSCapture.InitWGC(D3D11Device, D3D11Context, DXGIBuffer, 1920, 1080);
 
+	WGSCapture.WriteStateLock();
 
-	Nv = new NVENCODER((void*)D3D11Device, NvencBuffer.Get(), wdWidth, wdHeight);
+	Nv = new NVENCODER((void*)D3D11Device, DXGIBuffer, 1920, 1080);
+
+	WGSCapture.WriteStateUnlock();
+
 
 	///* ################################################################ */
 
 	
 	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
 
-	constexpr int SIZE = 90000;
-	
 
-	for (int i = 0; i < SIZE; ++i) {
-		charArray[i] = 'A' + (i % 26);
-	}
-
-	//session1->ChunkedSend(charArray, 4380);
 	///* ################################################################ */
 
 
-	OmniCap.ToggleWindowCap(true);
-	OmniCap.ToggleInputEventCap(hwnd, true);
+	/*OmniCap.ToggleWindowCap(true);
+	OmniCap.ToggleInputEventCap(hwnd, true);*/
 
 	OmniMainLoop();
 
 }
 
-bool OmniLink::running = true;
 
 int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
 
@@ -171,7 +173,7 @@ int OmniLink::test3(HINSTANCE hInstance, int nCmdShow) {
 
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 5, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 7, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
 		case WAIT_OBJECT_0 + 1:
@@ -188,12 +190,13 @@ int OmniLink::test3(HINSTANCE hInstance, int nCmdShow) {
 			break;
 
 		case WAIT_OBJECT_0 + 0:
-			
+
 
 			break;
 
 		case WAIT_TIMEOUT:
-			
+			/* ################################################################ */
+
 			/*if (DXGICapture.CaptureDXGI() == 0) {
 
 				DXGIOutDuplication->ReleaseFrame();
@@ -204,19 +207,19 @@ int OmniLink::test3(HINSTANCE hInstance, int nCmdShow) {
 				Nv->NVUnlockBitStream();
 			}*/
 
+			/* ################################################################ */
+
 			WGSCapture.WriteStateLock();
 
 			Nv->Encode();
-
-			/*Link->SetBufferData(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-			Link->SetRenderEvent();*/
-
 
 			WGSCapture.WriteStateUnlock();
 
 			session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
 
 			Nv->NVUnlockBitStream();
+
+			/* ################################################################ */
 
 			break;
 
@@ -228,53 +231,78 @@ int OmniLink::test3(HINSTANCE hInstance, int nCmdShow) {
 
 }
 
-int OmniLink::OmniMainLoop() {
-	while (running) {
+void OmniLink::OmniMainLoop() {
+	while (true) {
 
-		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-			if (msg.message == WM_QUIT)
-				return 0;
+		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 7, QS_ALLINPUT, 0);
 
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+		switch (EventDW) {
+		case WAIT_OBJECT_0 + 1:
+			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+
+				if (msg.message == WM_QUIT)
+					break;
+
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+
+
+			break;
+
+		case WAIT_OBJECT_0 + 0:
+			// (Your code process and dispatch Win32 messages)
+			// Start the Dear ImGui frame
+			ImGui_ImplDX11_NewFrame();
+			ImGui_ImplWin32_NewFrame();
+			ImGui::NewFrame();
+			ImGui::ShowDemoWindow(); // Show demo window! :)
+
+
+			D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
+			//D3D11Context->Draw(4, 0);
+
+			// Rendering
+			// (Your code clears your framebuffer, renders your other stuff etc.)
+			ImGui::Render();
+			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+			// (Your code calls swapchain's Present() function)
+			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+
+			break;
+
+		case WAIT_TIMEOUT:
+			/* ################################################################ */
+
+			/*if (DXGICapture.CaptureDXGI() == 0) {
+
+				DXGIOutDuplication->ReleaseFrame();
+				Nv->Encode();
+
+				session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+
+				Nv->NVUnlockBitStream();
+			}*/
+
+			/* ################################################################ */
+
+			/*WGSCapture.WriteStateLock();
+
+			Nv->Encode();
+
+			WGSCapture.WriteStateUnlock();
+
+			session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+
+			Nv->NVUnlockBitStream();*/
+
+			/* ################################################################ */
+			
+			SetEvent(Events[0]);
+
+			break;
+
 		}
-
-		//Link->SetRenderEvent();
-
-		// (Your code process and dispatch Win32 messages)
-		// Start the Dear ImGui frame
-		ImGui_ImplDX11_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ImGui::NewFrame();
-		ImGui::ShowDemoWindow(); // Show demo window! :)
-
-
-		//CaptureDXGI(DXGIOutDuplication.Get(), DXGIBuffer);
-
-		//D3D11Context->CopyResource(NvencBuffer.Get(), DXGIBuffer.Get());
-		DXGIOutDuplication->ReleaseFrame();
-
-		/*Nv->Encode();
-
-		OutputDebugString((std::to_wstring(Nv->NVBitstreamLock.bitstreamSizeInBytes) + L"\n").c_str());
-
-		session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-		
-		Nv->NVUnlockBitStream();*/
-
-
-		D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
-		//D3D11Context->Draw(4, 0);
-
-
-
-		// Rendering
-		// (Your code clears your framebuffer, renders your other stuff etc.)
-		ImGui::Render();
-		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-		// (Your code calls swapchain's Present() function)
-		swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
-		Sleep(5);
 
 	}
 }
@@ -316,13 +344,12 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	case WM_CLOSE:
 		ShowWindow(hwnd, SW_HIDE);
 		PanelRendererSwitch(hwnd);
-		running = false;
 		return 0;
 	case WM_SETCURSOR:
 		SetCursor(LoadCursor(NULL, IDC_ARROW));
 		return true;
 	case WM_INPUT:
-		(omni->OmniCap.*(omni->OmniCap.InputProc))(lParam);
+		//(omni->OmniCap.*(omni->OmniCap.InputProc))(lParam);
 		break;
 	case WM_NCCREATE:
 		omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);

@@ -128,6 +128,7 @@ void WGScreenCapture::InitWGC(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext*
 
 	if (CaptureItem != nullptr) {
 		Session = FramePool.CreateCaptureSession(CaptureItem);
+		Session.IsCursorCaptureEnabled(false);
 		NullCheck(Session, "CaptureSession Creation Failed \n");
 		Session.StartCapture();
 	}

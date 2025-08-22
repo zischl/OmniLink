@@ -73,7 +73,6 @@ public:
 	HANDLE* Events = nullptr;
 	DWORD EventDW = NULL;
 
-	char charArray[90000];
 	OmniCap OmniCap;
 	sessions sessions;
 	session* session1 = nullptr;
@@ -86,7 +85,7 @@ public:
 	ComPtr<ID3D11Texture2D> NvencBuffer;
 
 
-	static bool running;
+
 	void OmniMain(HINSTANCE hInstance, int nCmdShow);
 	int test2(HINSTANCE hInstance, int nCmdShow);
 	int test3(HINSTANCE hInstance, int nCmdShow);
@@ -98,6 +97,8 @@ private:
 	ID3D11DeviceContext* D3D11Context = nullptr;
 	IDXGISwapChain3* swapchain = nullptr;
 	ID3D11RenderTargetView* renderTargetView = nullptr;
+
+	WGScreenCapture WGSCapture;
 	
 	float clearColor[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
 	
@@ -109,7 +110,7 @@ private:
 	
 	
 
-	int OmniMainLoop();
+	void OmniMainLoop();
 
 
 
