@@ -162,7 +162,7 @@ void WinForge::Render() {
 
 void WinForge::MainLoop() {
 	while (true) {
-		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 0, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 5, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
 		case WAIT_OBJECT_0 + 1:

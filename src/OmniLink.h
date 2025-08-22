@@ -16,6 +16,8 @@
 #include "IOLink.h"
 
 #include <Windows.h>
+#include <dwmapi.h>
+#pragma comment (lib, "dwmapi.lib")
 #include <shellapi.h>
 #include <string>
 #include <vector>
@@ -68,6 +70,9 @@ public:
 
 class OmniLink {
 public:
+	HANDLE* Events = nullptr;
+	DWORD EventDW = NULL;
+
 	char charArray[90000];
 	OmniCap OmniCap;
 	sessions sessions;
@@ -75,8 +80,7 @@ public:
 
 	DXGICapture DXGICapture;
 	ComPtr<IDXGIOutputDuplication> DXGIOutDuplication;
-	ComPtr<ID3D11Texture2D> DXGIBuffer = nullptr;
-	ID3D11Texture2D* DXGIBufferPtr = nullptr;
+	ID3D11Texture2D* DXGIBuffer = nullptr;
 
 	NVENCODER* Nv = nullptr;
 	ComPtr<ID3D11Texture2D> NvencBuffer;
@@ -85,6 +89,7 @@ public:
 	static bool running;
 	void OmniMain(HINSTANCE hInstance, int nCmdShow);
 	int test2(HINSTANCE hInstance, int nCmdShow);
+	int test3(HINSTANCE hInstance, int nCmdShow);
 
 
 

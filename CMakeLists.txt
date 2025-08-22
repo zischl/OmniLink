@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.18)
 project(OmniLink LANGUAGES CXX CUDA)
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
-#set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
 cmake_policy(SET CMP0104 NEW)
 set(CMAKE_CUDA_ARCHITECTURES 50 52 60 61 70 75 80 86 89 90 100 120)
 
@@ -65,7 +66,7 @@ add_executable(main WIN32
     "include/imgui/imgui_demo.cpp"
     "include/imgui/backends/imgui_impl_win32.cpp"
     "include/imgui/backends/imgui_impl_dx11.cpp"
-    "src/OmniLink.cpp" "src/IOLink.cpp" )
+    "src/OmniLink.cpp" "src/IOLink.cpp"  "src/OmniLogger.cpp")
 
 set_target_properties(main PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 14)
 add_dependencies(main CompileShaders)

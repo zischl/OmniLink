@@ -108,17 +108,122 @@ int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
 
 	Link = new WinForge(WProc2);
 	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
-	//Nv = new NVENCODER((void*)D3D11Device, NvencBuffer.Get(), 1920, 1080);
 
-	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
+	session1 = new session(sessions, "192.168.1.59", 62485, 1450, Link);
 
 
 	while (true) {
-		/*Nv->Encode();
 
-		session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);*/
+		Sleep(999);
+	}
 
-		Sleep(5);
+}
+
+int OmniLink::test3(HINSTANCE hInstance, int nCmdShow) {
+
+	Events = new HANDLE[1];
+	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"LINKS");
+
+	OmniRenderer Renderer;
+
+	D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
+	UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+
+	D3DDevice D3DDevStruct = Renderer.CreateD3d11Device(featureLevels, _countof(featureLevels), creationFlags);
+	D3D11Device = D3DDevStruct.D3D11Device.Get();
+	D3D11Context = D3DDevStruct.D3D11Context.Get();
+
+	/*HRESULT hr;
+	DXGIOutDuplication = DXGICapture.InitDXGI(D3DDevStruct.D3D11Device);
+	DXGIBuffer = DXGICapture.GetBuffer();*/
+
+	/*Link = new WinForge(WProc2);
+	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);*/
+
+	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
+	custommainBufferDesc.Width = 1920;
+	custommainBufferDesc.Height = 1080;
+	custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	custommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	custommainBufferDesc.SampleDesc.Count = 1;
+	custommainBufferDesc.SampleDesc.Quality = 0;
+	custommainBufferDesc.ArraySize = 1;
+	custommainBufferDesc.MipLevels = 1;
+	custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+
+	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, &DXGIBuffer);
+
+	WGScreenCapture WGSCapture;
+	WGSCapture.InitWGC(D3D11Device, D3D11Context, DXGIBuffer, 1920, 1080);
+
+	WGSCapture.WriteStateLock();
+
+	Nv = new NVENCODER((void*)D3D11Device, DXGIBuffer, 1920, 1080);
+
+	WGSCapture.WriteStateUnlock();
+
+	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
+	
+
+	
+
+
+	while (true) {
+
+		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 5, QS_ALLINPUT, 0);
+
+		switch (EventDW) {
+		case WAIT_OBJECT_0 + 1:
+			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+
+				if (msg.message == WM_QUIT)
+					break;
+
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+
+
+			break;
+
+		case WAIT_OBJECT_0 + 0:
+			
+
+			break;
+
+		case WAIT_TIMEOUT:
+			
+			/*if (DXGICapture.CaptureDXGI() == 0) {
+
+				DXGIOutDuplication->ReleaseFrame();
+				Nv->Encode();
+
+				session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+
+				Nv->NVUnlockBitStream();
+			}*/
+
+			WGSCapture.WriteStateLock();
+
+			Nv->Encode();
+
+			/*Link->SetBufferData(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+			Link->SetRenderEvent();*/
+
+
+			WGSCapture.WriteStateUnlock();
+
+			session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+
+			Nv->NVUnlockBitStream();
+
+			break;
+
+		}
+
+		
+
 	}
 
 }
@@ -144,9 +249,9 @@ int OmniLink::OmniMainLoop() {
 		ImGui::ShowDemoWindow(); // Show demo window! :)
 
 
-		CaptureDXGI(DXGIOutDuplication.Get(), DXGIBuffer);
+		//CaptureDXGI(DXGIOutDuplication.Get(), DXGIBuffer);
 
-		D3D11Context->CopyResource(NvencBuffer.Get(), DXGIBuffer.Get());
+		//D3D11Context->CopyResource(NvencBuffer.Get(), DXGIBuffer.Get());
 		DXGIOutDuplication->ReleaseFrame();
 
 		/*Nv->Encode();
