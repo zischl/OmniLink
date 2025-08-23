@@ -48,17 +48,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 
 	/*##############################################################*/
-	// Setup Dear ImGui context
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-	//io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // IF using Docking Branch
+	
+	OmniGUI.SetupImGui(hwnd, D3D11Device, D3D11Context);
 
-	// Setup Platform/Renderer backends
-	ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplDX11_Init(D3DDevStruct.D3D11Device.Get(), D3DDevStruct.D3D11Context.Get());
 	/*##############################################################*/
 
 	/*HRESULT hr;
@@ -121,120 +113,11 @@ int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
 
 }
 
-int OmniLink::test3(HINSTANCE hInstance, int nCmdShow) {
-
-	Events = new HANDLE[1];
-	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"LINKS");
-
-	OmniRenderer Renderer;
-
-	D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
-	UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-
-	D3DDevice D3DDevStruct = Renderer.CreateD3d11Device(featureLevels, _countof(featureLevels), creationFlags);
-	D3D11Device = D3DDevStruct.D3D11Device.Get();
-	D3D11Context = D3DDevStruct.D3D11Context.Get();
-
-	/*HRESULT hr;
-	DXGIOutDuplication = DXGICapture.InitDXGI(D3DDevStruct.D3D11Device);
-	DXGIBuffer = DXGICapture.GetBuffer();*/
-
-	/*Link = new WinForge(WProc2);
-	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);*/
-
-	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
-	custommainBufferDesc.Width = 1920;
-	custommainBufferDesc.Height = 1080;
-	custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	custommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	custommainBufferDesc.SampleDesc.Count = 1;
-	custommainBufferDesc.SampleDesc.Quality = 0;
-	custommainBufferDesc.ArraySize = 1;
-	custommainBufferDesc.MipLevels = 1;
-	custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-
-	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, &DXGIBuffer);
-
-	WGScreenCapture WGSCapture;
-	WGSCapture.InitWGC(D3D11Device, D3D11Context, DXGIBuffer, 1920, 1080);
-
-	WGSCapture.WriteStateLock();
-
-	Nv = new NVENCODER((void*)D3D11Device, DXGIBuffer, 1920, 1080);
-
-	WGSCapture.WriteStateUnlock();
-
-	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
-	
-
-	
-
-
-	while (true) {
-
-		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 7, QS_ALLINPUT, 0);
-
-		switch (EventDW) {
-		case WAIT_OBJECT_0 + 1:
-			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-
-				if (msg.message == WM_QUIT)
-					break;
-
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-
-
-			break;
-
-		case WAIT_OBJECT_0 + 0:
-
-
-			break;
-
-		case WAIT_TIMEOUT:
-			/* ################################################################ */
-
-			/*if (DXGICapture.CaptureDXGI() == 0) {
-
-				DXGIOutDuplication->ReleaseFrame();
-				Nv->Encode();
-
-				session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-
-				Nv->NVUnlockBitStream();
-			}*/
-
-			/* ################################################################ */
-
-			WGSCapture.WriteStateLock();
-
-			Nv->Encode();
-
-			WGSCapture.WriteStateUnlock();
-
-			session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-
-			Nv->NVUnlockBitStream();
-
-			/* ################################################################ */
-
-			break;
-
-		}
-
-		
-
-	}
-
-}
 
 void OmniLink::OmniMainLoop() {
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 7, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 5, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
 		case WAIT_OBJECT_0 + 1:
@@ -247,27 +130,24 @@ void OmniLink::OmniMainLoop() {
 				DispatchMessage(&msg);
 			}
 
+			if (std::chrono::steady_clock::now() - LastFrameTime >= FrameTimeLimit) {
+				SetEvent(Events[0]);
+			}
+
 
 			break;
 
 		case WAIT_OBJECT_0 + 0:
-			// (Your code process and dispatch Win32 messages)
-			// Start the Dear ImGui frame
-			ImGui_ImplDX11_NewFrame();
-			ImGui_ImplWin32_NewFrame();
-			ImGui::NewFrame();
-			ImGui::ShowDemoWindow(); // Show demo window! :)
+			OmniGUI.FrameBegin();
 
-
+			D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
 			D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
 			//D3D11Context->Draw(4, 0);
 
-			// Rendering
-			// (Your code clears your framebuffer, renders your other stuff etc.)
-			ImGui::Render();
-			ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-			// (Your code calls swapchain's Present() function)
+			OmniGUI.Render();
+			
 			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+			LastFrameTime = std::chrono::steady_clock::now();
 
 			break;
 
@@ -298,7 +178,6 @@ void OmniLink::OmniMainLoop() {
 
 			/* ################################################################ */
 			
-			SetEvent(Events[0]);
 
 			break;
 
@@ -326,12 +205,11 @@ void OmniLink::PanelRendererSwitch(HWND hwnd) {
 
 
 LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	//OutputDebugString((L"MSG: " + std::to_wstring(uMsg) + L"\n").c_str());
+	OmniLink* omni = reinterpret_cast<OmniLink*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
 	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 	if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
 		return true;
-
-	OmniLink* omni = reinterpret_cast<OmniLink*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 
 	switch (uMsg)
 	{
