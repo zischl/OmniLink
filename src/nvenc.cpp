@@ -1,4 +1,13 @@
 #include "nvenc.h"
+#include "OmniLogger.h"
+
+#define NVCHECK(status, error) {  \
+	if (status != NV_ENC_SUCCESS) { \
+		std::string text = error; \
+		Logger::log((text + " : " + std::to_string(status)).c_str()); \
+		} \
+} \
+
 
 NVENCODER::NVENCODER(void* D3DDevice, ID3D11Texture2D* inputResource, UINT encodeWidth, UINT encodeHeight) {
 		_D3DDevice = D3DDevice;
@@ -14,6 +23,8 @@ NVENCODER::NVENCODER(void* D3DDevice, ID3D11Texture2D* inputResource, UINT encod
 		RegisterResource(inputResource);
 		CreateBitStream();
 	}
+
+
 
 void NVENCODER::LoadNvEncodeAPI() {
 	HMODULE API_Handle = LoadLibrary("nvencodeapi64.dll");
@@ -235,8 +246,14 @@ void NVENCODER::GetSupportedInputFormats(){
 
 
 void NVENCODER::NVCleanup(){
-	NVFunctions.nvEncDestroyInputBuffer(NVEncoder, NVRegisterResource.registeredResource);
-	NVFunctions.nvEncUnregisterResource(NVEncoder, &NVRegisterResource);
-	NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
-	NVFunctions.nvEncDestroyEncoder(NVEncoder);
+
+	status = NVFunctions.nvEncUnregisterResource(NVEncoder, NVRegisterResource.registeredResource);
+	NVCHECK(status, "Nvenc Input Resource Failed To Unregister");
+
+	status = NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
+	NVCHECK(status, "Nvenc Bit Stream Buffer Could Not Be Destroyed");
+
+	status = NVFunctions.nvEncDestroyEncoder(NVEncoder);
+	NVCHECK(status, "Nv Encoder Could Not Be Destroyed");
+
 }

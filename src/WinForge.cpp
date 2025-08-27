@@ -19,7 +19,7 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 	ATOM WCAtom = RegisterClassExW(&wc);
 
 	HWND hwnd_ = CreateWindowExW(
-		0,
+		WS_EX_LAYERED ,
 		MAKEINTATOM(WCAtom),
 		&Config.Window_Name,
 		WS_POPUP,
@@ -32,6 +32,8 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 		hInstance,
 		Config.lParam
 	);
+
+	//SetLayeredWindowAttributes(hwnd_, RGB(0,0,0), 0, ULW_COLORKEY);
 
 
 	if (hwnd_ == NULL)
@@ -162,7 +164,7 @@ void WinForge::Render() {
 
 void WinForge::MainLoop() {
 	while (true) {
-		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 5, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 1, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
 		case WAIT_OBJECT_0 + 1:
