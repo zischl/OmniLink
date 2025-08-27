@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 project(OmniLink LANGUAGES CXX CUDA)
 
+
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
@@ -35,19 +36,29 @@ add_custom_target(CompileShaders ALL
 )
 
 
-#vcpkg
-set(-DCMAKE_PREFIX_PATH="G:/git/vcpkg/vcpkg/installed/x64-windows")
-include_directories(G:/git/vcpkg/vcpkg/installed/x64-windows)
 
 
-set(NVENC_SDK "${CMAKE_CURRENT_SOURCE_DIR}/Nvenc")
-
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/libs/x64)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/cuda)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/imgui)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/imgui/backends)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/nvidia)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/lz4)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/cuda)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+
+if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(architecture x64)
+else()
+    set(architecture x86)
+    #set(LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/x86/)
+endif()
+
+
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/)
+link_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architecture}/)
+
+
 
 add_executable(main WIN32 
     "src/main.cpp"
@@ -59,22 +70,35 @@ add_executable(main WIN32
     src/WinForge.cpp
     "src/WinCap.cpp"
     "src/OmniRenderer.cpp"
-    "include/imgui/imgui.cpp"
-    "include//imgui/imgui_draw.cpp"
-    "include/imgui/imgui_tables.cpp"
-    "include/imgui/imgui_widgets.cpp"
-    "include/imgui/imgui_demo.cpp"
-    "include/imgui/backends/imgui_impl_win32.cpp"
-    "include/imgui/backends/imgui_impl_dx11.cpp"
+    "external/include/imgui/imgui.cpp"
+    "external/include//imgui/imgui_draw.cpp"
+    "external/include/imgui/imgui_tables.cpp"
+    "external/include/imgui/imgui_widgets.cpp"
+    "external/include/imgui/imgui_demo.cpp"
+    "external/include/imgui/backends/imgui_impl_win32.cpp"
+    "external/include/imgui/backends/imgui_impl_dx11.cpp"
     "src/OmniLink.cpp"
     "src/IOLink.cpp"
     "src/OmniLogger.cpp"
-    "OmniGUI.cpp" "src/OmniGUI.cpp")
+    "src/OmniGUI.cpp")
+
+target_compile_definitions(main PUBLIC 
+    $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>
+    $<$<CONFIG:Release>:OMNI_BUILD_RELEASE>
+    
+)
+
+set(DLL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/dll/$<CONFIG>/${architecture}")
+
+add_custom_command(
+    TARGET main 
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${DLL_PATH}"
+        $<TARGET_FILE_DIR:main>
+)
 
 set_target_properties(main PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_STANDARD 14)
 add_dependencies(main CompileShaders)
 
 
-#lz4 shit
-find_package(lz4 CONFIG REQUIRED)
-target_link_libraries(main PRIVATE lz4::lz4)

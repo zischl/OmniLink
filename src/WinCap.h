@@ -35,7 +35,7 @@ private:
 
 
 public:
-	ComPtr<IDXGIOutputDuplication> InitDXGI(ComPtr<ID3D11Device> D3D11Device);
+	ComPtr<IDXGIOutputDuplication> InitDXGI(ID3D11Device* D3D11Device);
 
 	ID3D11Texture2D* GetBuffer() const;
 
@@ -49,6 +49,8 @@ class WGCapture {
 public:
 
 	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice D3DDevice_WGC{ nullptr };
+	
+	ID3D11DeviceContext* D3D11Context = nullptr;
 
 	inline void SetWrappedD3D11Device(ID3D11Device* D3D11DevicePtr) {
 		ComPtr< ID3D11Device> ComID3D11Device = D3D11DevicePtr;
@@ -92,14 +94,14 @@ public:
 	}
 
 	void GetActiveMonitorCaptureItem(winrt::Windows::Graphics::Capture::GraphicsCaptureItem& CaptureItem);
+
+	void CreateWGCBuffer(ID3D11Device* D3D11Device, ID3D11Texture2D** Buffer);
 	
 };
 
 class WGScreenCapture : public WGCapture{
 private:
-	HRESULT hr;
-
-	ID3D11DeviceContext* D3D11Context = nullptr;
+	HRESULT hr = S_OK;
 
 	winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{ NULL };
 
@@ -117,9 +119,9 @@ private:
 
 
 public:
-	WGScreenCapture();
+	WGScreenCapture(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11Context_);
 
-	void InitWGC(ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context_, ID3D11Texture2D* Buffer, UINT Width, UINT Height);
+	void CreateMonitorCapSession(ID3D11Texture2D* Buffer, UINT Width, UINT Height);
 
 	inline void WriteStateLock() {
 		WriteState.store(true);
@@ -128,6 +130,11 @@ public:
 	inline void WriteStateUnlock() {
 		WriteState.store(false);
 	}
+
+	void StartSession();
+
+	void CloseSession();
+
 
 };
 

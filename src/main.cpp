@@ -9,8 +9,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 {
 	OmniLink OmniLink;
 	OmniLink.OmniMain(hInstance, nCmdShow);
-	//OmniLink.test3(hInstance, nCmdShow);
-	//Nv.NVCleanup();
+	//OmniLink.test2(hInstance, nCmdShow);
 }
 
 

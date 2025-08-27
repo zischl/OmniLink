@@ -1,20 +1,78 @@
 #include <OmniLink.h>
 
 
-void OmniCore::Execute() {
+void OmniLink::ToggleWGC() {
+
+	if (WGCStatus) {
+		if (WGSCapture != nullptr)
+		WGSCapture->CloseSession();
+		
+		Nv->NVUnlockBitStream();
+		Nv->NVCleanup();
+		delete Nv;
+
+		WGCStatus = false;
+
+		delete WGSCapture;
+		//delete WGSCapBuffer;
+
+		ExecuteCommand = &OmniLink::CommandListEmpty;
+
+		
+	}
+	else {
+		WGSCapture = new WGScreenCapture(D3D11Device, D3D11Context);
+		WGSCapture->CreateWGCBuffer(D3D11Device, &WGSCapBuffer);
+		WGSCapture->CreateMonitorCapSession(WGSCapBuffer, 1920, 1080);
+		WGSCapture->StartSession();
+		WGCStatus = true;
+		ExecuteCommand = &OmniLink::WGCapSend;
+
+		Nv = new NVENCODER((void*)D3D11Device, WGSCapBuffer, 1920, 1080);
+
+	}
+
 
 }
 
+void OmniLink::ToggleDDAPI() {
+	if (DXGIStatus) {
+		if (DXGICap != nullptr) {
+			DXGIStatus = false;
+			DXGIOutDuplication.Reset();
+			delete DXGICap;
+		}
 
-void OmniCore::AddDevice() {
+		Nv->NVUnlockBitStream();
+		Nv->NVCleanup();
+		delete Nv;
+
+
+		ExecuteCommand = &OmniLink::CommandListEmpty;
+
+		
+	}
+	else {
+		DXGICap = new DXGICapture;
+		DXGIOutDuplication = DXGICap->InitDXGI(D3D11Device);
+		DXGIBuffer = DXGICap->GetBuffer();
+		DXGIStatus = true;
+		ExecuteCommand = &OmniLink::DXGICapSend;
+
+		Nv = new NVENCODER((void*)D3D11Device, DXGIBuffer, 1920, 1080);
+
+	}
+
 
 }
-
 
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
+	
+	Events = new HANDLE[3];
+	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"PanelRender");
+	Events[1] = CreateEvent(NULL, FALSE, FALSE, L"ToggleWGC");
+	Events[2] = CreateEvent(NULL, FALSE, FALSE, L"ToggleDDAPI");
 
-	Events = new HANDLE[1];
-	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"LINKS");
 
 	WinConfig config(L'Controller Window', 1280, 720, L'Nexus', (LPVOID)this);
 	HWND hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
@@ -49,36 +107,17 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*##############################################################*/
 	
-	OmniGUI.SetupImGui(hwnd, D3D11Device, D3D11Context);
+	OmniGUI.SetupImGui(hwnd, D3D11Device, D3D11Context, Events);
 
 	/*##############################################################*/
 
-	/*HRESULT hr;
-	DXGIOutDuplication = DXGICapture.InitDXGI(RendererPtrs.D3D11Device);*/
+	//ToggleDDAPI();
+	//ToggleDDAPI();
 
 	
-	D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
-	custommainBufferDesc.Width = 1920;
-	custommainBufferDesc.Height = 1080;
-	custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	custommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	custommainBufferDesc.SampleDesc.Count = 1;
-	custommainBufferDesc.SampleDesc.Quality = 0;
-	custommainBufferDesc.ArraySize = 1;
-	custommainBufferDesc.MipLevels = 1;
-	custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-
-	D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, &DXGIBuffer);
 
 	
-	WGSCapture.InitWGC(D3D11Device, D3D11Context, DXGIBuffer, 1920, 1080);
 
-	WGSCapture.WriteStateLock();
-
-	Nv = new NVENCODER((void*)D3D11Device, DXGIBuffer, 1920, 1080);
-
-	WGSCapture.WriteStateUnlock();
 
 
 	///* ################################################################ */
@@ -92,7 +131,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);*/
-
+	
 	OmniMainLoop();
 
 }
@@ -115,12 +154,13 @@ int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
 
 
 void OmniLink::OmniMainLoop() {
+
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(1, Events, 5, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(3, Events, 1, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
-		case WAIT_OBJECT_0 + 1:
+		case WAIT_OBJECT_0 + 3:
 			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 
 				if (msg.message == WM_QUIT)
@@ -151,33 +191,19 @@ void OmniLink::OmniMainLoop() {
 
 			break;
 
-		case WAIT_TIMEOUT:
-			/* ################################################################ */
-
-			/*if (DXGICapture.CaptureDXGI() == 0) {
-
-				DXGIOutDuplication->ReleaseFrame();
-				Nv->Encode();
-
-				session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-
-				Nv->NVUnlockBitStream();
-			}*/
-
-			/* ################################################################ */
-
-			/*WGSCapture.WriteStateLock();
-
-			Nv->Encode();
-
-			WGSCapture.WriteStateUnlock();
-
-			session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-
-			Nv->NVUnlockBitStream();*/
-
-			/* ################################################################ */
+		case WAIT_OBJECT_0 + 1:
+			ToggleWGC();
 			
+			break;
+
+		case WAIT_OBJECT_0 + 2:
+			ToggleDDAPI();
+
+			break;
+
+		case WAIT_TIMEOUT:
+			
+			(this->*ExecuteCommand)();
 
 			break;
 
@@ -202,12 +228,14 @@ void OmniLink::PanelRendererSwitch(HWND hwnd) {
 	Shell_NotifyIcon(NIM_ADD, &TrayIconData);
 }
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 
 LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+
+
 	OmniLink* omni = reinterpret_cast<OmniLink*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 
-	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 	if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
 		return true;
 
