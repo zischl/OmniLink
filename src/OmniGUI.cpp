@@ -1,11 +1,13 @@
-#include <OmniGUI.h>
+#include "OmniLink.h"
+#include "OmniGUI.h"
+#include "fonts.h"
 
 using Microsoft::WRL::ComPtr;
 
-struct D3DDevice {
-		ComPtr<ID3D11Device> D3D11Device = nullptr;
-		ComPtr<ID3D11DeviceContext> D3D11Context = nullptr;
-	};
+
+OmniGUI::OmniGUI(OmniLink& OmniLinkInstance) : App(OmniLinkInstance) {
+	AvailableDevices = App.GetAvailableInstances();
+}
 
 void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context, HANDLE* Events)
 {
@@ -23,18 +25,58 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
 	ImGui_ImplDX11_Init(D3D11Device, D3D11Context);
+
+	ImFontConfig FontCFG;
+	FontCFG.FontDataOwnedByAtlas = false;
+
+	JetBrainsReg20 = io.Fonts->AddFontFromMemoryTTF(JetBrainsMonoRegular, JetBrainsMonoRegular_Size, 20.0f, &FontCFG);
+	JetBrainsReg18 = io.Fonts->AddFontFromMemoryTTF(JetBrainsMonoRegular, JetBrainsMonoRegular_Size, 18.0f, &FontCFG);
+
 }
 
-bool OmniGUI::IconizedButton(const char* label) {
+
+bool OmniGUI::VerticalMenuItem(const char* label) 
+{
 	ImGui::PushID(label);
 
-	ImVec2 ButtonSize = ImVec2(user_resx * 0.05, user_resx * 0.05);
+	ImVec2 MenuItemSize = ImVec2(180, 100);
+
+	ImVec2 pos = ImGui::GetCursorScreenPos();
+	bool clicked = ImGui::InvisibleButton(label, MenuItemSize);
+
+
+	if (!ImGui::IsItemHovered()) {
+		ImU32 MenuItemColor = ImGui::GetColorU32(ImVec4(0.09f, 0.09f, 0.09f, 1.0f));
+
+		DrawList->AddRectFilled(pos, ImVec2(pos.x + MenuItemSize.x, pos.y + MenuItemSize.y), MenuItemColor);
+	}
+	else {
+		ImU32 MenuItemColor_Hovered = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.13f, 1.0f));
+
+		DrawList->AddRectFilled(pos, ImVec2(pos.x + MenuItemSize.x, pos.y + MenuItemSize.y), MenuItemColor_Hovered);
+	}
+
+	ImGui::PopID();
+
+	return clicked;
+
+}
+
+
+
+
+bool OmniGUI::IconizedButton(const char* label, ImVec2& ButtonSize) 
+{
+	ImGui::PushID(label);
+
+	
+
 
 	ImVec2 pos = ImGui::GetCursorScreenPos();
 	bool clicked = ImGui::InvisibleButton(label, ButtonSize);
-	
+
 	ImVec2 TextSize = ImGui::CalcTextSize(label);
-	ImVec2 TextPos = ImVec2(pos.x + (ButtonSize.x - TextSize.x) * 0.5f , pos.y + (ButtonSize.y - TextSize.y) * 0.5f);
+	ImVec2 TextPos = ImVec2(pos.x + (ButtonSize.x - TextSize.x) * 0.5f, pos.y + (ButtonSize.y - TextSize.y) * 0.5f);
 
 
 	if (!ImGui::IsItemHovered()) {
@@ -60,29 +102,110 @@ bool OmniGUI::IconizedButton(const char* label) {
 
 }
 
-bool OmniGUI::VerticalMenuItem(const char* label) {
+
+
+void OmniGUI::CenterItemX(const float ItemWidth)
+{
+	float space = ImGui::GetContentRegionAvail().x;
+	ImGui::SetCursorPosX((space - ItemWidth) * 0.5f);
+}
+
+
+
+
+
+void OmniGUI::ConnectionRing(const char* label)
+{	
+	ImVec2 space = ImGui::GetContentRegionAvail();
+	ImVec2 cpos = ImGui::GetCursorScreenPos();
+
 	ImGui::PushID(label);
+	ImVec2 pos = ImVec2(cpos.x + (space.x * 0.5f), cpos.y + (space.y * 0.5f));
+
+	ImU32 col = IM_COL32(128, 0, 255, 255);
+
+	//DrawList->AddCircle(pos, 200, col, 20, 3.0f);
+	
+	//DrawList->AddCircle(pos, 210, col, 20, 3.0f);
 
 
-	ImVec2 MenuItemSize = ImVec2(180, 100);
+	int radius = 205;
+	ImVec2 text_size = ImGui::CalcTextSize("192.168.1.59");
 
-	ImVec2 pos = ImGui::GetCursorScreenPos();
-	bool clicked = ImGui::InvisibleButton(label, MenuItemSize);
+	ImGui::PushFont(JetBrainsReg18);
 
-
-	if (!ImGui::IsItemHovered()) {
-		ImU32 MenuItemColor = ImGui::GetColorU32(ImVec4(0.09f, 0.09f, 0.09f, 1.0f));
-
-		DrawList->AddRectFilled(pos, ImVec2(pos.x + MenuItemSize.x, pos.y + MenuItemSize.y), MenuItemColor);
+	for (OmniInstance& instance : *AvailableDevices) {
+		DeviceIcon(pos, text_size, instance.IPv4_String);
 	}
-	else {
-		ImU32 MenuItemColor_Hovered = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.13f, 1.0f));
 
-		DrawList->AddRectFilled(pos, ImVec2(pos.x + MenuItemSize.x, pos.y + MenuItemSize.y), MenuItemColor_Hovered);
-	}
+	ImGui::PopFont();
+
+	/*pos.y -= radius;
+
+	DrawList->AddRect(ImVec2(pos.x - 30 , pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y +35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);
+
+	pos.x += radius;
+	pos.y += radius;
+
+	DrawList->AddRect(ImVec2(pos.x - 30, pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y + 35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);
+
+
+	pos.x -= radius * 2;
+
+	DrawList->AddRect(ImVec2(pos.x - 30, pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y + 35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);
+
+	pos.x += radius;
+	pos.y += radius;
+
+	DrawList->AddRect(ImVec2(pos.x - 30, pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y + 35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);*/
+
+
+
 
 	ImGui::PopID();
+}
 
-	return clicked;
 
+
+void OmniGUI::CreateCurvedLine(const char* label, int curve) 
+{
+	ImGui::PushID(label);
+
+	ImVec2 pos = ImGui::GetCursorScreenPos();
+
+	int length = 150;
+	
+	ImVec2 p0 = ImVec2(pos.x, pos.y);
+	ImVec2 p1 = ImVec2(pos.x, pos.y + length);
+	ImVec2 cp0 = ImVec2(pos.x - curve, pos.y + curve);
+	ImVec2 cp1 = ImVec2(pos.x - curve, pos.y + length - curve);
+
+	ImU32 color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 1.0f ));
+	float thickness = 1.0f;
+	int segments = 20;
+
+	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness, segments);
+
+
+	int glow_range = 1;
+
+	color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 0.6f));
+	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range, segments);
+
+	color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 0.3f));
+	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range*2, segments);
+
+	color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 0.1f));
+	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range * 2.5, segments);
+
+
+	ImGui::PopID();
 }

@@ -1,6 +1,11 @@
 #include <OmniLink.h>
 
 
+std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept {
+	return &AllInstances;
+}
+
+
 void OmniLink::ToggleWGC() {
 
 	if (WGCStatus) {
@@ -10,11 +15,11 @@ void OmniLink::ToggleWGC() {
 		Nv->NVUnlockBitStream();
 		Nv->NVCleanup();
 		delete Nv;
+		Nv = nullptr;
 
 		WGCStatus = false;
 
 		delete WGSCapture;
-		//delete WGSCapBuffer;
 
 		ExecuteCommand = &OmniLink::CommandListEmpty;
 
@@ -46,11 +51,12 @@ void OmniLink::ToggleDDAPI() {
 		Nv->NVUnlockBitStream();
 		Nv->NVCleanup();
 		delete Nv;
-
+		
+		DXGIBuffer = nullptr;
 
 		ExecuteCommand = &OmniLink::CommandListEmpty;
 
-		
+		return;
 	}
 	else {
 		DXGICap = new DXGICapture;
@@ -68,13 +74,15 @@ void OmniLink::ToggleDDAPI() {
 
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	
-	Events = new HANDLE[3];
+	Events = new HANDLE[4];
 	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"PanelRender");
 	Events[1] = CreateEvent(NULL, FALSE, FALSE, L"ToggleWGC");
 	Events[2] = CreateEvent(NULL, FALSE, FALSE, L"ToggleDDAPI");
+	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"Network Scan");
 
 
-	WinConfig config(L'Controller Window', 1280, 720, L'Nexus', (LPVOID)this);
+
+	WinConfig config(L'Controller Window', 1280, 810, L'Nexus', (LPVOID)this);
 	HWND hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
 	ShowWindow(hwnd, SW_SHOW);
 	UpdateWindow(hwnd);
@@ -92,7 +100,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	HWNDxD3D11 RendererPtrs;
 	RendererPtrs.D3D11Device = D3DDevStruct.D3D11Device;
 	RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
-	Renderer.RendererInit(hwnd, 1280, 720, RendererPtrs);
+	Renderer.RendererInit(hwnd, 1280, 810, RendererPtrs);
 	D3D11Device = RendererPtrs.D3D11Device.Get();
 	D3D11Context = RendererPtrs.D3D11Context.Get();
 	swapchain = RendererPtrs.swapchain.Get();
@@ -107,16 +115,14 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*##############################################################*/
 	
-	OmniGUI.SetupImGui(hwnd, D3D11Device, D3D11Context, Events);
+	InstanceProbe = new Instances(62485, &Events[3]);
+	InstanceProbe->AwaitInstances();
 
-	/*##############################################################*/
 
-	//ToggleDDAPI();
-	//ToggleDDAPI();
+	GUI = new OmniGUI(*this);
+	GUI->SetupImGui(hwnd, D3D11Device, D3D11Context, Events);
 
-	
-
-	
+	/*##############################################################*/	
 
 
 
@@ -131,6 +137,10 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);*/
+
+
+	
+	
 	
 	OmniMainLoop();
 
@@ -157,10 +167,10 @@ void OmniLink::OmniMainLoop() {
 
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(3, Events, 1, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(4, Events, 1, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
-		case WAIT_OBJECT_0 + 3:
+		case WAIT_OBJECT_0 + 4:
 			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 
 				if (msg.message == WM_QUIT)
@@ -178,13 +188,13 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 0:
-			OmniGUI.FrameBegin();
+			GUI->FrameBegin();
 
 			D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
 			D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
 			//D3D11Context->Draw(4, 0);
 
-			OmniGUI.Render();
+			GUI->Render();
 			
 			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 			LastFrameTime = std::chrono::steady_clock::now();
@@ -201,6 +211,34 @@ void OmniLink::OmniMainLoop() {
 
 			break;
 
+		case WAIT_OBJECT_0 + 3:
+			//Check whether new scan results are available and get them if so
+			//Otherwise initiate a new scan
+			if (InstanceProbe->ScanState.load()) {
+				std::unordered_map<uint32_t, std::string>* AvailableInstances = InstanceProbe->get();
+				int DevIdx = 0;
+
+				for (const auto& [IP, Name] : *AvailableInstances)
+				{
+					if (DevIdx > 5) break;
+
+					std::lock_guard<std::mutex> lock(Mutex);
+					AllInstances[DevIdx].InstanceIP = IP;
+					std::sprintf(AllInstances[DevIdx].IPv4_String, "%u.%u.%u.%u", (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF);
+
+					DevIdx++;
+
+				}
+
+			}
+			else {
+				InstanceProbe->Scan(15);
+			}
+
+
+			
+			break;
+		
 		case WAIT_TIMEOUT:
 			
 			(this->*ExecuteCommand)();
@@ -208,6 +246,7 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		}
+
 
 	}
 }

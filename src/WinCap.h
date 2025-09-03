@@ -111,6 +111,9 @@ private:
 
 	std::atomic_bool WriteState{ false };
 
+	winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame Frame{ nullptr };
+	winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame ValidFrame{ nullptr };
+
 	ID3D11Texture2D* WBuffer = nullptr;
 
 	winrt::com_ptr<Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess> _SurfaceInterface;;

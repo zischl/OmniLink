@@ -61,26 +61,29 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architectu
 
 
 add_executable(main WIN32 
-    "src/main.cpp"
-    "src/RendererCore.cpp"
+    src/main.cpp
+    src/RendererCore.cpp
     src/SessionHandler.cpp
     src/nvenc.cpp
     src/nvdec.cpp
     src/CuKernel.cu
     src/WinForge.cpp
-    "src/WinCap.cpp"
-    "src/OmniRenderer.cpp"
-    "external/include/imgui/imgui.cpp"
-    "external/include//imgui/imgui_draw.cpp"
-    "external/include/imgui/imgui_tables.cpp"
-    "external/include/imgui/imgui_widgets.cpp"
-    "external/include/imgui/imgui_demo.cpp"
-    "external/include/imgui/backends/imgui_impl_win32.cpp"
-    "external/include/imgui/backends/imgui_impl_dx11.cpp"
-    "src/OmniLink.cpp"
-    "src/IOLink.cpp"
-    "src/OmniLogger.cpp"
-    "src/OmniGUI.cpp")
+    src/WinCap.cpp
+    src/OmniRenderer.cpp
+    external/include/imgui/imgui.cpp
+    external/include//imgui/imgui_draw.cpp
+    external/include/imgui/imgui_tables.cpp
+    external/include/imgui/imgui_widgets.cpp
+    external/include/imgui/imgui_demo.cpp
+    external/include/imgui/backends/imgui_impl_win32.cpp
+    external/include/imgui/backends/imgui_impl_dx11.cpp
+    src/OmniLink.cpp
+    src/IOLink.cpp
+    src/OmniLogger.cpp
+    src/OmniGUI.cpp
+    src/OmniDiscovery.cpp
+
+)
 
 target_compile_definitions(main PUBLIC 
     $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>

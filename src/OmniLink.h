@@ -14,9 +14,9 @@
 #include "WinForge.h"
 #include "WinCap.h"
 #include "IOLink.h"
-#include "OmniGUI.h"
+#include "OmniDiscovery.h"
 #include "OmniLogger.h"
-
+#include "OmniGUI.h"
 #include <Windows.h>
 #include <dwmapi.h>
 #pragma comment (lib, "dwmapi.lib")
@@ -58,11 +58,11 @@
 #define WM_TRAYICON (WM_USER + 1)
 
 
-
-struct OmniDevice {
-
-	session DeviceSession;
-	HWND ActiveWindow;
+struct OmniInstance {
+	std::string InstanceName;
+	uint32_t InstanceIP = NULL;
+	char IPv4_String[16] = {};
+	session* InstanceSession = nullptr;
 };
 
 
@@ -72,8 +72,12 @@ protected:
 	DWORD EventDW = NULL;
 
 	OmniCap OmniCap;
+	Instances* InstanceProbe = nullptr;
+	std::mutex Mutex;
+	std::array<OmniInstance, 5> AllInstances;
+	//OmniInstance ActiveInstances[4];
 	sessions sessions;
-
+	
 	ID3D11Device* D3D11Device = nullptr;
 	ID3D11DeviceContext* D3D11Context = nullptr;
 	IDXGISwapChain3* swapchain = nullptr;
@@ -91,21 +95,17 @@ protected:
 	ID3D11Texture2D* DXGIBuffer = nullptr;
 	bool DXGIStatus = false;
 
-	
 
-
+public:
+	std::array<OmniInstance, 5>* GetAvailableInstances() noexcept;
 };
 
 
-class OmniLink : public OmniCore{
+class OmniLink : public OmniCore {
 public:
-	
 	session* session1 = nullptr;
 
-	
-	ComPtr<ID3D11Texture2D> NvencBuffer;
-
-
+	WinForge* Link = nullptr;
 
 	void OmniMain(HINSTANCE hInstance, int nCmdShow);
 	int test2(HINSTANCE hInstance, int nCmdShow);
@@ -144,26 +144,31 @@ public:
 	}
 
 private:
-	OmniGUI OmniGUI;
-	std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::steady_clock::duration(15 * 1000000);
+	//GUI
+	OmniGUI* GUI = nullptr;
+
+	std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::nanoseconds(15 * 000000);
+
 	std::chrono::time_point<std::chrono::steady_clock> LastFrameTime = std::chrono::steady_clock::now();
 
-	
-
 	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	
-	WinForge* Link = nullptr;
 
 	MSG msg = { };
-	
-	void (OmniLink::*ExecuteCommand)() = &OmniLink::CommandListEmpty;
+
+	void (OmniLink::* ExecuteCommand)() = &OmniLink::CommandListEmpty;
 
 	static LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+
+	//Streamer Links Window Proc
 	static LRESULT CALLBACK WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+
 
 	void OmniMainLoop();
 
 	static void PanelRendererSwitch(HWND hwnd);
+
 };
 
 #endif

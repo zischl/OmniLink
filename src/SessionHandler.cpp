@@ -1,5 +1,7 @@
 #include "SessionHandler.h"
 
+
+
 sessions::sessions() {
 	WinsockInit();
 
@@ -128,7 +130,7 @@ void session::RegIOCP(SOCKET& socket) {
 						OutputDebugStringA("IOCP Thread Going Down...\n");
 					}
 				}
-				
+
 				RECV_BUF* Buffer = reinterpret_cast<RECV_BUF*>(OVStruct);
 
 				switch (Buffer->Type) {

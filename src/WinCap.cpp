@@ -130,10 +130,10 @@ void WGScreenCapture::CreateMonitorCapSession(ID3D11Texture2D* Buffer, UINT Widt
 
 
 
-	FramePool.FrameArrived([this](auto Pool, auto a) {
-		winrt::Direct3D11CaptureFrame ValidFrame{ nullptr };
+	FramePool.FrameArrived([this](auto &Pool, auto &a) {
+		
 		while (true) {
-			winrt::Direct3D11CaptureFrame Frame = Pool.TryGetNextFrame();
+			Frame = Pool.TryGetNextFrame();
 			if (!Frame) {
 				break;
 			}
