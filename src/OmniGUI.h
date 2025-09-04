@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "OmniTypes.h"
+
 #include <Windows.h>
 #include <wrl/client.h>
 
@@ -11,23 +13,23 @@
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+#include "imgui_internal.h"
 
 class OmniLink;
-struct OmniInstance;
 
 class OmniGUI {
 public:
 	OmniGUI(OmniLink& OmniLinkInstance);
 
 	void SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context, HANDLE* Events);
-	
+
 	inline void FrameBegin() {
 		// Start the Dear ImGui frame
 		ImGui_ImplDX11_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::SetNextWindowSize(ImVec2(1280 , 810));
+		ImGui::SetNextWindowSize(ImVec2(1280, 810));
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
 
 		ImGuiStyle& style = ImGui::GetStyle();
@@ -46,7 +48,7 @@ public:
 				if (VerticalMenuItem("Keybinds")) ActiveMenu = 2;
 				if (VerticalMenuItem("Settings")) ActiveMenu = 3;
 
-				
+
 			}ImGui::EndChild();
 
 
@@ -130,7 +132,7 @@ public:
 					ImGui::EndChild();
 				}
 
-					break;
+				break;
 
 				case 1:
 
@@ -159,16 +161,55 @@ public:
 		ImGui::Render();
 		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-		
+
 	}
 
-
-	inline void DeviceIcon(ImVec2& pos, ImVec2& text_size, const char* text) {
-		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
+	inline void DeviceIconPreview(ImVec2& pos, ImVec2& text_size = ImVec2(0, 0), const char* text = "") {
+		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);		//monitor
 		DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), IM_COL32(255, 255, 255, 255), text);
-		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);
+		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);				//handle
+		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);	//stand
 	}
+
+	inline void DeviceIcon(const char* label, ImVec2& pos, ImVec2& text_size, OmniInstance* DeviceData) {
+		ImGui::PushID(label);
+
+		const ImGuiID id = ImGui::GetID(label);
+		
+		ImRect bb(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 55));
+		
+		ImGui::ItemAdd(bb, id, NULL, ImGuiItemFlags_None);
+		
+		bool hovered, held;
+		bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, 0);
+		ImGui::RenderNavCursor(bb, id);
+
+		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);		//monitor
+		DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), IM_COL32(255, 255, 255, 255), DeviceData->IPv4_String);
+		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);				//handle
+		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);	//stand
+
+		if (ImGui::BeginDragDropSource())
+		{
+			ImGui::SetDragDropPayload("DeviceInfo", DeviceData->IPv4_String, sizeof(DeviceData->IPv4_String));
+			DeviceIconPreview(ImGui::GetCursorScreenPos(), text_size, DeviceData->IPv4_String);
+			ImGui::EndDragDropSource();
+		}
+		if (ImGui::BeginDragDropTarget())
+		{
+			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DeviceInfo");
+			if (payload != nullptr) {
+				const char* data = static_cast<char*> (payload->Data);
+				std::cout << data << "\n";
+			}
+			ImGui::EndDragDropTarget();
+		}
+
+		ImGui::PopID();
+
+	}
+
+
 
 
 private:

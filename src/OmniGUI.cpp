@@ -35,7 +35,7 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
 }
 
 
-bool OmniGUI::VerticalMenuItem(const char* label) 
+bool OmniGUI::VerticalMenuItem(const char* label)
 {
 	ImGui::PushID(label);
 
@@ -65,11 +65,11 @@ bool OmniGUI::VerticalMenuItem(const char* label)
 
 
 
-bool OmniGUI::IconizedButton(const char* label, ImVec2& ButtonSize) 
+bool OmniGUI::IconizedButton(const char* label, ImVec2& ButtonSize)
 {
 	ImGui::PushID(label);
 
-	
+
 
 
 	ImVec2 pos = ImGui::GetCursorScreenPos();
@@ -115,7 +115,7 @@ void OmniGUI::CenterItemX(const float ItemWidth)
 
 
 void OmniGUI::ConnectionRing(const char* label)
-{	
+{
 	ImVec2 space = ImGui::GetContentRegionAvail();
 	ImVec2 cpos = ImGui::GetCursorScreenPos();
 
@@ -125,70 +125,72 @@ void OmniGUI::ConnectionRing(const char* label)
 	ImU32 col = IM_COL32(128, 0, 255, 255);
 
 	//DrawList->AddCircle(pos, 200, col, 20, 3.0f);
-	
+
 	//DrawList->AddCircle(pos, 210, col, 20, 3.0f);
 
+	ImGui::PopID();
 
 	int radius = 205;
 	ImVec2 text_size = ImGui::CalcTextSize("192.168.1.59");
 
 	ImGui::PushFont(JetBrainsReg18);
 
-	for (OmniInstance& instance : *AvailableDevices) {
-		DeviceIcon(pos, text_size, instance.IPv4_String);
+	DeviceIcon("PC0", pos, text_size, &(*AvailableDevices)[0]);
+
+
+	if ((*AvailableDevices)[1].InstanceIP) {
+	
+		pos.y -= radius;
+		DeviceIcon("PC1", pos, text_size, &(*AvailableDevices)[1]);
+
+	}
+
+	if ((*AvailableDevices)[2].InstanceIP) {
+
+		pos.x += radius;
+		pos.y += radius;
+		DeviceIcon("PC2", pos, text_size, &(*AvailableDevices)[2]);
+
+	}
+
+	if ((*AvailableDevices)[3].InstanceIP) {
+
+		pos.x -= radius * 2;
+		DeviceIcon("PC3", pos, text_size, &(*AvailableDevices)[3]);
+
+	}
+
+	if ((*AvailableDevices)[4].InstanceIP) {
+
+		pos.x += radius;
+		pos.y += radius;
+		DeviceIcon("PC4", pos, text_size, &(*AvailableDevices)[4]);
+
 	}
 
 	ImGui::PopFont();
 
-	/*pos.y -= radius;
-
-	DrawList->AddRect(ImVec2(pos.x - 30 , pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y +35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);
-
-	pos.x += radius;
-	pos.y += radius;
-
-	DrawList->AddRect(ImVec2(pos.x - 30, pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y + 35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);
-
-
-	pos.x -= radius * 2;
-
-	DrawList->AddRect(ImVec2(pos.x - 30, pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y + 35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);
-
-	pos.x += radius;
-	pos.y += radius;
-
-	DrawList->AddRect(ImVec2(pos.x - 30, pos.y - 20), ImVec2(pos.x + 30, pos.y + 20), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x, pos.y + 20), ImVec2(pos.x, pos.y + 35), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);
-	DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 35), ImVec2(pos.x + 15, pos.y + 35), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);*/
 
 
 
-
-	ImGui::PopID();
 }
 
 
 
-void OmniGUI::CreateCurvedLine(const char* label, int curve) 
+void OmniGUI::CreateCurvedLine(const char* label, int curve)
 {
 	ImGui::PushID(label);
 
 	ImVec2 pos = ImGui::GetCursorScreenPos();
 
 	int length = 150;
-	
+
 	ImVec2 p0 = ImVec2(pos.x, pos.y);
 	ImVec2 p1 = ImVec2(pos.x, pos.y + length);
 	ImVec2 cp0 = ImVec2(pos.x - curve, pos.y + curve);
 	ImVec2 cp1 = ImVec2(pos.x - curve, pos.y + length - curve);
 
-	ImU32 color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 1.0f ));
+	ImU32 color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 1.0f));
 	float thickness = 1.0f;
 	int segments = 20;
 
@@ -201,7 +203,7 @@ void OmniGUI::CreateCurvedLine(const char* label, int curve)
 	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range, segments);
 
 	color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 0.3f));
-	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range*2, segments);
+	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range * 2, segments);
 
 	color = ImGui::GetColorU32(ImVec4(0.5f, 0.0f, 1.0f, 0.1f));
 	DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range * 2.5, segments);

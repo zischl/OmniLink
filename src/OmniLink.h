@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "OmniTypes.h"
 #include "SessionHandler.h"
 #include "RendererCore.h"
 #include "nvenc.h"
@@ -58,12 +59,7 @@
 #define WM_TRAYICON (WM_USER + 1)
 
 
-struct OmniInstance {
-	std::string InstanceName;
-	uint32_t InstanceIP = NULL;
-	char IPv4_String[16] = {};
-	session* InstanceSession = nullptr;
-};
+
 
 
 class OmniCore {

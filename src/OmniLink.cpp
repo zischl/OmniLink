@@ -78,7 +78,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"PanelRender");
 	Events[1] = CreateEvent(NULL, FALSE, FALSE, L"ToggleWGC");
 	Events[2] = CreateEvent(NULL, FALSE, FALSE, L"ToggleDDAPI");
-	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"Network Scan");
+	Events[3] = CreateEvent(NULL, FALSE, TRUE, L"Network Scan");
 
 
 
