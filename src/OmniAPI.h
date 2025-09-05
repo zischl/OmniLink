@@ -2,18 +2,21 @@
 #define OMNIAPI_H
 
 #pragma once
-#include "OmniLink.h"
+#include "OmniTypes.h"
 
 
+class OmniLink;
 
-class OmniAPI 
+class OmniAPI
 {
 public:
-	OmniAPI(OmniLink* OmniLinkInstance);
+	static void Ignite(OmniLink& OmniLinkInstance);
+
+	static void test();
 
 private:
-	OmniLink* App = nullptr;
-
-}
+	static inline OmniLink* App = nullptr;
+	//static inline HANDLE* Event = nullptr;
+};
 
 #endif

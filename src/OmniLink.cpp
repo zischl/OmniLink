@@ -1,8 +1,13 @@
 #include <OmniLink.h>
 
 
-std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept {
-	return &AllInstances;
+
+
+std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
+
+
+void OmniCore::SwapInstanceLayout() {
+	std::cout << "This ain't working \n";
 }
 
 
@@ -73,13 +78,15 @@ void OmniLink::ToggleDDAPI() {
 }
 
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
-	
-	Events = new HANDLE[4];
+
+	OmniAPI::Ignite(*this);
+
+	Events = new HANDLE[5];
 	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"PanelRender");
 	Events[1] = CreateEvent(NULL, FALSE, FALSE, L"ToggleWGC");
 	Events[2] = CreateEvent(NULL, FALSE, FALSE, L"ToggleDDAPI");
-	Events[3] = CreateEvent(NULL, FALSE, TRUE, L"Network Scan");
-
+	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"Network Scan");
+	Events[4] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommand");
 
 
 	WinConfig config(L'Controller Window', 1280, 810, L'Nexus', (LPVOID)this);
@@ -137,9 +144,6 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);*/
-
-
-	
 	
 	
 	OmniMainLoop();
@@ -167,10 +171,10 @@ void OmniLink::OmniMainLoop() {
 
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(4, Events, 1, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(5, Events, 1, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
-		case WAIT_OBJECT_0 + 4:
+		case WAIT_OBJECT_0 + 5:
 			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 
 				if (msg.message == WM_QUIT)
@@ -235,8 +239,12 @@ void OmniLink::OmniMainLoop() {
 				InstanceProbe->Scan(15);
 			}
 
-
+			SetEvent(Events[0]);
 			
+			break;
+
+		case WAIT_OBJECT_0 + 4:
+			(this->*CommandTable[0])();
 			break;
 		
 		case WAIT_TIMEOUT:

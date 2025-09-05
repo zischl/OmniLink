@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "OmniAPI.h"
 #include "OmniTypes.h"
 
 #include <Windows.h>
@@ -105,6 +106,7 @@ public:
 
 					if (ImGui::Button("Scan")) {
 						SetEvent(EventHandler[3]);
+						OmniAPI::test();
 					}
 
 
@@ -164,46 +166,57 @@ public:
 
 	}
 
-	inline void DeviceIconPreview(ImVec2& pos, ImVec2& text_size = ImVec2(0, 0), const char* text = "") {
-		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);		//monitor
-		DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), IM_COL32(255, 255, 255, 255), text);
-		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);				//handle
-		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);	//stand
+	inline void DeviceIconPreview(ImVec2& pos, ImU32& col , ImVec2& text_size = ImVec2(0, 0), const char* text = "") {
+		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), col, 5.0f, 0, 2.0f);		//monitor
+		DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), col, text);
+		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), col, 5.0f, 0, 2.0f);				//handle
+		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), col, 10.0f, 0, 1.0f);	//stand
 	}
 
 	inline void DeviceIcon(const char* label, ImVec2& pos, ImVec2& text_size, OmniInstance* DeviceData) {
 		ImGui::PushID(label);
 
 		const ImGuiID id = ImGui::GetID(label);
-		
 		ImRect bb(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 55));
-		
 		ImGui::ItemAdd(bb, id, NULL, ImGuiItemFlags_None);
 		
 		bool hovered, held;
 		bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, 0);
 		ImGui::RenderNavCursor(bb, id);
 
-		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);		//monitor
-		DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), IM_COL32(255, 255, 255, 255), DeviceData->IPv4_String);
-		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), IM_COL32(255, 255, 255, 255), 5.0f, 0, 2.0f);				//handle
-		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), IM_COL32(255, 255, 255, 255), 10.0f, 0, 1.0f);	//stand
+		ImU32 col = hovered || held ? IM_COL32(128, 0, 255, 255) : IM_COL32(255, 255, 255, 255);
+
 
 		if (ImGui::BeginDragDropSource())
 		{
 			ImGui::SetDragDropPayload("DeviceInfo", DeviceData->IPv4_String, sizeof(DeviceData->IPv4_String));
-			DeviceIconPreview(ImGui::GetCursorScreenPos(), text_size, DeviceData->IPv4_String);
+			DeviceIconPreview(ImGui::GetCursorScreenPos(), col, text_size, DeviceData->IPv4_String);
 			ImGui::EndDragDropSource();
 		}
-		if (ImGui::BeginDragDropTarget())
+		else if (ImGui::BeginDragDropTarget())
 		{
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DeviceInfo");
 			if (payload != nullptr) {
 				const char* data = static_cast<char*> (payload->Data);
-				std::cout << data << "\n";
+				
 			}
+			//test animation : device order swap (failed -_- )
+			/*else { 
+				ImVec2 cpos = ImGui::GetCursorScreenPos();
+				pos.y += cpos.y < pos.x ? -(pos.y - cpos.y) : pos.y - cpos.y;
+				pos.x += cpos.x < pos.x ? pos.x - cpos.x : -(pos.x - cpos.x);
+				
+			}*/
 			ImGui::EndDragDropTarget();
 		}
+
+
+		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), col, 5.0f, 0, 2.0f);		//monitor
+		DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), col, DeviceData->IPv4_String);
+		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), col, 5.0f, 0, 2.0f);				//handle
+		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), col, 10.0f, 0, 1.0f);	//stand
+
+		
 
 		ImGui::PopID();
 
@@ -218,6 +231,8 @@ private:
 	std::array<OmniInstance, 5>* AvailableDevices = nullptr;
 
 	bool ImGuiState = true;
+	bool DeviceHoverState = false;
+	ImVec2 SelectedDevicePos;
 
 	int user_resx = GetSystemMetrics(SM_CXSCREEN);
 	int user_resy = GetSystemMetrics(SM_CYSCREEN);

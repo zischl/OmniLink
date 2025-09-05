@@ -7,6 +7,7 @@ using Microsoft::WRL::ComPtr;
 
 OmniGUI::OmniGUI(OmniLink& OmniLinkInstance) : App(OmniLinkInstance) {
 	AvailableDevices = App.GetAvailableInstances();
+
 }
 
 void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context, HANDLE* Events)
@@ -167,6 +168,27 @@ void OmniGUI::ConnectionRing(const char* label)
 		DeviceIcon("PC4", pos, text_size, &(*AvailableDevices)[4]);
 
 	}
+
+	if (DeviceHoverState) {
+		ImGui::PushID("Connect");
+
+		const ImGuiID id = ImGui::GetID("Connect");
+		ImRect bb(ImVec2(SelectedDevicePos.x - 35, SelectedDevicePos.y - 15), ImVec2(SelectedDevicePos.x + 35, SelectedDevicePos.y + 15));
+		ImGui::ItemAdd(bb, id, NULL, ImGuiItemFlags_None);
+
+		bool hovered, held;
+		bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, 0);
+		ImGui::RenderNavCursor(bb, id);
+		
+		DrawList->AddRectFilled(ImVec2(SelectedDevicePos.x - 35, SelectedDevicePos.y - 15), ImVec2(SelectedDevicePos.x + 35, SelectedDevicePos.y + 15), col, 5.0f, 0);
+		
+		if (pressed) {
+			std::cout << "shit works x2\n";
+		}
+
+		ImGui::PopID();
+	}
+
 
 	ImGui::PopFont();
 

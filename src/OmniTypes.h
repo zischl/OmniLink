@@ -5,6 +5,11 @@
 
 #include "SessionHandler.h"
 
+
+enum CoreCommands {
+	SwapInstanceLayout
+};
+
 struct OmniInstance {
 	std::string InstanceName;
 	uint32_t InstanceIP = NULL;

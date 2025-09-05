@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "OmniAPI.h"
 #include "OmniTypes.h"
 #include "SessionHandler.h"
 #include "RendererCore.h"
@@ -62,8 +63,36 @@
 
 
 
+
+
 class OmniCore {
+
+public:
+	
+	std::array<OmniInstance, 5>* GetAvailableInstances() noexcept;
+	void SwapInstanceLayout();
+
+	std::array<void (OmniCore::* )(), 10> CommandTable = {
+		&OmniCore::SwapInstanceLayout
+	};
+
+	std::vector<CoreCommands> CommandQueue = { };
+
+	inline void PushCommand(CoreCommands CommandType) {
+		CommandQueue.push_back(CommandType);
+		SetEvent(Events[4]);
+	}
+
+	inline void PushCommands(std::vector<CoreCommands>& CommandTypeArray) {
+		for (CoreCommands command : CommandTypeArray) {
+			CommandQueue.push_back(command);
+		}
+
+	}
+
+
 protected:
+
 	HANDLE* Events = nullptr;
 	DWORD EventDW = NULL;
 
@@ -73,13 +102,13 @@ protected:
 	std::array<OmniInstance, 5> AllInstances;
 	//OmniInstance ActiveInstances[4];
 	sessions sessions;
-	
+
 	ID3D11Device* D3D11Device = nullptr;
 	ID3D11DeviceContext* D3D11Context = nullptr;
 	IDXGISwapChain3* swapchain = nullptr;
 	ID3D11RenderTargetView* renderTargetView = nullptr;
 
-	
+
 
 	NVENCODER* Nv = nullptr;
 	WGScreenCapture* WGSCapture = nullptr;
@@ -91,9 +120,6 @@ protected:
 	ID3D11Texture2D* DXGIBuffer = nullptr;
 	bool DXGIStatus = false;
 
-
-public:
-	std::array<OmniInstance, 5>* GetAvailableInstances() noexcept;
 };
 
 
