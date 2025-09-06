@@ -93,12 +93,10 @@ void Instances::Scan(int runtime)
             asio::ip::udp::endpoint broadcast_endpoint(asio::ip::make_address("192.168.1.255"), discovery_port);
 
             while ((std::chrono::steady_clock::now() - Start) <= Runtime) {
-                std::string broadcast_msg = "OmniLink REQUEST RESPONSE";
-                socket.send_to(asio::buffer(broadcast_msg), broadcast_endpoint);
 
-                std::cout << Runtime.count() << "\n" << (std::chrono::steady_clock::now() - Start).count() << "\n";
+                socket.send_to(asio::buffer("OmniLink REQUEST RESPONSE"), broadcast_endpoint);
+
                 std::this_thread::sleep_for(std::chrono::seconds(1));
-                std::cout << Runtime.count() << "\n" << (std::chrono::steady_clock::now() - Start).count() << "\n";
             }
 
             ScanState.store(false);
@@ -128,12 +126,11 @@ void Instances::AwaitInstances()
         while (state.load()) {
 
             size_t msg_len = socket.receive_from(asio::buffer(response_buffer), response_endpoint);
-            std::string message(response_buffer.data(), msg_len);
 
-            if (message == "OmniLink REQUEST RESPONSE") {
-                std::string response = "OmniLink RESPONSE";
+
+            if (*response_buffer.data() == *"OmniLink REQUEST RESPONSE") {
                 response_endpoint.port(discovery_port);
-                socket.send_to(asio::buffer(response), response_endpoint);
+                socket.send_to(asio::buffer("OmniLink RESPONSE"), response_endpoint);
 
                 if (instances.find(response_endpoint.address().to_v4().to_uint()) == instances.end()) {
                     uint32_t addr = response_endpoint.address().to_v4().to_uint();
@@ -144,7 +141,7 @@ void Instances::AwaitInstances()
                 }
 
             }
-            else if (message == "OmniLink RESPONSE" && instances.find(response_endpoint.address().to_v4().to_uint()) == instances.end()) {
+            else if (*response_buffer.data() == *"OmniLink RESPONSE" && instances.find(response_endpoint.address().to_v4().to_uint()) == instances.end()) {
                 std::cout << "Instance Found At: " << response_endpoint.address() << " : " << response_endpoint.port() << " " << socket.local_endpoint().port() << "\n";
                 std::lock_guard<std::mutex> lock(mutex);
                 instances[response_endpoint.address().to_v4().to_uint()] = response_endpoint.address().to_string();
