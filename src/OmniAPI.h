@@ -12,7 +12,7 @@ class OmniAPI
 public:
 	static void Ignite(OmniLink& OmniLinkInstance);
 
-	static void test();
+	static void SwapDeviceLayout();
 
 private:
 	static inline OmniLink* App = nullptr;

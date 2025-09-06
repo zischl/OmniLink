@@ -25,6 +25,7 @@
 #include <shellapi.h>
 #include <string>
 #include <vector>
+#include <variant>
 #include <array>
 #include <wrl/client.h>
 #include <iostream>
@@ -68,15 +69,20 @@
 class OmniCore {
 
 public:
-	
-	std::array<OmniInstance, 5>* GetAvailableInstances() noexcept;
-	void SwapInstanceLayout();
+	//Core Functions
+	void SwapInstanceLayout(int index1, int index2);
 
+	std::array<OmniInstance, 5>* GetAvailableInstances() noexcept;
+
+
+	//Command Queue System
 	std::array<void (OmniCore::* )(), 10> CommandTable = {
-		&OmniCore::SwapInstanceLayout
+		//&OmniCore::SwapInstanceLayout
 	};
 
 	std::vector<CoreCommands> CommandQueue = { };
+
+	std::vector < Command<FuncArgTypes> > CommandQueueWArgs = { };
 
 	inline void PushCommand(CoreCommands CommandType) {
 		CommandQueue.push_back(CommandType);
@@ -87,7 +93,11 @@ public:
 		for (CoreCommands command : CommandTypeArray) {
 			CommandQueue.push_back(command);
 		}
+	}
 
+	inline void PushCommandWArgs(Command<FuncArgTypes>& command) {
+		CommandQueueWArgs.push_back(command);
+		SetEvent(Events[5]);
 	}
 
 

@@ -3,12 +3,34 @@
 
 #pragma once
 
+#include <variant>
 #include "SessionHandler.h"
 
 
 enum CoreCommands {
 	SwapInstanceLayout
 };
+
+
+struct ArraySwapLayout {
+	int index1 = 0;
+	int index2 = 1;
+
+};
+
+using FuncArgTypes = std::variant<ArraySwapLayout>;
+
+template <typename Type>
+struct Command {
+	CoreCommands CommandType;
+	Type Args;
+
+	Command(CoreCommands command, Type args) :
+		CommandType(command),
+		Args(args) {
+	}
+};
+
 
 struct OmniInstance {
 	std::string InstanceName;

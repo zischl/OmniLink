@@ -6,8 +6,8 @@
 std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
 
 
-void OmniCore::SwapInstanceLayout() {
-	std::cout << "This ain't working \n";
+void OmniCore::SwapInstanceLayout(int index1, int index2) {
+	std::swap(AllInstances[0], AllInstances[1]);
 }
 
 
@@ -81,12 +81,14 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	OmniAPI::Ignite(*this);
 
-	Events = new HANDLE[5];
+	Events = new HANDLE[6];
 	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"PanelRender");
 	Events[1] = CreateEvent(NULL, FALSE, FALSE, L"ToggleWGC");
 	Events[2] = CreateEvent(NULL, FALSE, FALSE, L"ToggleDDAPI");
 	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"Network Scan");
 	Events[4] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommand");
+	Events[5] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommandWArgs");
+
 
 
 	WinConfig config(L'Controller Window', 1280, 810, L'Nexus', (LPVOID)this);
@@ -171,10 +173,10 @@ void OmniLink::OmniMainLoop() {
 
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(5, Events, 1, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(6, Events, 1, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
-		case WAIT_OBJECT_0 + 5:
+		case WAIT_OBJECT_0 + 6:
 			while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 
 				if (msg.message == WM_QUIT)
@@ -244,7 +246,15 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 4:
-			(this->*CommandTable[0])();
+			(this->*CommandTable[CommandQueue[0]])();
+			break;
+
+		case WAIT_OBJECT_0 + 5:
+			switch (CommandQueueWArgs[0].Args.index()) {
+			case 0:
+				auto& args = std::get<0>(CommandQueueWArgs[0].Args);
+				(this->SwapInstanceLayout)(args.index1, args.index2);
+			}
 			break;
 		
 		case WAIT_TIMEOUT:

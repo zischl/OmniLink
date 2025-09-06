@@ -106,7 +106,6 @@ public:
 
 					if (ImGui::Button("Scan")) {
 						SetEvent(EventHandler[3]);
-						OmniAPI::test();
 					}
 
 
@@ -198,7 +197,7 @@ public:
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DeviceInfo");
 			if (payload != nullptr) {
 				const char* data = static_cast<char*> (payload->Data);
-				
+				OmniAPI::SwapDeviceLayout();
 			}
 			//test animation : device order swap (failed -_- )
 			/*else { 
