@@ -33,7 +33,7 @@ struct Command {
 
 
 struct OmniInstance {
-	std::string InstanceName;
+	char InstanceName[16];
 	uint32_t InstanceIP = NULL;
 	char IPv4_String[16] = {};
 	session* InstanceSession = nullptr;

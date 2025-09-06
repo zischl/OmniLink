@@ -25,6 +25,7 @@
 #include <shellapi.h>
 #include <string>
 #include <vector>
+#include <deque>
 #include <variant>
 #include <array>
 #include <wrl/client.h>
@@ -80,9 +81,9 @@ public:
 		//&OmniCore::SwapInstanceLayout
 	};
 
-	std::vector<CoreCommands> CommandQueue = { };
+	std::deque<CoreCommands> CommandQueue = { };
 
-	std::vector < Command<FuncArgTypes> > CommandQueueWArgs = { };
+	std::deque< Command<FuncArgTypes> > CommandQueueWArgs = { };
 
 	inline void PushCommand(CoreCommands CommandType) {
 		CommandQueue.push_back(CommandType);
@@ -99,6 +100,11 @@ public:
 		CommandQueueWArgs.push_back(command);
 		SetEvent(Events[5]);
 	}
+
+	inline void CleanCommandQueue() {
+		std::deque< Command<FuncArgTypes> >().swap(CommandQueueWArgs);
+	}
+
 
 
 protected:

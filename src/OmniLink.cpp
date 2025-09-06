@@ -247,6 +247,7 @@ void OmniLink::OmniMainLoop() {
 
 		case WAIT_OBJECT_0 + 4:
 			(this->*CommandTable[CommandQueue[0]])();
+			CommandQueue.pop_front();
 			break;
 
 		case WAIT_OBJECT_0 + 5:
@@ -254,6 +255,7 @@ void OmniLink::OmniMainLoop() {
 			case 0:
 				auto& args = std::get<0>(CommandQueueWArgs[0].Args);
 				(this->SwapInstanceLayout)(args.index1, args.index2);
+				CommandQueueWArgs.pop_front();
 			}
 			break;
 		
