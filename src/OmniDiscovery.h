@@ -80,8 +80,7 @@ public:
 
                 size_t msg_len = socket.receive_from(asio::buffer(response_buffer), response_endpoint);
 
-
-                if (*response_buffer.data() == *"OmniLink REQUEST RESPONSE") {
+                if (std::memcmp(response_buffer.data(), "OmniLink REQUEST RESPONSE", msg_len)) {
                     response_endpoint.port(discovery_port);
                     socket.send_to(asio::buffer("OmniLink RESPONSE"), response_endpoint);
 
@@ -94,7 +93,8 @@ public:
                     }
 
                 }
-                else if (*response_buffer.data() == *"OmniLink RESPONSE" && instances.find(response_endpoint.address().to_v4().to_uint()) == instances.end()) {
+                
+                else if (std::memcmp(response_buffer.data(), "OmniLink RESPONSE", msg_len) && instances.find(response_endpoint.address().to_v4().to_uint()) == instances.end()) {
                     std::cout << "Instance Found At: " << response_endpoint.address() << " : " << response_endpoint.port() << " " << socket.local_endpoint().port() << "\n";
                     std::lock_guard<std::mutex> lock(mutex);
                     instances[response_endpoint.address().to_v4().to_uint()] = response_endpoint.address().to_string();
@@ -103,9 +103,6 @@ public:
                 }
 
             }
-
-
-
             });
 
         responder.detach();

@@ -245,9 +245,6 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 3:
-
-			
-			
 			break;
 
 		case WAIT_OBJECT_0 + 4:
