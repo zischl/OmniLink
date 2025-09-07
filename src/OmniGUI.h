@@ -105,7 +105,7 @@ public:
 
 
 					if (ImGui::Button("Scan")) {
-						SetEvent(EventHandler[3]);
+						OmniAPI::Scan();
 					}
 
 

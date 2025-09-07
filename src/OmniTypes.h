@@ -8,7 +8,7 @@
 
 
 enum CoreCommands {
-	SwapInstanceLayout
+	ScanInstances
 };
 
 

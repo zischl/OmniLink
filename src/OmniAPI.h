@@ -14,6 +14,8 @@ public:
 
 	static void SwapDeviceLayout();
 
+	static void Scan();
+
 private:
 	static inline OmniLink* App = nullptr;
 	//static inline HANDLE* Event = nullptr;

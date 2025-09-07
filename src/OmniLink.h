@@ -71,6 +71,9 @@ class OmniCore {
 
 public:
 	//Core Functions
+
+	void ScanInstances();
+
 	void SwapInstanceLayout(int index1, int index2);
 
 	std::array<OmniInstance, 5>* GetAvailableInstances() noexcept;
@@ -78,7 +81,7 @@ public:
 
 	//Command Queue System
 	std::array<void (OmniCore::* )(), 10> CommandTable = {
-		//&OmniCore::SwapInstanceLayout
+		&OmniCore::ScanInstances
 	};
 
 	std::deque<CoreCommands> CommandQueue = { };
@@ -127,6 +130,7 @@ protected:
 
 
 	NVENCODER* Nv = nullptr;
+
 	WGScreenCapture* WGSCapture = nullptr;
 	ID3D11Texture2D* WGSCapBuffer = nullptr;
 	bool WGCStatus = false;

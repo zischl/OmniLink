@@ -7,8 +7,33 @@ std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return
 
 
 void OmniCore::SwapInstanceLayout(int index1, int index2) {
-	std::swap(AllInstances[0], AllInstances[1]);
+	std::swap(AllInstances[index1], AllInstances[index2]);
 }
+
+//Check whether new scan results are available and get them if so
+//Otherwise initiate a new scan
+void OmniCore::ScanInstances() {
+	if (InstanceProbe->ScanState.load()) {
+		std::unordered_map<uint32_t, std::string> AvailableInstances = *InstanceProbe->get();
+		int DevIdx = 0;
+
+		for (const auto& [IP, Name] : AvailableInstances)
+		{
+			if (DevIdx > 5) break;
+
+			std::lock_guard<std::mutex> lock(Mutex);
+			AllInstances[DevIdx].InstanceIP = IP;
+			std::sprintf(AllInstances[DevIdx].IPv4_String, "%u.%u.%u.%u", (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF);
+
+			DevIdx++;
+
+		}
+	}
+	else {
+		InstanceProbe->Scan(15);
+	}
+}
+
 
 
 void OmniLink::ToggleWGC() {
@@ -85,7 +110,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"PanelRender");
 	Events[1] = CreateEvent(NULL, FALSE, FALSE, L"ToggleWGC");
 	Events[2] = CreateEvent(NULL, FALSE, FALSE, L"ToggleDDAPI");
-	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"Network Scan");
+	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"empty");
 	Events[4] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommand");
 	Events[5] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommandWArgs");
 
@@ -124,8 +149,10 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*##############################################################*/
 	
-	InstanceProbe = new Instances(62485, &Events[3]);
-	InstanceProbe->AwaitInstances();
+	InstanceProbe = new Instances(62485);
+	InstanceProbe->AwaitInstances([this]() {
+		ScanInstances();
+		});
 
 
 	GUI = new OmniGUI(*this);
@@ -218,30 +245,8 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 3:
-			//Check whether new scan results are available and get them if so
-			//Otherwise initiate a new scan
-			if (InstanceProbe->ScanState.load()) {
-				std::unordered_map<uint32_t, std::string>* AvailableInstances = InstanceProbe->get();
-				int DevIdx = 0;
 
-				for (const auto& [IP, Name] : *AvailableInstances)
-				{
-					if (DevIdx > 5) break;
-
-					std::lock_guard<std::mutex> lock(Mutex);
-					AllInstances[DevIdx].InstanceIP = IP;
-					std::sprintf(AllInstances[DevIdx].IPv4_String, "%u.%u.%u.%u", (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF);
-
-					DevIdx++;
-
-				}
-
-			}
-			else {
-				InstanceProbe->Scan(15);
-			}
-
-			SetEvent(Events[0]);
+			
 			
 			break;
 
