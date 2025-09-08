@@ -63,10 +63,6 @@
 
 
 
-
-
-
-
 class OmniCore {
 
 public:
@@ -84,30 +80,40 @@ public:
 		&OmniCore::ScanInstances
 	};
 
-	std::deque<CoreCommands> CommandQueue = { };
+	/// <summary>
+	/// This defines the maximum number of commands that can be queued using PushCommand 
+	/// functions and drained with ExecuteCommandQueue.
+	/// </summary>
+	BurstQ<CoreCommands, 20> CommandBurstQ = BurstQ<CoreCommands, 20>();
 
-	std::deque< Command<FuncArgTypes> > CommandQueueWArgs = { };
+	/// <summary>
+	/// Same as above but for commands with args, memory taken up by the queue will be based 
+	/// on the biggest size argument structure defined in FuncArgTypes.
+	/// </summary>
+	BurstQ<FuncArgTypes, 20> CommandBurstQWArgs = BurstQ<FuncArgTypes, 20>();
+
+	inline void ExecuteCommandQueue() {
+		SetEvent(Events[4]);
+	}
+
+	inline void ExecuteCommandQueueWArgs() {
+		SetEvent(Events[5]);
+	}
 
 	inline void PushCommand(CoreCommands CommandType) {
-		CommandQueue.push_back(CommandType);
-		SetEvent(Events[4]);
+		CommandBurstQ.push(CommandType);
+
 	}
 
 	inline void PushCommands(std::vector<CoreCommands>& CommandTypeArray) {
 		for (CoreCommands command : CommandTypeArray) {
-			CommandQueue.push_back(command);
+			CommandBurstQ.push(command);
 		}
 	}
 
-	inline void PushCommandWArgs(Command<FuncArgTypes>& command) {
-		CommandQueueWArgs.push_back(command);
-		SetEvent(Events[5]);
+	inline void PushCommandWArgs(FuncArgTypes& CommandArgs) {
+		CommandBurstQWArgs.push(CommandArgs);
 	}
-
-	inline void CleanCommandQueue() {
-		std::deque< Command<FuncArgTypes> >().swap(CommandQueueWArgs);
-	}
-
 
 
 protected:
@@ -189,7 +195,7 @@ private:
 	//GUI
 	OmniGUI* GUI = nullptr;
 
-	std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::nanoseconds(15 * 000000);
+	std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::nanoseconds(15 * 1000000);
 
 	std::chrono::time_point<std::chrono::steady_clock> LastFrameTime = std::chrono::steady_clock::now();
 

@@ -8,14 +8,15 @@ void OmniAPI::Ignite(OmniLink& OmniLinkInstance) {
 
 void OmniAPI::SwapDeviceLayout() {
 	
-	ArraySwapLayout args = { 0, 1 };
-	Command<FuncArgTypes> command(ScanInstances, args);
+	FuncArgTypes args = ArraySwapLayout{ 0, 1 };
 
-	App->PushCommandWArgs(command);
+	App->PushCommandWArgs(args);
+	App->ExecuteCommandQueueWArgs();
 }
 
 void OmniAPI::Scan() {
 	App->PushCommand(ScanInstances);
+	App->ExecuteCommandQueue();
 }
 
 

@@ -3,7 +3,7 @@
 
 #pragma once
 #include "OmniTypes.h"
-
+#include <chrono>
 
 class OmniLink;
 
@@ -16,9 +16,20 @@ public:
 
 	static void Scan();
 
+	inline static void perf_test_start() { 
+		t1 = std::chrono::high_resolution_clock::now();
+	}
+
+	inline static void perf_test_end() {
+		std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - t1).count() << "Time Taken : : : : :\n";
+	}
+
 private:
 	static inline OmniLink* App = nullptr;
-	//static inline HANDLE* Event = nullptr;
+
+	static inline std::chrono::time_point<std::chrono::high_resolution_clock> t1;
+
+
 };
 
 #endif
