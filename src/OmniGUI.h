@@ -165,14 +165,14 @@ public:
 
 	}
 
-	inline void DeviceIconPreview(ImVec2& pos, ImU32& col , ImVec2& text_size = ImVec2(0, 0), const char* text = "") {
+	inline void DeviceIconPreview(const ImVec2& pos, const ImU32& col , const ImVec2& text_size = ImVec2{ 0, 0 }, const char* text = "") {
 		DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 40), col, 5.0f, 0, 2.0f);		//monitor
 		DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), col, text);
 		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), col, 5.0f, 0, 2.0f);				//handle
 		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), col, 10.0f, 0, 1.0f);	//stand
 	}
 
-	inline void DeviceIcon(const char* label, ImVec2& pos, ImVec2& text_size, OmniInstance* DeviceData) {
+	inline void DeviceIcon(const char* label, const ImVec2& pos, const ImVec2& text_size, const OmniInstance* DeviceData) {
 		ImGui::PushID(label);
 
 		const ImGuiID id = ImGui::GetID(label);

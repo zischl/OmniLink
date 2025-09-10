@@ -1,12 +1,15 @@
 
 #include <OmniLogger.h>
 
-using namespace std;
 
-void Logger::log(string text) {
-	ofstream File("events.log.txt", ios::app);
+void Logger::log(std::string_view text) {
+	time(NULL);
+
+	std::ofstream File("events.log.txt", std::ios::app);
 
 	File << text;
 
 	File.close();
 }
+
+

@@ -7,13 +7,18 @@
 #include <thread>
 #include <chrono>
 #include <unordered_map>
+#include <Windows.h>
+#include <ws2tcpip.h>
 
+#define MASK 0x5A
+#define BITMASK(letter) : letter ^ MASK; 
 
 class Instances {
 protected:
     std::unordered_map<uint32_t, std::string> instances;
     std::mutex mutex;
     std::atomic_bool state{ true };
+
 
 public:
     Instances(uint16_t port);
@@ -22,9 +27,15 @@ public:
 
     std::unordered_map<uint32_t, std::string>* get();
 
+    /// <summary>
+    /// Send out broadcast requests. Note that AwaitInstances should be running on the other device for Scan to work.
+    /// </summary>
     void Scan(int runtime);
     std::atomic_bool ScanState{ false };
 
+    /// <summary>
+    /// Basic response handling without callbacks.
+    /// </summary>
     inline void HandleResponse(asio::ip::udp::socket& socket, std::array <char, 32>& response_buffer, asio::ip::udp::endpoint& response_endpoint) {
         size_t msg_len = socket.receive_from(asio::buffer(response_buffer), response_endpoint);
 
@@ -58,15 +69,12 @@ public:
     /// <summary>
     /// Same as AwaitInstances but this one runs for a set duration as runtime (seconds).
     /// </summary>
-    /// <param name="runtime"></param>
     void AwaitInstances(int runtime);
 
     /// <summary>
     /// Same as AwaitInstances but this one can be used to add callbacks on instance found event.
     /// Usage ex : Instances->AwaitInstances([]() { dosomthing(); });
     /// </summary>
-    /// <typeparam name="Type"></typeparam>
-    /// <param name="Callback"></param>
     template <typename Type>
     void AwaitInstances(Type&& Callback) {
         std::thread responder([this, Callback] () {
@@ -108,7 +116,9 @@ public:
         responder.detach();
     }
 
-
+    /// <summary>
+    /// Used to end AwaitInstances if not run with the parameter runtime.
+    /// </summary>
     inline void EndAwait() {
         state.store(false);
     }
@@ -120,6 +130,15 @@ private:
 
     asio::io_context io_context;
 
+    const char& ComputerName;
+    
+    const uint32_t LocalIP = GetLocalIP();
+
+    char* WinGetUserName();
+
+    char* WinGetComputerName();
+
+    uint32_t GetLocalIP();
     
 
 };

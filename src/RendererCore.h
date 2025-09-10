@@ -81,7 +81,7 @@ public:
 
 	D3DDevice CreateD3d11Device(D3D_FEATURE_LEVEL(FeatureLevels)[], UINT FeatureLevelCount, UINT& CreationFlags);
 
-	inline void Renderer::GetDeferredContext(ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context) {
+	inline void GetDeferredContext(ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context) {
 		hr = D3D11Device->CreateDeferredContext(0, &D3D11Context);
 		if (FAILED(hr)) {
 			OutputDebugStringA("Deferred Context Creation Failed!\n");

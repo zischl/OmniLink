@@ -1,13 +1,14 @@
 #include "SessionHandler.h"
 
 
-
-sessions::sessions() {
+sessions::sessions() 
+{
 	WinsockInit();
 
 }
 
-int sessions::WinsockInit() {
+int sessions::WinsockInit() 
+{
 	int wsResult;
 	wsResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (wsResult != 0) {
@@ -16,7 +17,8 @@ int sessions::WinsockInit() {
 	return 0;
 }
 
-sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port) {
+sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port) 
+{
 	sockaddr_in address;
 	address.sin_family = AF_INET;
 	address.sin_port = htons(port);
@@ -38,35 +40,76 @@ SOCKET sessions::CreateSocket() {
 }
 
 
-void sessions::GetLocals() {
+void sessions::GetLocals(uint8_t family) 
+{
+	ULONG Flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_PREFIX;
 
-	ULONG Flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+	ULONG Family = family == 4 ? AF_INET : family == 6 ? AF_INET6 : AF_UNSPEC;
 
-	locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(15000);
+	ULONG locals_size = 15000;
 
-	WSResult = GetAdaptersAddresses(AF_INET, Flags, NULL, locals, &locals_size);
-	if (WSResult != ERROR_SUCCESS) {
-		OutputDebugStringA("Error : Could Not Retrieve Local Address !\n");
-		FREE(locals);
+	uint8_t Retries = 2;
+
+	PIP_ADAPTER_ADDRESSES locals = NULL;
+
+	unsigned int i = 0;
+
+	PIP_ADAPTER_ADDRESSES IterAddress = NULL;
+	PIP_ADAPTER_UNICAST_ADDRESS Unicast = NULL;
+
+	do {
+
+		locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(locals_size);
+		if (locals == NULL) {
+			return;
+		}
+
+		WSResult = GetAdaptersAddresses(Family, Flags, NULL, locals, &locals_size);
+		if (WSResult != ERROR_BUFFER_OVERFLOW && WSResult != ERROR_SUCCESS) {
+			Logger::log("Error {}: Could Not Retrieve Local Addresses !\n", WSResult);
+			FREE(locals);
+		}
+
+		Retries--;
+
+	} while (WSResult != ERROR_SUCCESS && Retries != 0);
+
+	if (WSResult == ERROR_SUCCESS && locals != NULL) {
+		IterAddress = locals;
+		while (IterAddress) {
+
+			Unicast = IterAddress->FirstUnicastAddress;
+			if (Unicast != NULL && IterAddress->OperStatus == IfOperStatusUp && IterAddress->IfType != IF_TYPE_SOFTWARE_LOOPBACK) {
+				for (i = 0; Unicast != NULL; i++)
+				{
+					char addr_char[16];
+					sockaddr_in* addr = (sockaddr_in*)Unicast->Address.lpSockaddr;
+					inet_ntop(AF_INET, (in_addr*)(&addr->sin_addr), addr_char, 16);
+					Logger::log("Local IP Found : {}", addr_char);
+
+					Unicast = Unicast->Next;
+				}
+				//IterAddress->TransmitLinkSpeed; for later use
+				//IterAddress->ReceiveLinkSpeed;
+			}
+
+			IterAddress = IterAddress->Next;
+		}
+	}
+	else {
+		Logger::log("Call to GetAdaptersAddresses failed with error: {}\n", WSResult);
+		if (WSResult == ERROR_NO_DATA)
+			Logger::log("\tNo addresses were found for the requested parameters\n");
 	}
 
-
-	auto* UnicastAddrs = locals->FirstUnicastAddress;
-
-	while (UnicastAddrs) {
-
-		CHAR local_addr[INET_ADDRSTRLEN];
-		SOCKET_ADDRESS local_addrs = UnicastAddrs->Address;
-		InetNtopA(AF_INET, (sockaddr*)&local_addrs, local_addr, sizeof(local_addr));
-		OutputDebugStringA(local_addr);
-		OutputDebugStringA("\n");
-
-		UnicastAddrs = UnicastAddrs->Next;
+	if (locals) {
+		FREE(locals);
 	}
 }
 
 
-session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_) {
+session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_) 
+{
 	Sessions = sessions;
 	wsaData = sessions.wsaData;
 	IOCP = Sessions.IOCP;

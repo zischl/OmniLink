@@ -164,9 +164,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	///* ################################################################ */
 
-	
-	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
 
+	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
+	
 
 	///* ################################################################ */
 

@@ -4,6 +4,7 @@
 
 
 #pragma once
+#include "OmniLogger.h"
 #include "WinForge.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -68,12 +69,9 @@ struct OmniChunkedHeader : OmniHeader {
 class sessions {
 private:
 	int WSResult;
-	
-	PIP_ADAPTER_ADDRESSES locals = NULL;
-	ULONG locals_size = 15000;
 
 	int WinsockInit();
-	void GetLocals();
+	
 
 
 public:
@@ -82,6 +80,7 @@ public:
 
 	sessions();
 
+	void GetLocals(uint8_t family);
 	sockaddr_in CreateAddress(PCSTR IP, unsigned short port);
 	SOCKET CreateSocket();
 };

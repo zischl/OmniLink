@@ -28,7 +28,7 @@ public:
 	
 	void InputProcInit(LPARAM& lParam);
 	void InputProcCallback(LPARAM& lParam);
-	void OmniCap::VoidExitCallback(LPARAM& lParam);
+	void VoidExitCallback(LPARAM& lParam);
 
 
 private:
