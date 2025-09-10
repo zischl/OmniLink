@@ -46,15 +46,10 @@
 //    send(socket);
 //}
 
-#ifndef UNICODE
-#define UNICODE
-#endif
 
-#define UNLEN 256
-
-Instances::Instances(uint32_t _LocalIP, uint16_t port)
+Instances::Instances(char* InstanceName, uint32_t _LocalIP, uint16_t port)
 {
-    instances[_LocalIP] = WinGetComputerName();
+    instances[_LocalIP] = InstanceName;
     discovery_port = port;
 }
 
@@ -71,41 +66,6 @@ void Instances::PopulateInstances(int Runtime)
 std::unordered_map<uint32_t, std::string>* Instances::get()
 {
     return &instances;
-}
-
-
-char* Instances::WinGetUserName() {
-    TCHAR ComputerName[UNLEN + 1];
-    DWORD size = UNLEN + 1;
-
-    GetUserName((TCHAR*)ComputerName, &size);
-
-    char* _Name = new char(MAX_COMPUTERNAME_LENGTH + 1);
-
-#ifndef UNICODE
-    WideCharToMultiByte(CP_ACP, 0, ComputerName, -1, CharArray->data(), MAX_COMPUTERNAME_LENGTH + 1, nullptr, nullptr);
-#else
-    strcpy(_Name, ComputerName);
-#endif
-
-    return _Name;
-}
-
-char* Instances::WinGetComputerName() {
-
-    TCHAR ComputerName[MAX_COMPUTERNAME_LENGTH + 1];
-    DWORD size = sizeof(ComputerName) / sizeof(ComputerName[0]);
-    GetComputerName(ComputerName, &size);
-
-    char* _Name = new char(MAX_COMPUTERNAME_LENGTH + 1);
-    
-#ifndef UNICODE
-    WideCharToMultiByte(CP_ACP, 0, ComputerName, -1, CharArray->data(), MAX_COMPUTERNAME_LENGTH + 1, nullptr, nullptr);
-#else
-    strcpy(_Name, ComputerName);
-#endif
-
-    return _Name;
 }
 
 

@@ -32,13 +32,20 @@ enum BufferType {
 };
 
 enum PacketType : uint8_t {
-	Frame
+	FrameStart,
+	FrameData,
+	FrameEnd,
+	Command
 };
 
 enum ChunkType : uint8_t {
-	FrameStart,
-	FrameData,
-	FrameEnd
+	
+};
+
+struct OmniHeader {
+	PacketType PacketType;
+	uint8_t Target;
+	uint8_t Reserved;
 };
 
 struct SEND_BUF {
@@ -57,14 +64,7 @@ struct RECV_BUF {
 	INT addr_len;
 };
 
-struct OmniHeader {
-	PacketType PacketType;
-	uint8_t Target;
-};
 
-struct OmniChunkedHeader : OmniHeader {
-	uint8_t ChunkIndex;
-};
 
 class sessions {
 private:
@@ -80,7 +80,7 @@ public:
 
 	sessions();
 
-	static uint32_t GetLocals(uint8_t family);
+	static void GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer);
 
 	static sockaddr_in CreateAddress(PCSTR IP, unsigned short port);
 
@@ -110,7 +110,7 @@ private:
 
 	CHAR FinalRecvBuffer[256 * (OmniMTU + OmniHeaderSize)];
 
-	OmniChunkedHeader CHeaderPool[256];
+	OmniHeader CHeaderPool[256];
 
 	int RecvChunkStart = 0;
 	int RecvChunkEnd = 0;
@@ -148,13 +148,13 @@ private:
 
 public:
 	
-	session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_);
+	session(sessions& sessions, PCSTR Local_IP, PCSTR TARGET_IP, unsigned short port, int MTU_Size, WinForge* Link_);
 
 	
 	void RegIOCP(SOCKET& socket);
 
 	void CreateSesssionIOCP(PCSTR IP, unsigned short port);
-	void InitReceiver(unsigned int port);
+	void InitReceiver(PCSTR IP, unsigned int port);
 	void ChunkedSend(CHAR* data, int data_size);
 
 

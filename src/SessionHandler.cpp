@@ -40,7 +40,7 @@ SOCKET sessions::CreateSocket() {
 }
 
 
-uint32_t sessions::GetLocals(uint8_t family)
+void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 {
 	int WSResult;
 
@@ -58,13 +58,12 @@ uint32_t sessions::GetLocals(uint8_t family)
 
 	PIP_ADAPTER_ADDRESSES IterAddress = NULL;
 	PIP_ADAPTER_UNICAST_ADDRESS Unicast = NULL;
-	uint32_t LocalIP{};
 
 	do {
 
 		locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(locals_size);
 		if (locals == NULL) {
-			return 0;
+			return;
 		}
 
 		WSResult = GetAdaptersAddresses(Family, Flags, NULL, locals, &locals_size);
@@ -86,7 +85,8 @@ uint32_t sessions::GetLocals(uint8_t family)
 				for (i = 0; Unicast != NULL; i++)
 				{
 					sockaddr_in* addr = (sockaddr_in*)Unicast->Address.lpSockaddr;
-					LocalIP = htonl(addr->sin_addr.S_un.S_addr);
+					Buffer->push_back(*addr);
+					
 					//inet_ntop(AF_INET, (in_addr*)(&addr->sin_addr), LocalIP.data(), 16);
 					//Logger::log("Local IP Found : {}", LocalIP.data());
 
@@ -109,11 +109,11 @@ uint32_t sessions::GetLocals(uint8_t family)
 		FREE(locals);
 	}
 
-	return LocalIP;
+	return;
 }
 
 
-session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_) 
+session::session(sessions& sessions, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_)
 {
 	Sessions = sessions;
 	wsaData = sessions.wsaData;
@@ -127,7 +127,7 @@ session::session(sessions& sessions, PCSTR IP, unsigned short port, int MTU_Size
 	address = Sessions.CreateAddress(IP, port);
 	socketR = Sessions.CreateSocket();
 	RegIOCP(socketR);
-	InitReceiver(62485);
+	InitReceiver(Local_IP, 62485);
 	
 	Link = Link_;
 }
@@ -183,22 +183,24 @@ void session::RegIOCP(SOCKET& socket) {
 
 				switch (Buffer->Type) {
 				case OP_RECV:
-					switch (*(Buffer->TransmitBuffer.buf + BufferSize - 1)) {
+					// header structure's packet type index = 0 and the header size is 3,
+					// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
+					switch (*(Buffer->TransmitBuffer.buf + BufferSize - 3)) {  
 					case FrameStart:
 						//start = Clock::now();
 						RecvChunkStart = RPoolHead;
-						RecvChunkLen += BufferSize;
+						RecvChunkLen += BufferSize - OmniHeaderSize;
 						RPoolHead = (RPoolHead + 1) & 255;
 						break;
 					case FrameData:
-						RecvChunkLen += BufferSize;
+						RecvChunkLen += BufferSize - OmniHeaderSize;
 						RPoolHead = (RPoolHead + 1) & 255;
 						break;
 					case FrameEnd:
 						RecvChunkEnd = RPoolHead;
 						
 						RecvChunkLen = RecvChunkEnd * MTU;
-						RecvChunkLen += BufferSize-3;
+						RecvChunkLen += BufferSize - OmniHeaderSize;
 						if (RecvChunkLen > 300000) {
 							OutputDebugString(L"ffffffffffffffffffffffffffff\n");
 							RecvChunkLen = 0;
@@ -208,6 +210,9 @@ void session::RegIOCP(SOCKET& socket) {
 						Link->SetBufferData(&RecvBufferPool[0], RecvChunkLen);
 						Link->SetRenderEvent();
 
+					case Command:
+						
+						break;
 
 						RecvChunkLen = 0;
 						RPoolHead = 0;
@@ -256,17 +261,15 @@ void session::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
 		OutputDebugStringA("Connected !\n");
 	}
 
-
-
 }
 
 
-void  session::InitReceiver(unsigned int port) {
+void  session::InitReceiver(PCSTR IP, unsigned int port) {
 
 	sockaddr_in local;
 	local.sin_family = AF_INET;
 	local.sin_port = htons(port);
-	inet_pton(AF_INET, "192.168.1.59", &local.sin_addr);
+	inet_pton(AF_INET, IP, &local.sin_addr);
 
 	WSResult = bind(socketR, (sockaddr*) &local, sizeof(local));
 	if (WSResult != 0) {
@@ -285,9 +288,8 @@ void  session::InitReceiver(unsigned int port) {
 
 void session::ChunkedSend(CHAR* data, int data_size) {
 	int MTU_slices = data_size - (data_size % MTU);
-	CHeaderPool[SPoolHead].PacketType = Frame;
+	CHeaderPool[SPoolHead].PacketType = FrameStart;
 	CHeaderPool[SPoolHead].Target = 0;
-	CHeaderPool[SPoolHead].ChunkIndex = FrameStart;
 	TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 	TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
 
@@ -307,9 +309,8 @@ void session::ChunkedSend(CHAR* data, int data_size) {
 	SPoolHead = (SPoolHead + 1) & 255;
 
 	for (int offset = MTU; offset < MTU_slices-MTU; offset += MTU) {
-		CHeaderPool[SPoolHead].PacketType = Frame;
+		CHeaderPool[SPoolHead].PacketType = FrameData;
 		CHeaderPool[SPoolHead].Target = 0;
-		CHeaderPool[SPoolHead].ChunkIndex = FrameData;
 		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
 
@@ -333,14 +334,14 @@ void session::ChunkedSend(CHAR* data, int data_size) {
 
 	
 
-	CHeaderPool[SPoolHead].PacketType = Frame;
-	CHeaderPool[SPoolHead].Target = 0;
 	if (MTU_slices != data_size) {
-		CHeaderPool[SPoolHead].ChunkIndex = FrameData;
+		CHeaderPool[SPoolHead].PacketType = FrameData;
 	}
 	else {
-		CHeaderPool[SPoolHead].ChunkIndex = FrameEnd;
+		CHeaderPool[SPoolHead].PacketType = FrameEnd;
 	}
+	CHeaderPool[SPoolHead].Target = 0;
+
 	TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 	TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices - MTU;
 
@@ -361,9 +362,9 @@ void session::ChunkedSend(CHAR* data, int data_size) {
 	SPoolHead = (SPoolHead + 1) & 255;
 
 	if (MTU_slices != data_size) {
-		CHeaderPool[SPoolHead].PacketType = Frame;
+		CHeaderPool[SPoolHead].PacketType = FrameEnd;
 		CHeaderPool[SPoolHead].Target = 0;
-		CHeaderPool[SPoolHead].ChunkIndex = FrameEnd;
+
 		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices;
 		TransmitPool[SPoolHead].TransmitBuffer[0].len = data_size % MTU;

@@ -1,9 +1,35 @@
 #include <OmniLink.h>
 
 
-uint32_t OmniCore::QueryLocalIP()
+void OmniCore::WinGetUserName(char (&CharArray)[UNLEN + 1]) 
 {
-	return sessions::GetLocals(4);
+	TCHAR UserName[UNLEN + 1];
+	DWORD size = UNLEN + 1;
+	
+	GetUserName((TCHAR*)UserName, &size);
+
+	TCharCpy(*UserName, *CharArray, size);
+
+}
+
+void OmniCore::WinGetComputerName(char(&CharArray)[MAX_COMPUTERNAME_LENGTH + 1])
+{
+	TCHAR ComputerName[MAX_COMPUTERNAME_LENGTH + 1];
+	DWORD size = sizeof(ComputerName) / sizeof(ComputerName[0]);
+	GetComputerName(ComputerName, &size);
+
+	TCharCpy(*ComputerName, *CharArray, size);
+
+}
+
+
+uint32_t OmniCore::QueryLocalIP(const int index)
+{
+	uint32_t LocalIP{};
+	std::vector<sockaddr_in> LocalIPs;
+	sessions::GetLocals(4, &LocalIPs);
+	LocalIP = htonl(LocalIPs[index].sin_addr.S_un.S_addr);
+	return LocalIP;
 }
 
 std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
@@ -59,7 +85,7 @@ void OmniLink::ToggleWGC() {
 
 		ExecuteCommand = &OmniLink::CommandListEmpty;
 
-		
+
 	}
 	else {
 		WGSCapture = new WGScreenCapture(D3D11Device, D3D11Context);
@@ -155,31 +181,38 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*##############################################################*/
 	
-	InstanceProbe = new Instances(QueryLocalIP(), 62485);
+
+	char InstanceName[MAX_COMPUTERNAME_LENGTH + 1];
+	WinGetComputerName(InstanceName);
+
+	uint32_t LocalIP = QueryLocalIP();
+
+	InstanceProbe = new Instances(InstanceName, LocalIP, 62485);
 	InstanceProbe->AwaitInstances([this]() {
 		ScanInstances();
 		});
 	ScanInstances();
 
-	GUI = new OmniGUI(*this);
-	GUI->SetupImGui(hwnd, D3D11Device, D3D11Context, Events);
-
 	/*##############################################################*/	
 
 
+	GUI = new OmniGUI(*this);
+	GUI->SetupImGui(hwnd, D3D11Device, D3D11Context, Events);
+
 
 	///* ################################################################ */
-
-
-	session1 = new session(sessions, "192.168.1.59", 62485, 1450, Link);
 	
+	
+	std::string IP_STR = std::format("{}.{}.{}.{}", (LocalIP >> 24) & 0xFF, (LocalIP >> 16) & 0xFF, (LocalIP >> 8) & 0xFF, LocalIP & 0xFF);
 
+	session1 = new session(sessions, IP_STR.c_str(), "192.168.1.59", 62485, 1450, Link);
+	
 	///* ################################################################ */
 
 
 	/*OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);*/
-	
+
 	
 	OmniMainLoop();
 
@@ -191,7 +224,10 @@ int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
 	Link = new WinForge(WProc2);
 	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
 
-	session1 = new session(sessions, "192.168.1.59", 62485, 1450, Link);
+	uint32_t LocalIP = QueryLocalIP();
+	std::string IP_STR = std::format("{}.{}.{}.{}", (LocalIP >> 24) & 0xFF, (LocalIP >> 16) & 0xFF, (LocalIP >> 8) & 0xFF, LocalIP & 0xFF);
+
+	session1 = new session(sessions, IP_STR.c_str(), "192.168.1.59", 62485, 1450, Link);
 
 
 	while (true) {
@@ -206,7 +242,7 @@ void OmniLink::OmniMainLoop() {
 
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(6, Events, 0, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(6, Events, 10, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
 		case WAIT_OBJECT_0 + 6:
@@ -251,6 +287,8 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 3:
+			(this->*ExecuteCommand)();
+			SetEvent(Events[3]);
 			break;
 
 		case WAIT_OBJECT_0 + 4:

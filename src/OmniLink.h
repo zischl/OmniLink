@@ -68,7 +68,12 @@ class OmniCore {
 public:
 	//Core Functions
 
-	uint32_t QueryLocalIP();
+
+	void WinGetUserName(char(&CharArray)[UNLEN + 1]);
+
+	void WinGetComputerName(char(&CharArray)[MAX_COMPUTERNAME_LENGTH + 1]);
+
+	uint32_t QueryLocalIP(const int index = 0);
 
 	void ScanInstances();
 
@@ -94,27 +99,52 @@ public:
 	/// </summary>
 	BurstQ<FuncArgTypes, 20> CommandBurstQWArgs = BurstQ<FuncArgTypes, 20>();
 
-	inline void ExecuteCommandQueue() {
+	inline void ExecuteCommandQueue() 
+	{
 		SetEvent(Events[4]);
 	}
 
-	inline void ExecuteCommandQueueWArgs() {
+	inline void ExecuteCommandQueueWArgs() 
+	{
 		SetEvent(Events[5]);
 	}
 
-	inline void PushCommand(CoreCommands CommandType) {
+	inline void PushCommand(CoreCommands CommandType) 
+	{
 		CommandBurstQ.push(CommandType);
 
 	}
 
-	inline void PushCommands(std::vector<CoreCommands>& CommandTypeArray) {
+	inline void PushCommands(std::vector<CoreCommands>& CommandTypeArray) 
+	{
 		for (CoreCommands command : CommandTypeArray) {
 			CommandBurstQ.push(command);
 		}
 	}
 
-	inline void PushCommandWArgs(FuncArgTypes& CommandArgs) {
+	inline void PushCommandWArgs(FuncArgTypes& CommandArgs) 
+	{
 		CommandBurstQWArgs.push(CommandArgs);
+	}
+
+	inline void PushNetworkCommand()
+	{
+
+	}
+
+
+
+	//helper funcs
+
+	inline void TCharCpy(TCHAR (&Tarr), char(&arr), const size_t size) 
+	{
+#ifndef UNICODE
+		strcpy(&arr, &Tarr);
+#else
+		WideCharToMultiByte(CP_ACP, 0, &Tarr, -1, &arr, size, nullptr, nullptr);
+#endif
+
+		(&arr)[size] = '\0';
 	}
 
 

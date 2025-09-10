@@ -7,8 +7,7 @@
 #include <thread>
 #include <chrono>
 #include <unordered_map>
-#include <Windows.h>
-#include <ws2tcpip.h>
+
 
 #define MASK 0x5A
 #define BITMASK(letter) : letter ^ MASK; 
@@ -21,7 +20,7 @@ protected:
 
 
 public:
-    Instances(uint32_t _LocalIP, uint16_t port);
+    Instances(char* InstanceName, uint32_t _LocalIP, uint16_t port);
 
     void PopulateInstances(int Runtime);
 
@@ -107,10 +106,6 @@ private:
 
     asio::io_context io_context;
 
-    char* WinGetUserName();
-
-    char* WinGetComputerName();
-    
     /// <summary>
     /// Basic response handling without callbacks.
     /// </summary>
