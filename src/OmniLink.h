@@ -68,6 +68,8 @@ class OmniCore {
 public:
 	//Core Functions
 
+	uint32_t QueryLocalIP();
+
 	void ScanInstances();
 
 	void SwapInstanceLayout(int index1, int index2);

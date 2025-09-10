@@ -52,9 +52,9 @@
 
 #define UNLEN 256
 
-Instances::Instances(uint16_t port) :
-    ComputerName(*WinGetComputerName())
+Instances::Instances(uint32_t _LocalIP, uint16_t port)
 {
+    instances[_LocalIP] = WinGetComputerName();
     discovery_port = port;
 }
 
@@ -80,15 +80,15 @@ char* Instances::WinGetUserName() {
 
     GetUserName((TCHAR*)ComputerName, &size);
 
-    std::array <char, MAX_COMPUTERNAME_LENGTH + 1> CharArray[MAX_COMPUTERNAME_LENGTH + 1];
+    char* _Name = new char(MAX_COMPUTERNAME_LENGTH + 1);
 
 #ifndef UNICODE
     WideCharToMultiByte(CP_ACP, 0, ComputerName, -1, CharArray->data(), MAX_COMPUTERNAME_LENGTH + 1, nullptr, nullptr);
 #else
-    strcpy(CharArray->data(), ComputerName);
+    strcpy(_Name, ComputerName);
 #endif
 
-    return CharArray->data();
+    return _Name;
 }
 
 char* Instances::WinGetComputerName() {
@@ -97,20 +97,15 @@ char* Instances::WinGetComputerName() {
     DWORD size = sizeof(ComputerName) / sizeof(ComputerName[0]);
     GetComputerName(ComputerName, &size);
 
-    std::array <char, MAX_COMPUTERNAME_LENGTH + 1> CharArray[MAX_COMPUTERNAME_LENGTH + 1];
+    char* _Name = new char(MAX_COMPUTERNAME_LENGTH + 1);
     
 #ifndef UNICODE
     WideCharToMultiByte(CP_ACP, 0, ComputerName, -1, CharArray->data(), MAX_COMPUTERNAME_LENGTH + 1, nullptr, nullptr);
 #else
-    strcpy(CharArray->data(), ComputerName);
+    strcpy(_Name, ComputerName);
 #endif
 
-    return CharArray->data();
-}
-
-
-uint32_t Instances::GetLocalIP() {
-    return 0;
+    return _Name;
 }
 
 

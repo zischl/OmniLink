@@ -80,9 +80,11 @@ public:
 
 	sessions();
 
-	void GetLocals(uint8_t family);
-	sockaddr_in CreateAddress(PCSTR IP, unsigned short port);
-	SOCKET CreateSocket();
+	static uint32_t GetLocals(uint8_t family);
+
+	static sockaddr_in CreateAddress(PCSTR IP, unsigned short port);
+
+	static SOCKET CreateSocket();
 };
 
 

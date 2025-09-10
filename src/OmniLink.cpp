@@ -1,7 +1,10 @@
 #include <OmniLink.h>
 
 
-
+uint32_t OmniCore::QueryLocalIP()
+{
+	return sessions::GetLocals(4);
+}
 
 std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
 
@@ -9,6 +12,7 @@ std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return
 void OmniCore::SwapInstanceLayout(int index1, int index2) {
 	std::swap(AllInstances[index1], AllInstances[index2]);
 }
+
 
 //Check whether new scan results are available and get them if so
 //Otherwise initiate a new scan
@@ -151,7 +155,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*##############################################################*/
 	
-	InstanceProbe = new Instances(62485);
+	InstanceProbe = new Instances(QueryLocalIP(), 62485);
 	InstanceProbe->AwaitInstances([this]() {
 		ScanInstances();
 		});
@@ -167,7 +171,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	///* ################################################################ */
 
 
-	session1 = new session(sessions, "192.168.1.7", 62485, 1450, Link);
+	session1 = new session(sessions, "192.168.1.59", 62485, 1450, Link);
 	
 
 	///* ################################################################ */

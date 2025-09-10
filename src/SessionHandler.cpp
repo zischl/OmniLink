@@ -40,8 +40,10 @@ SOCKET sessions::CreateSocket() {
 }
 
 
-void sessions::GetLocals(uint8_t family) 
+uint32_t sessions::GetLocals(uint8_t family)
 {
+	int WSResult;
+
 	ULONG Flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_PREFIX;
 
 	ULONG Family = family == 4 ? AF_INET : family == 6 ? AF_INET6 : AF_UNSPEC;
@@ -56,12 +58,13 @@ void sessions::GetLocals(uint8_t family)
 
 	PIP_ADAPTER_ADDRESSES IterAddress = NULL;
 	PIP_ADAPTER_UNICAST_ADDRESS Unicast = NULL;
+	uint32_t LocalIP{};
 
 	do {
 
 		locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(locals_size);
 		if (locals == NULL) {
-			return;
+			return 0;
 		}
 
 		WSResult = GetAdaptersAddresses(Family, Flags, NULL, locals, &locals_size);
@@ -82,10 +85,10 @@ void sessions::GetLocals(uint8_t family)
 			if (Unicast != NULL && IterAddress->OperStatus == IfOperStatusUp && IterAddress->IfType != IF_TYPE_SOFTWARE_LOOPBACK) {
 				for (i = 0; Unicast != NULL; i++)
 				{
-					char addr_char[16];
 					sockaddr_in* addr = (sockaddr_in*)Unicast->Address.lpSockaddr;
-					inet_ntop(AF_INET, (in_addr*)(&addr->sin_addr), addr_char, 16);
-					Logger::log("Local IP Found : {}", addr_char);
+					LocalIP = htonl(addr->sin_addr.S_un.S_addr);
+					//inet_ntop(AF_INET, (in_addr*)(&addr->sin_addr), LocalIP.data(), 16);
+					//Logger::log("Local IP Found : {}", LocalIP.data());
 
 					Unicast = Unicast->Next;
 				}
@@ -105,6 +108,8 @@ void sessions::GetLocals(uint8_t family)
 	if (locals) {
 		FREE(locals);
 	}
+
+	return LocalIP;
 }
 
 
