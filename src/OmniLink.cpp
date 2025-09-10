@@ -28,6 +28,8 @@ void OmniCore::ScanInstances() {
 			DevIdx++;
 
 		}
+
+		SetEvent(Events[0]);
 	}
 	else {
 		InstanceProbe->Scan(15);
@@ -153,7 +155,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	InstanceProbe->AwaitInstances([this]() {
 		ScanInstances();
 		});
-
+	ScanInstances();
 
 	GUI = new OmniGUI(*this);
 	GUI->SetupImGui(hwnd, D3D11Device, D3D11Context, Events);
@@ -200,7 +202,7 @@ void OmniLink::OmniMainLoop() {
 
 	while (true) {
 
-		EventDW = MsgWaitForMultipleObjectsEx(6, Events, 1, QS_ALLINPUT, 0);
+		EventDW = MsgWaitForMultipleObjectsEx(6, Events, 0, QS_ALLINPUT, 0);
 
 		switch (EventDW) {
 		case WAIT_OBJECT_0 + 6:
@@ -248,17 +250,22 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 4:
-			(this->*CommandTable[CommandQueue[0]])();
-			CommandQueue.pop_front();
+			while (CommandBurstQ.Tail != CommandBurstQ.Head) {
+				(this->*CommandTable[CommandBurstQ.Queue[CommandBurstQ.Tail]])();
+				CommandBurstQ.pop();
+			}
 			break;
 
 		case WAIT_OBJECT_0 + 5:
-			switch (CommandQueueWArgs[0].Args.index()) {
+		{
+			unsigned int Tail = CommandBurstQWArgs.Tail;
+			switch (CommandBurstQWArgs.Queue[Tail].index()) {
 			case 0:
-				auto& args = std::get<0>(CommandQueueWArgs[0].Args);
+				auto& args = std::get<0>(CommandBurstQWArgs.Queue[Tail]);
 				(this->SwapInstanceLayout)(args.index1, args.index2);
-				CommandQueueWArgs.pop_front();
+				CommandBurstQWArgs.pop();
 			}
+		}
 			break;
 		
 		case WAIT_TIMEOUT:
