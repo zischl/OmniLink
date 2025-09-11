@@ -212,8 +212,8 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/*OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);*/
-
 	
+
 	OmniMainLoop();
 
 }

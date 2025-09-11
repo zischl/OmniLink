@@ -1,13 +1,13 @@
 #include "SessionHandler.h"
 
 
-sessions::sessions() 
+sessions::sessions()
 {
 	WinsockInit();
 
 }
 
-int sessions::WinsockInit() 
+int sessions::WinsockInit()
 {
 	int wsResult;
 	wsResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -17,7 +17,7 @@ int sessions::WinsockInit()
 	return 0;
 }
 
-sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port) 
+sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port)
 {
 	sockaddr_in address;
 	address.sin_family = AF_INET;
@@ -86,7 +86,7 @@ void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 				{
 					sockaddr_in* addr = (sockaddr_in*)Unicast->Address.lpSockaddr;
 					Buffer->push_back(*addr);
-					
+
 					//inet_ntop(AF_INET, (in_addr*)(&addr->sin_addr), LocalIP.data(), 16);
 					//Logger::log("Local IP Found : {}", LocalIP.data());
 
@@ -115,126 +115,32 @@ void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 
 session::session(sessions& sessions, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_)
 {
+	Link = Link_;
 	Sessions = sessions;
 	wsaData = sessions.wsaData;
 	IOCP = Sessions.IOCP;
-
-	SPoolHead = 0;
-	RPoolHead = 0;
 
 	MTU = MTU_Size;
 	PreSetBufferMTU();
 	address = Sessions.CreateAddress(IP, port);
 	socketR = Sessions.CreateSocket();
-	RegIOCP(socketR);
+	RegIOCP(IOCP, socketR);
+	StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, *Link);
 	InitReceiver(Local_IP, 62485);
-	
-	Link = Link_;
+
 }
 
 
 
 
-int session::_requestHandshake() {
-	return 0;
-}
-int session::_verifyHandshake() {
-	return 0;
-}
-int session::_establishLink() {
-	return 0;
-}
-
-
-std::string _GetLocalAddr() {
-	return "192.168.1.59";
-}
-
-void session::RegIOCP(SOCKET& socket) {
+void session::RegIOCP(HANDLE& IOCP, SOCKET& socket) {
+	ULONG_PTR CompletionKey = 0;
+	IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 1);
 	if (IOCP == NULL) {
-		ULONG_PTR CompletionKey = 0;
-		IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 1);
-		if (IOCP == NULL) {
-			OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
-		}
+		OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
 	}
-
-	std::thread StatusQueue([this]
-		{
-			while (true) {
-				DWORD BufferSize = 0;
-				ULONG_PTR EventKey = 0;
-				OVERLAPPED* OVStruct = nullptr;
-
-				bool WSResult = GetQueuedCompletionStatus(IOCP, &BufferSize, &EventKey, &OVStruct, INFINITE);
-				if (!WSResult)
-				{
-					OutputDebugStringA((std::to_string(GetLastError()) + "type \n").c_str());
-					OutputDebugStringA("Completion Status Get False\n");
-					if (OVStruct != nullptr) {
-						OutputDebugStringA("Completion Status Get OVStruct Failed\n");
-					}
-					else {
-						OutputDebugStringA("IOCP Thread Going Down...\n");
-					}
-				}
-
-				RECV_BUF* Buffer = reinterpret_cast<RECV_BUF*>(OVStruct);
-
-				switch (Buffer->Type) {
-				case OP_RECV:
-					// header structure's packet type index = 0 and the header size is 3,
-					// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
-					switch (*(Buffer->TransmitBuffer.buf + BufferSize - 3)) {  
-					case FrameStart:
-						//start = Clock::now();
-						RecvChunkStart = RPoolHead;
-						RecvChunkLen += BufferSize - OmniHeaderSize;
-						RPoolHead = (RPoolHead + 1) & 255;
-						break;
-					case FrameData:
-						RecvChunkLen += BufferSize - OmniHeaderSize;
-						RPoolHead = (RPoolHead + 1) & 255;
-						break;
-					case FrameEnd:
-						RecvChunkEnd = RPoolHead;
-						
-						RecvChunkLen = RecvChunkEnd * MTU;
-						RecvChunkLen += BufferSize - OmniHeaderSize;
-						if (RecvChunkLen > 300000) {
-							OutputDebugString(L"ffffffffffffffffffffffffffff\n");
-							RecvChunkLen = 0;
-							RPoolHead = 0;
-							break;
-						}
-						Link->SetBufferData(&RecvBufferPool[0], RecvChunkLen);
-						Link->SetRenderEvent();
-
-					case Command:
-						
-						break;
-
-						RecvChunkLen = 0;
-						RPoolHead = 0;
-						//OutputDebugStringA((std::to_string(std::chrono::duration_cast<Mlliseconds>((Clock::now() - start)).count()) + "\n").c_str());
-
-
-						break;
-					}
-
-					PostWSARecv();
-					break;
-				}
-
-				
-
-			}
-		}
-	);
-
-	StatusQueue.detach();
-
 }
+
 
 void session::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
 
@@ -247,7 +153,7 @@ void session::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
 		return;
 	}
 
-	RegIOCP(socketR);
+	RegIOCP(IOCP, socketR);
 
 	address.sin_family = AF_INET;
 	address.sin_port = htons(port);
@@ -271,16 +177,16 @@ void  session::InitReceiver(PCSTR IP, unsigned int port) {
 	local.sin_port = htons(port);
 	inet_pton(AF_INET, IP, &local.sin_addr);
 
-	WSResult = bind(socketR, (sockaddr*) &local, sizeof(local));
+	WSResult = bind(socketR, (sockaddr*)&local, sizeof(local));
 	if (WSResult != 0) {
 		WSResult = WSAGetLastError();
 		OutputDebugStringA((std::to_string(WSResult) + "\n").c_str());
 		OutputDebugStringA("Bind Failed Successfully\n");
 	}
 
-	PostWSARecv();
+	PostWSARecv(socketR, RecvPool);
 	if (WSAGetLastError() != WSA_IO_PENDING) {
-		OutputDebugStringA((std::to_string(WSResult)+"Recv Pre Post Failed\n").c_str());
+		OutputDebugStringA((std::to_string(WSResult) + "Recv Pre Post Failed\n").c_str());
 	}
 }
 
@@ -288,7 +194,7 @@ void  session::InitReceiver(PCSTR IP, unsigned int port) {
 
 void session::ChunkedSend(CHAR* data, int data_size) {
 	int MTU_slices = data_size - (data_size % MTU);
-	CHeaderPool[SPoolHead].PacketType = FrameStart;
+	CHeaderPool[SPoolHead].PacketType = OmniNet::FrameStart;
 	CHeaderPool[SPoolHead].Target = 0;
 	TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 	TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
@@ -308,8 +214,8 @@ void session::ChunkedSend(CHAR* data, int data_size) {
 
 	SPoolHead = (SPoolHead + 1) & 255;
 
-	for (int offset = MTU; offset < MTU_slices-MTU; offset += MTU) {
-		CHeaderPool[SPoolHead].PacketType = FrameData;
+	for (int offset = MTU; offset < MTU_slices - MTU; offset += MTU) {
+		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameData;
 		CHeaderPool[SPoolHead].Target = 0;
 		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
@@ -332,13 +238,13 @@ void session::ChunkedSend(CHAR* data, int data_size) {
 
 	}
 
-	
+
 
 	if (MTU_slices != data_size) {
-		CHeaderPool[SPoolHead].PacketType = FrameData;
+		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameData;
 	}
 	else {
-		CHeaderPool[SPoolHead].PacketType = FrameEnd;
+		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameEnd;
 	}
 	CHeaderPool[SPoolHead].Target = 0;
 
@@ -362,7 +268,7 @@ void session::ChunkedSend(CHAR* data, int data_size) {
 	SPoolHead = (SPoolHead + 1) & 255;
 
 	if (MTU_slices != data_size) {
-		CHeaderPool[SPoolHead].PacketType = FrameEnd;
+		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameEnd;
 		CHeaderPool[SPoolHead].Target = 0;
 
 		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
@@ -382,7 +288,7 @@ void session::ChunkedSend(CHAR* data, int data_size) {
 		SPoolHead = (SPoolHead + 1) & 255;
 	}
 
-	
+
 
 
 }

@@ -3,6 +3,7 @@
 
 #pragma once
 #include "OmniTypes.h"
+#include <iostream>
 #include <chrono>
 
 class OmniLink;

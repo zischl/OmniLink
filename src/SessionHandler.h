@@ -4,6 +4,7 @@
 
 
 #pragma once
+#include "OmniTypes.h"
 #include "OmniLogger.h"
 #include "WinForge.h"
 #include <winsock2.h>
@@ -26,44 +27,6 @@
 #define OmniMTU 1450
 #define OmniHeaderSize 3
 
-enum BufferType {
-	OP_RECV,
-	OP_SEND
-};
-
-enum PacketType : uint8_t {
-	FrameStart,
-	FrameData,
-	FrameEnd,
-	Command
-};
-
-enum ChunkType : uint8_t {
-	
-};
-
-struct OmniHeader {
-	PacketType PacketType;
-	uint8_t Target;
-	uint8_t Reserved;
-};
-
-struct SEND_BUF {
-	OVERLAPPED OVStruct;
-	WSABUF TransmitBuffer[2];
-	BufferType Type;
-};
-
-
-struct RECV_BUF {
-	OVERLAPPED OVStruct = {};
-	WSABUF TransmitBuffer;
-	BufferType Type;
-	char* data;
-	sockaddr_in addr;
-	INT addr_len;
-};
-
 
 
 class sessions {
@@ -71,7 +34,7 @@ private:
 	int WSResult;
 
 	int WinsockInit();
-	
+
 
 
 public:
@@ -95,33 +58,28 @@ private:
 	WSADATA wsaData;
 	WinForge* Link = nullptr;
 	int WSResult;
-	
+
 	sockaddr_in address;
 	SOCKET socketR;
 	HANDLE IOCP = NULL;
-	
+
 	int MTU = 0;
 	int SPoolHead = 0;
-	SEND_BUF TransmitPool[256];
+	OmniNet::SEND_BUF TransmitPool[256];
 
-	int RPoolHead = 0;
-	RECV_BUF RecvPool[256];
-	CHAR RecvBufferPool[256 * (OmniMTU + OmniHeaderSize)];
+	OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, 256, 1450> RecvPool;
 
 	CHAR FinalRecvBuffer[256 * (OmniMTU + OmniHeaderSize)];
 
-	OmniHeader CHeaderPool[256];
+	OmniNet::OmniHeader CHeaderPool[256];
 
-	int RecvChunkStart = 0;
-	int RecvChunkEnd = 0;
-	int RecvChunkLen = 0;
 
 	typedef std::chrono::steady_clock Clock;
 	typedef std::chrono::time_point<Clock> TimePoint;
 	typedef std::chrono::milliseconds Mlliseconds;
 	TimePoint start;
 
-	
+
 
 
 	inline void PreSetBufferMTU() {
@@ -130,61 +88,120 @@ private:
 
 		for (int BufferCount = 0; BufferCount < 256; BufferCount++) {
 			TransmitPool[BufferCount].OVStruct = {};
-			TransmitPool[BufferCount].Type = OP_SEND;
+			TransmitPool[BufferCount].Type = OmniNet::OP_SEND;
 			TransmitPool[BufferCount].TransmitBuffer[0].len = MTU;
 			TransmitPool[BufferCount].TransmitBuffer[1].len = OmniHeaderSize;
 
 
-			RecvPool[BufferCount].OVStruct = {};
-			RecvPool[BufferCount].data = &RecvBufferPool[BufferCount * (MTU)];
-			RecvPool[BufferCount].TransmitBuffer.buf = RecvPool[BufferCount].data;
-			RecvPool[BufferCount].TransmitBuffer.len = MTU + OmniHeaderSize;
-			RecvPool[BufferCount].Type = OP_RECV;
-			RecvPool[BufferCount].addr_len = addr_size;
+			RecvPool.ContextPool[BufferCount].OVStruct = {};
+			RecvPool.ContextPool[BufferCount].data = &RecvPool.BufferPool[BufferCount * (MTU)];
+			RecvPool.ContextPool[BufferCount].TransmitBuffer.buf = RecvPool.ContextPool[BufferCount].data;
+			RecvPool.ContextPool[BufferCount].TransmitBuffer.len = MTU + OmniHeaderSize;
+			RecvPool.ContextPool[BufferCount].Type = OmniNet::OP_RECV;
+			RecvPool.ContextPool[BufferCount].addr_len = addr_size;
 
 		}
-		
+
 	}
 
 public:
-	
+
 	session(sessions& sessions, PCSTR Local_IP, PCSTR TARGET_IP, unsigned short port, int MTU_Size, WinForge* Link_);
 
-	
-	void RegIOCP(SOCKET& socket);
+	static void RegIOCP(HANDLE& IOCP, SOCKET& socket);
 
+	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
+	static void StartCompletionPortHandlerThread(const HANDLE& IOCP, const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool, WinForge& Link)
+	{
+		std::thread StatusQueue([&]()
+			{
+				while (true) {
+					DWORD BufferSize = 0;
+					ULONG_PTR EventKey = 0;
+					OVERLAPPED* OVStruct = nullptr;
+
+					bool WSResult = GetQueuedCompletionStatus(IOCP, &BufferSize, &EventKey, &OVStruct, INFINITE);
+					if (!WSResult)
+					{
+						OutputDebugStringA((std::to_string(GetLastError()) + "type \n").c_str());
+						OutputDebugStringA("Completion Status Get False\n");
+						if (OVStruct != nullptr) {
+							OutputDebugStringA("Completion Status Get OVStruct Failed\n");
+						}
+						else {
+							OutputDebugStringA("IOCP Thread Going Down...\n");
+						}
+					}
+
+					OmniNet::RECV_BUF* Buffer = reinterpret_cast<OmniNet::RECV_BUF*>(OVStruct);
+
+					switch (Buffer->Type) {
+					case OmniNet::OP_RECV:
+						// header structure's packet type index = 0 and the header size is 3,
+						// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
+						switch (*(Buffer->TransmitBuffer.buf + BufferSize - 3)) {
+						case OmniNet::FrameStart:
+							Pool.PushChunk();
+							break;
+						case OmniNet::FrameData:
+							Pool.PushChunk();
+							break;
+						case OmniNet::FrameEnd:
+							if (Pool.TryPushFinalChunk(BufferSize))
+							{
+								Link.SetBufferData(&Pool.BufferPool[0], Pool.CurrentChunkUsage);
+								Link.SetRenderEvent();
+
+								Pool.ResetChunk();
+							}
+
+
+						case OmniNet::Command:
+
+							break;
+						}
+
+						PostWSARecv(socket, Pool);
+						break;
+					}
+
+
+
+				}
+			}
+		);
+
+		StatusQueue.detach();
+
+	};
 	void CreateSesssionIOCP(PCSTR IP, unsigned short port);
 	void InitReceiver(PCSTR IP, unsigned int port);
 	void ChunkedSend(CHAR* data, int data_size);
 
 
-	int _requestHandshake();
-	int _verifyHandshake();
-	int _establishLink();
-
-
-	inline void PostWSARecv() {
+	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
+	inline static void PostWSARecv(const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool) {
 		DWORD flags = 0;
 
-		WSResult = WSARecvFrom(
-			socketR,
-			&RecvPool[RPoolHead].TransmitBuffer,
+		WSARecvFrom(
+			socket,
+			&Pool.ContextPool[Pool.PoolHead].TransmitBuffer,
 			1,
 			NULL,
 			&flags,
-			(sockaddr*)&RecvPool[RPoolHead].addr,
-			&RecvPool[RPoolHead].addr_len,
-			&RecvPool[RPoolHead].OVStruct,
+			(sockaddr*)&Pool.ContextPool[Pool.PoolHead].addr,
+			&Pool.ContextPool[Pool.PoolHead].addr_len,
+			&Pool.ContextPool[Pool.PoolHead].OVStruct,
 			NULL
 		);
 	};
 
 	inline void SessionSend(CHAR* data, int MTU) {
-		SEND_BUF* SendBuffer = new SEND_BUF;
+		OmniNet::SEND_BUF* SendBuffer = new OmniNet::SEND_BUF;
 		SendBuffer->OVStruct = {};
 		SendBuffer->TransmitBuffer[0].buf = data;
 		SendBuffer->TransmitBuffer[0].len = MTU;
-		SendBuffer->Type = OP_SEND;
+		SendBuffer->Type = OmniNet::OP_SEND;
 
 
 		WSASendTo(socketR, SendBuffer->TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &SendBuffer->OVStruct, NULL);
