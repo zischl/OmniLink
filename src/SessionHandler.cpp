@@ -113,183 +113,79 @@ void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 }
 
 
-session::session(sessions& sessions, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_)
-{
-	Link = Link_;
-	Sessions = sessions;
-	wsaData = sessions.wsaData;
-	IOCP = Sessions.IOCP;
-
-	MTU = MTU_Size;
-	PreSetBufferMTU();
-	address = Sessions.CreateAddress(IP, port);
-	socketR = Sessions.CreateSocket();
-	RegIOCP(IOCP, socketR);
-	StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, *Link);
-	InitReceiver(Local_IP, 62485);
-
-}
-
-
-
-
-void session::RegIOCP(HANDLE& IOCP, SOCKET& socket) {
-	ULONG_PTR CompletionKey = 0;
-	IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 1);
+void sessions::RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey) {
 	if (IOCP == NULL) {
-		OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
-	}
-}
+		IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
+		if (IOCP == NULL) {
+			OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
+		}
 
-
-void session::CreateSesssionIOCP(PCSTR IP, unsigned short port) {
-
-	socketR = INVALID_SOCKET;
-
-	socketR = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
-	if (socketR == INVALID_SOCKET) {
-		WSACleanup();
-		OutputDebugStringA("Socket Did Not Come Home !");
 		return;
 	}
-
-	RegIOCP(IOCP, socketR);
-
-	address.sin_family = AF_INET;
-	address.sin_port = htons(port);
-	inet_pton(AF_INET, IP, &address.sin_addr);
-
-	WSResult = connect(socketR, (sockaddr*)&address, sizeof(address));
-	if (WSResult != 0) {
-		OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
-	}
 	else {
-		OutputDebugStringA("Connected !\n");
-	}
 
+	}
+	IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
+	if (IOCP == NULL) {
+		OutputDebugStringA("IOCP Port Binding Failed Successfully\n");
+	}
+	
 }
 
 
-void  session::InitReceiver(PCSTR IP, unsigned int port) {
+void  sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket) {
+	int WSResult = 0;
 
 	sockaddr_in local;
 	local.sin_family = AF_INET;
 	local.sin_port = htons(port);
 	inet_pton(AF_INET, IP, &local.sin_addr);
 
-	WSResult = bind(socketR, (sockaddr*)&local, sizeof(local));
+	WSResult = bind(socket, (sockaddr*)&local, sizeof(local));
 	if (WSResult != 0) {
 		WSResult = WSAGetLastError();
 		OutputDebugStringA((std::to_string(WSResult) + "\n").c_str());
 		OutputDebugStringA("Bind Failed Successfully\n");
 	}
 
-	PostWSARecv(socketR, RecvPool);
+}
+
+
+void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR) {
+
+	int WSResult = 0;
+
+	WSResult = connect(socketR, (sockaddr*)&address, sizeof(address));
+	if (WSResult != 0) {
+		OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
+	}
+
+}
+
+
+session::session(sessions& sessions, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_)
+{
+	Link = Link_;
+
+	IOCP = Sessions.IOCP;
+
+	MTU = MTU_Size;
+	PreSetBufferMTU();
+	address = sessions::CreateAddress(IP, port);
+	socketR = sessions::CreateSocket();
+	sessions::ConnectSesssion(address, socketR);
+	sessions::RegIOCP(IOCP, socketR);
+	sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, *Link);
+	sessions::BindReceiver(Local_IP, 62485, socketR);
+
+	sessions::PostWSARecv(socketR, RecvPool);
 	if (WSAGetLastError() != WSA_IO_PENDING) {
-		OutputDebugStringA((std::to_string(WSResult) + "Recv Pre Post Failed\n").c_str());
+		OutputDebugStringA("Recv Pre Post Failed\n");
 	}
+
 }
 
 
 
-void session::ChunkedSend(CHAR* data, int data_size) {
-	int MTU_slices = data_size - (data_size % MTU);
-	CHeaderPool[SPoolHead].PacketType = OmniNet::FrameStart;
-	CHeaderPool[SPoolHead].Target = 0;
-	TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
-	TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
 
-
-	WSASendTo(
-		socketR,
-		TransmitPool[SPoolHead].TransmitBuffer,
-		2,
-		NULL, 0,
-		(sockaddr*)&address,
-		sizeof(address),
-		&TransmitPool[SPoolHead].OVStruct,
-		NULL
-	);
-
-
-	SPoolHead = (SPoolHead + 1) & 255;
-
-	for (int offset = MTU; offset < MTU_slices - MTU; offset += MTU) {
-		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameData;
-		CHeaderPool[SPoolHead].Target = 0;
-		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
-		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
-
-
-
-		WSASendTo(
-			socketR,
-			TransmitPool[SPoolHead].TransmitBuffer,
-			2,
-			NULL, 0,
-			(sockaddr*)&address,
-			sizeof(address),
-			&TransmitPool[SPoolHead].OVStruct,
-			NULL
-		);
-
-
-		SPoolHead = (SPoolHead + 1) & 255;
-
-	}
-
-
-
-	if (MTU_slices != data_size) {
-		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameData;
-	}
-	else {
-		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameEnd;
-	}
-	CHeaderPool[SPoolHead].Target = 0;
-
-	TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
-	TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices - MTU;
-
-
-
-	WSASendTo(
-		socketR,
-		TransmitPool[SPoolHead].TransmitBuffer,
-		2,
-		NULL, 0,
-		(sockaddr*)&address,
-		sizeof(address),
-		&TransmitPool[SPoolHead].OVStruct,
-		NULL
-	);
-
-
-	SPoolHead = (SPoolHead + 1) & 255;
-
-	if (MTU_slices != data_size) {
-		CHeaderPool[SPoolHead].PacketType = OmniNet::FrameEnd;
-		CHeaderPool[SPoolHead].Target = 0;
-
-		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
-		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices;
-		TransmitPool[SPoolHead].TransmitBuffer[0].len = data_size % MTU;
-
-
-		WSASendTo(
-			socketR,
-			TransmitPool[SPoolHead].TransmitBuffer,
-			2, NULL, 0,
-			(sockaddr*)&address, sizeof(address),
-			&TransmitPool[SPoolHead].OVStruct, NULL);
-
-		TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
-
-		SPoolHead = (SPoolHead + 1) & 255;
-	}
-
-
-
-
-}
 

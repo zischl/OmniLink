@@ -93,7 +93,7 @@ void OmniLink::ToggleWGC() {
 		WGSCapture->CreateMonitorCapSession(WGSCapBuffer, 1920, 1080);
 		WGSCapture->StartSession();
 		WGCStatus = true;
-		ExecuteCommand = &OmniLink::WGCapSend;
+		//ExecuteCommand = &OmniLink::WGCapSend;
 
 		Nv = new NVENCODER((void*)D3D11Device, WGSCapBuffer, 1920, 1080);
 
@@ -125,7 +125,7 @@ void OmniLink::ToggleDDAPI() {
 		DXGIOutDuplication = DXGICap->InitDXGI(D3D11Device);
 		DXGIBuffer = DXGICap->GetBuffer();
 		DXGIStatus = true;
-		ExecuteCommand = &OmniLink::DXGICapSend;
+		//ExecuteCommand = &OmniLink::DXGICapSend;
 
 		Nv = new NVENCODER((void*)D3D11Device, DXGIBuffer, 1920, 1080);
 
@@ -213,6 +213,13 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	/*OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);*/
 	
+	ToggleDDAPI();
+	//ToggleWGC();
+
+	AsyncWorker::Uncached TempWorker;
+	TempWorker.StartSpinThread(OmniLink::DXGICapSend, session1, DXGICap, Nv);
+	//testarray.Workers[1].StartWaitThread(1, OmniLink::WGCapSend, session1, WGSCapture, Nv);
+
 
 	OmniMainLoop();
 
@@ -256,22 +263,22 @@ void OmniLink::OmniMainLoop() {
 			}
 
 			if (std::chrono::steady_clock::now() - LastFrameTime >= FrameTimeLimit) {
-				SetEvent(Events[0]);
+				//SetEvent(Events[0]);
 			}
 
 
 			break;
 
 		case WAIT_OBJECT_0 + 0:
-			GUI->FrameBegin();
+			//GUI->FrameBegin();
 
-			D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
-			D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
-			//D3D11Context->Draw(4, 0);
+			//D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
+			//D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
+			////D3D11Context->Draw(4, 0);
 
-			GUI->Render();
-			
-			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+			//GUI->Render();
+			//
+			//swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 			LastFrameTime = std::chrono::steady_clock::now();
 
 			break;

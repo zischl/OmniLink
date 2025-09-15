@@ -12,6 +12,7 @@
 #include <iphlpapi.h>
 #include <stdio.h>
 
+#include <iostream>
 #include <string>
 #include <thread>
 #include <chrono>
@@ -48,67 +49,10 @@ public:
 	static sockaddr_in CreateAddress(PCSTR IP, unsigned short port);
 
 	static SOCKET CreateSocket();
-};
 
+	static void ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR);
 
-
-class session {
-private:
-	sessions Sessions;
-	WSADATA wsaData;
-	WinForge* Link = nullptr;
-	int WSResult;
-
-	sockaddr_in address;
-	SOCKET socketR;
-	HANDLE IOCP = NULL;
-
-	int MTU = 0;
-	int SPoolHead = 0;
-	OmniNet::SEND_BUF TransmitPool[256];
-
-	OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, 256, 1450> RecvPool;
-
-	CHAR FinalRecvBuffer[256 * (OmniMTU + OmniHeaderSize)];
-
-	OmniNet::OmniHeader CHeaderPool[256];
-
-
-	typedef std::chrono::steady_clock Clock;
-	typedef std::chrono::time_point<Clock> TimePoint;
-	typedef std::chrono::milliseconds Mlliseconds;
-	TimePoint start;
-
-
-
-
-	inline void PreSetBufferMTU() {
-		int addr_size = sizeof(sockaddr_in);
-
-
-		for (int BufferCount = 0; BufferCount < 256; BufferCount++) {
-			TransmitPool[BufferCount].OVStruct = {};
-			TransmitPool[BufferCount].Type = OmniNet::OP_SEND;
-			TransmitPool[BufferCount].TransmitBuffer[0].len = MTU;
-			TransmitPool[BufferCount].TransmitBuffer[1].len = OmniHeaderSize;
-
-
-			RecvPool.ContextPool[BufferCount].OVStruct = {};
-			RecvPool.ContextPool[BufferCount].data = &RecvPool.BufferPool[BufferCount * (MTU)];
-			RecvPool.ContextPool[BufferCount].TransmitBuffer.buf = RecvPool.ContextPool[BufferCount].data;
-			RecvPool.ContextPool[BufferCount].TransmitBuffer.len = MTU + OmniHeaderSize;
-			RecvPool.ContextPool[BufferCount].Type = OmniNet::OP_RECV;
-			RecvPool.ContextPool[BufferCount].addr_len = addr_size;
-
-		}
-
-	}
-
-public:
-
-	session(sessions& sessions, PCSTR Local_IP, PCSTR TARGET_IP, unsigned short port, int MTU_Size, WinForge* Link_);
-
-	static void RegIOCP(HANDLE& IOCP, SOCKET& socket);
+	static void RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey = 0);
 
 	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
 	static void StartCompletionPortHandlerThread(const HANDLE& IOCP, const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool, WinForge& Link)
@@ -140,21 +84,21 @@ public:
 						// header structure's packet type index = 0 and the header size is 3,
 						// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
 						switch (*(Buffer->TransmitBuffer.buf + BufferSize - 3)) {
-						case OmniNet::FrameStart:
+						case OmniNet::ChunkStart:
 							Pool.PushChunk();
 							break;
-						case OmniNet::FrameData:
+						case OmniNet::ChunkData:
 							Pool.PushChunk();
 							break;
-						case OmniNet::FrameEnd:
+						case OmniNet::ChunkEnd:
 							if (Pool.TryPushFinalChunk(BufferSize))
 							{
 								Link.SetBufferData(&Pool.BufferPool[0], Pool.CurrentChunkUsage);
 								Link.SetRenderEvent();
 
-								Pool.ResetChunk();
 							}
 
+							Pool.ResetChunk();
 
 						case OmniNet::Command:
 
@@ -163,9 +107,9 @@ public:
 
 						PostWSARecv(socket, Pool);
 						break;
+
+
 					}
-
-
 
 				}
 			}
@@ -174,9 +118,9 @@ public:
 		StatusQueue.detach();
 
 	};
-	void CreateSesssionIOCP(PCSTR IP, unsigned short port);
-	void InitReceiver(PCSTR IP, unsigned int port);
-	void ChunkedSend(CHAR* data, int data_size);
+
+	
+	static void BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket);
 
 
 	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
@@ -196,18 +140,165 @@ public:
 		);
 	};
 
-	inline void SessionSend(CHAR* data, int MTU) {
-		OmniNet::SEND_BUF* SendBuffer = new OmniNet::SEND_BUF;
-		SendBuffer->OVStruct = {};
-		SendBuffer->TransmitBuffer[0].buf = data;
-		SendBuffer->TransmitBuffer[0].len = MTU;
-		SendBuffer->Type = OmniNet::OP_SEND;
+};
 
 
-		WSASendTo(socketR, SendBuffer->TransmitBuffer, 1, NULL, 0, (sockaddr*)&address, sizeof(address), &SendBuffer->OVStruct, NULL);
+
+class session {
+private:
+	sessions Sessions;
+	WinForge* Link = nullptr;
+	int WSResult;
+
+	sockaddr_in address;
+	SOCKET socketR;
+	HANDLE IOCP = NULL;
+
+	int MTU = 0;
+
+	uint32_t SPoolHead = 0;
+	OmniNet::SEND_BUF TransmitPool[256];
+	OmniNet::OmniHeader CHeaderPool[256];
+
+	OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, 256, 1450> RecvPool;
+
+ 
+
+	typedef std::chrono::steady_clock Clock;
+	typedef std::chrono::time_point<Clock> TimePoint;
+	typedef std::chrono::milliseconds Mlliseconds;
+	TimePoint start;
+
+
+
+
+	inline void PreSetBufferMTU() {
+		int addr_size = sizeof(sockaddr_in);
+
+
+		for (int BufferCount = 0; BufferCount < 256; BufferCount++) {
+			TransmitPool[BufferCount].OVStruct = {};
+			TransmitPool[BufferCount].Type = OmniNet::OP_SEND;
+			TransmitPool[BufferCount].TransmitBuffer[0].len = MTU;
+			TransmitPool[BufferCount].TransmitBuffer[1].len = OmniHeaderSize;
+			TransmitPool[BufferCount].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[BufferCount]);
+
+			RecvPool.ContextPool[BufferCount].OVStruct = {};
+			RecvPool.ContextPool[BufferCount].data = &RecvPool.BufferPool[BufferCount * (MTU)];
+			RecvPool.ContextPool[BufferCount].TransmitBuffer.buf = RecvPool.ContextPool[BufferCount].data;
+			RecvPool.ContextPool[BufferCount].TransmitBuffer.len = MTU + OmniHeaderSize;
+			RecvPool.ContextPool[BufferCount].Type = OmniNet::OP_RECV;
+			RecvPool.ContextPool[BufferCount].addr_len = addr_size;
+
+		}
 
 	}
 
+public:
+
+	session(sessions& sessions, PCSTR Local_IP, PCSTR TARGET_IP, unsigned short port, int MTU_Size, WinForge* Link_);
+
+	inline void SessionSend(CHAR* data, int MTU, const OmniNet::OmniHeader& header) {
+		CHeaderPool[SPoolHead].PacketType = header.PacketType;
+		CHeaderPool[SPoolHead].Target = header.Target;
+		CHeaderPool[SPoolHead].Reserved = header.Reserved;
+		
+		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
+		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
+
+
+		WSASend(socketR, TransmitPool[SPoolHead].TransmitBuffer, 2, NULL, 0, &TransmitPool[SPoolHead].OVStruct, NULL);
+
+		SPoolHead = (SPoolHead + 1) & 255;
+	}
+
+	inline void ChunkedSend(CHAR* data, int data_size) {
+		//start = Clock::now();
+
+		int MTU_slices = data_size - (data_size % MTU);
+		CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkStart;
+		CHeaderPool[SPoolHead].Target = 0;
+		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
+
+		WSASend(
+			socketR,
+			TransmitPool[SPoolHead].TransmitBuffer,
+			2,
+			NULL, 0,
+			&TransmitPool[SPoolHead].OVStruct,
+			NULL
+		);
+
+
+		SPoolHead = (SPoolHead + 1) & 255;
+
+		for (int offset = MTU; offset < MTU_slices - MTU; offset += MTU) {
+			CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkData;
+			CHeaderPool[SPoolHead].Target = 0;
+			TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
+
+
+			WSASend(
+				socketR,
+				TransmitPool[SPoolHead].TransmitBuffer,
+				2,
+				NULL, 0,
+				&TransmitPool[SPoolHead].OVStruct,
+				NULL
+			);
+
+
+			SPoolHead = (SPoolHead + 1) & 255;
+
+		}
+
+
+
+		if (MTU_slices != data_size) {
+			CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkData;
+		}
+		else {
+			CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkEnd;
+		}
+		CHeaderPool[SPoolHead].Target = 0;
+		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices - MTU;
+
+
+
+		WSASend(
+			socketR,
+			TransmitPool[SPoolHead].TransmitBuffer,
+			2,
+			NULL, 0,
+			&TransmitPool[SPoolHead].OVStruct,
+			NULL
+		);
+
+
+		SPoolHead = (SPoolHead + 1) & 255;
+
+		if (MTU_slices != data_size) {
+			CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkEnd;
+			CHeaderPool[SPoolHead].Target = 0;
+			TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices;
+			TransmitPool[SPoolHead].TransmitBuffer[0].len = data_size % MTU;
+
+			WSASend(
+				socketR,
+				TransmitPool[SPoolHead].TransmitBuffer,
+				2, NULL, 0,
+				&TransmitPool[SPoolHead].OVStruct,
+				NULL
+			);
+
+			TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
+
+			SPoolHead = (SPoolHead + 1) & 255;
+		}
+
+
+		//std::cout << std::chrono::duration_cast<std::chrono::nanoseconds> (Clock::now() - start) << "\n";
+	}
 
 };
 

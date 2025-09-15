@@ -129,6 +129,9 @@ void NVENCODER::CreateBitStream() {
 }
 
 void NVENCODER::Encode() {
+	if (EncodeStatus) { NVUnlockBitStream(); }
+	EncodeStatus = false;
+
 	NV_ENC_MAP_INPUT_RESOURCE NVInputResource = { };
 	NVInputResource.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
 	NVInputResource.registeredResource = NVRegisterResource.registeredResource;

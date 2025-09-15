@@ -38,6 +38,8 @@ private:
 
 	size_t* outputSize;
 	uint8_t* output;
+
+	bool EncodeStatus = false;
 	
 
 public:

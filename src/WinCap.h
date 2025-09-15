@@ -32,6 +32,7 @@ private:
 	DXGI_OUTDUPL_FRAME_INFO frameinfo;
 	ComPtr<IDXGIResource> framepixeldata = nullptr;
 	ComPtr<ID3D11Texture2D> DXGIComBuffer = nullptr;
+	bool CaptureState = false;
 
 
 public:
@@ -40,7 +41,9 @@ public:
 	ID3D11Texture2D* GetBuffer() const;
 
 	inline int CaptureDXGI() {
-		return (DXGIOutDuplication->AcquireNextFrame(0, &frameinfo, &framepixeldata) == DXGI_ERROR_WAIT_TIMEOUT);
+		if (CaptureState) { DXGIOutDuplication->ReleaseFrame(); }
+		CaptureState = true;
+		return (DXGIOutDuplication->AcquireNextFrame(11, &frameinfo, &framepixeldata) == DXGI_ERROR_WAIT_TIMEOUT);
 	}
 };
 

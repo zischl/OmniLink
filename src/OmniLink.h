@@ -66,6 +66,12 @@
 class OmniCore {
 
 public:
+
+	inline static int testcmd(int x, int y, int z) {
+		std::cout << "AM I WORKING ! " << x << "\n";
+		return x;
+	}
+
 	//Core Functions
 
 
@@ -192,32 +198,33 @@ public:
 
 	void ToggleWGC();
 
-	inline void WGCapSend() {
-		if (WGSCapture != nullptr)
-			WGSCapture->WriteStateLock();
+	inline static int WGCapSend(session* session, WGScreenCapture* WGSCapture, NVENCODER* Nv) {
+		WGSCapture->WriteStateLock();
 
 		Nv->Encode();
 
 		WGSCapture->WriteStateUnlock();
 
-		session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+		session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
 
 		Nv->NVUnlockBitStream();
+
+		return 0;
 	}
 
 	void ToggleDDAPI();
 
-	inline void DXGICapSend() {
+	inline static int DXGICapSend(session* session, DXGICapture* DXGICap, NVENCODER* Nv) {
 		if (DXGICap->CaptureDXGI() == 0) {
 
 			Nv->Encode();
-
-			session1->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-
-			Nv->NVUnlockBitStream();
-			DXGIOutDuplication->ReleaseFrame();
-
+			session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
 		}
+		
+
+		//Nv->NVUnlockBitStream();
+		
+		return 0;
 	}
 
 	inline void CommandListEmpty() {
