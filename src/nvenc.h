@@ -3,68 +3,110 @@
 
 #include <string>
 #include <vector>
+#include "OmniLogger.h"
 
 #include <d3d11.h>
 #include <nvEncodeAPI.h>
 
 #pragma comment(lib, "nvencodeapi.lib")
 
+struct NVec2U {
+	size_t Width = 1920;
+	size_t Height = 1080;
+};
+
+struct NvencResourceRegConfig {
+	NVec2U Dimensions = {};
+	NV_ENC_BUFFER_FORMAT NvencBufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
+};
+
+struct NvencStaticConfig : NvencResourceRegConfig
+{
+	GUID NvencCodecGUID = NV_ENC_CODEC_H264_GUID;
+	GUID NvencProfileGUID = NV_ENC_H264_PROFILE_HIGH_GUID;
+	NV_ENC_TUNING_INFO NvencTuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
+};
+
+struct NvencStaticConfigEx : NvencStaticConfig {
+	int maxReferenceFrames;
+	bool enableBFrames;
+	bool enableSlicingMode;
+};
+
+struct NvencLiveConfig {
+	GUID NvencPresetGUID = NV_ENC_PRESET_P7_GUID;
+	int avgBitrate;
+	int maxBitrate;
+};
+
+struct NvencLiveConfigEx : NvencLiveConfig {
+	uint32_t FrameRateNum = 60;
+	uint32_t FrameRateDen = 60;
+	uint32_t EnablePTD = 1;
+};
+
+struct NvencInitConfig : NvencLiveConfigEx, NvencStaticConfig {};
+
 
 class NVENCODER {
 private:
-	void* _D3DDevice;
-	void* NVEncoder;
 
-	NV_ENCODE_API_FUNCTION_LIST NVFunctions = {};
 	NVENCSTATUS status;
-
-	UINT bufferWidth;
-	UINT bufferHeight;
-
-	GUID NvencEncodeGUID = NV_ENC_CODEC_H264_GUID;
-	GUID NvencPresetGUID = NV_ENC_PRESET_P7_GUID;
-	GUID NvencProfileGUID = NV_ENC_H264_PROFILE_HIGH_GUID;
-
-	NV_ENC_BUFFER_FORMAT NvencBufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
-
-	NV_ENC_INITIALIZE_PARAMS NvInitParams = {};
-	NV_ENC_CONFIG NVInitConfig = {};
-	NV_ENC_PRESET_CONFIG NVPresetConfig = {};
-
-	NV_ENC_REGISTER_RESOURCE NVRegisterResource = {};
-
-	NV_ENC_CREATE_BITSTREAM_BUFFER NVOutputBufferDesc = {};
-	NV_ENC_OUTPUT_PTR NvencOutput;
 
 	size_t* outputSize;
 	uint8_t* output;
 
 	bool EncodeStatus = false;
-	
+
 
 public:
-	NVENCODER(void* D3DDevice, ID3D11Texture2D* inputResource, UINT encodeWidth, UINT encodeHeight);
+	NV_ENCODE_API_FUNCTION_LIST NVFunctions = {};
+
+
+	NVENCODER();
+	~NVENCODER();
 
 	void LoadNvEncodeAPI();
 
-	void OpenNvEncSession();
-	void LoadDefaultInitParams();
-	void NVEncoderInit();
-	void RegisterResource(ID3D11Texture2D* inputResource);
+	void GetSupportedCodecGUIDs(void* NVEncoder);
+	void GetAvailablePresetGUIDs(void* NVEncoder);
+	void GetAvailableProfileGUIDs(void* NVEncoder, GUID NvencCodecGUID);
+	void GetSupportedInputFormats(void* NVEncoder, GUID NvencCodecGUID);
+
+
+};
+
+
+class NvencSession
+{
+public:
+	void* NVEncoder;
+
+	NV_ENC_REGISTER_RESOURCE NVRegisterResource = {};
+	NV_ENC_OUTPUT_PTR NvencOutput;
+	NV_ENC_LOCK_BITSTREAM NVBitstreamLock = { };
+
+	NvencSession(void* D3DDevice, NV_ENCODE_API_FUNCTION_LIST& NVFunctions_, ID3D11Texture2D* inputResource, UINT encodeWidth, UINT encodeHeight);
+
+private:
+	NVENCSTATUS status;
+	NV_ENCODE_API_FUNCTION_LIST& NVFunctions;
+
+	NV_ENC_CREATE_BITSTREAM_BUFFER NVOutputBufferDesc = {};
+
+	void OpenNvEncSession(void* D3DDevice);
+	void LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams, NvencInitConfig& config);
+	void NVEncoderInit(NV_ENC_INITIALIZE_PARAMS& NvInitParams);
+
+	void RegisterResource(ID3D11Texture2D* inputResource, NvencResourceRegConfig& Config);
+
 	void CreateBitStream();
 	void Encode();
 	void NVUnlockBitStream();
 	void NVCleanup();
 
-	void GetSupportedCodecGUIDs();
-	void GetAvailablePresetGUIDs();
-	void GetAvailableProfileGUIDs();
-	void GetSupportedInputFormats();
-
-	NV_ENC_LOCK_BITSTREAM NVBitstreamLock = { };
 	NV_ENC_OUTPUT_PTR getBitstream() const { return NvencOutput; }
 	NV_ENC_REGISTER_RESOURCE getRegisteredResource() const { return NVRegisterResource; }
 
 };
-
 #endif

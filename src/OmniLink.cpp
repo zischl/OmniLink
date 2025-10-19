@@ -1,11 +1,11 @@
 #include <OmniLink.h>
 
 
-void OmniCore::WinGetUserName(char (&CharArray)[UNLEN + 1]) 
+void OmniCore::WinGetUserName(char(&CharArray)[UNLEN + 1])
 {
 	TCHAR UserName[UNLEN + 1];
 	DWORD size = UNLEN + 1;
-	
+
 	GetUserName((TCHAR*)UserName, &size);
 
 	TCharCpy(*UserName, *CharArray, size);
@@ -23,13 +23,21 @@ void OmniCore::WinGetComputerName(char(&CharArray)[MAX_COMPUTERNAME_LENGTH + 1])
 }
 
 
-uint32_t OmniCore::QueryLocalIP(const int index)
+
+
+void OmniCore::QueryLocalIP(uint32_t& LocalIP, const int index)
 {
-	uint32_t LocalIP{};
+
 	std::vector<sockaddr_in> LocalIPs;
 	sessions::GetLocals(4, &LocalIPs);
-	LocalIP = htonl(LocalIPs[index].sin_addr.S_un.S_addr);
-	return LocalIP;
+	if (!LocalIPs.empty())
+	{
+		LocalIP = htonl(LocalIPs[index].sin_addr.S_un.S_addr);
+		return;
+	}
+
+	Logger::log("Failed to Retrieve Local IP : Please Check Your Connection!\n");
+
 }
 
 std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
@@ -68,14 +76,28 @@ void OmniCore::ScanInstances() {
 
 
 
+
+void OmniCore::Connect(char IP[16], char Auth[4])
+{
+	//ActiveInstances[static_cast<DeviceMap>(2)].InstanceSession = new session(sessions.IOCP, ActiveInstances[Local].IPv4_String, AllInstances[index].IPv4_String, 62485, 1450, ActiveInstances[index]);
+
+}
+
+void OmniCore::ConnectInstance(uint8_t index)
+{
+	//ActiveInstances[index].InstanceIP = AllInstances[index].InstanceIP;
+	//ActiveInstances[index].InstanceSession = new session(sessions.IOCP, ActiveInstances[Local].IPv4_String, AllInstances[index].IPv4_String, 62485, 1450, ActiveInstances[index]);
+}
+
+
+
 void OmniLink::ToggleWGC() {
 
 	if (WGCStatus) {
 		if (WGSCapture != nullptr)
-		WGSCapture->CloseSession();
-		
-		Nv->NVUnlockBitStream();
-		Nv->NVCleanup();
+			WGSCapture->CloseSession();
+
+
 		delete Nv;
 		Nv = nullptr;
 
@@ -95,8 +117,8 @@ void OmniLink::ToggleWGC() {
 		WGCStatus = true;
 		//ExecuteCommand = &OmniLink::WGCapSend;
 
-		Nv = new NVENCODER((void*)D3D11Device, WGSCapBuffer, 1920, 1080);
-
+		//Nv = new NVENCODER();
+		//(void*)D3D11Device, WGSCapBuffer, 1920, 1080
 	}
 
 
@@ -106,14 +128,13 @@ void OmniLink::ToggleDDAPI() {
 	if (DXGIStatus) {
 		if (DXGICap != nullptr) {
 			DXGIStatus = false;
-			DXGIOutDuplication.Reset();
 			delete DXGICap;
 		}
 
-		Nv->NVUnlockBitStream();
-		Nv->NVCleanup();
+		/*Nv->NVUnlockBitStream();
+		Nv->NVCleanup();*/
 		delete Nv;
-		
+
 		DXGIBuffer = nullptr;
 
 		ExecuteCommand = &OmniLink::CommandListEmpty;
@@ -122,17 +143,25 @@ void OmniLink::ToggleDDAPI() {
 	}
 	else {
 		DXGICap = new DXGICapture;
-		DXGIOutDuplication = DXGICap->InitDXGI(D3D11Device);
+		DXGICap->InitDXGI(D3D11Device);
 		DXGIBuffer = DXGICap->GetBuffer();
 		DXGIStatus = true;
 		//ExecuteCommand = &OmniLink::DXGICapSend;
 
-		Nv = new NVENCODER((void*)D3D11Device, DXGIBuffer, 1920, 1080);
+		//AsyncWorker::Uncached TempWorker;
+		//TempWorker.StartSpinThread(OmniLink::DXGICapSend, ActiveInstances->InstanceSession, DXGICap);
+
+		//Nv = new NVENCODER();
 
 	}
 
 
 }
+
+
+
+
+
 
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
@@ -146,15 +175,15 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	Events[4] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommand");
 	Events[5] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommandWArgs");
 
+	/*##############################################################*/
 
 
+	//Control Panel Creation
 	WinConfig config(L'Controller Window', 1280, 810, L'Nexus', (LPVOID)this);
 	HWND hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
 	ShowWindow(hwnd, SW_SHOW);
 	UpdateWindow(hwnd);
 
-
-	/*##############################################################*/
 
 	OmniRenderer Renderer;
 
@@ -171,53 +200,56 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	D3D11Context = RendererPtrs.D3D11Context.Get();
 	swapchain = RendererPtrs.swapchain.Get();
 	renderTargetView = RendererPtrs.renderTargetView.Get();
-	
-	/*##############################################################*/
-
-	/*Link = new WinForge(WProc2);
-	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);*/
-	//Link.SetFPSLimit(60);
-
-
-	/*##############################################################*/
-	
-
-	char InstanceName[MAX_COMPUTERNAME_LENGTH + 1];
-	WinGetComputerName(InstanceName);
-
-	uint32_t LocalIP = QueryLocalIP();
-
-	InstanceProbe = new Instances(InstanceName, LocalIP, 62485);
-	InstanceProbe->AwaitInstances([this]() {
-		ScanInstances();
-		});
-	ScanInstances();
-
-	/*##############################################################*/	
 
 
 	GUI = new OmniGUI(*this);
 	GUI->SetupImGui(hwnd, D3D11Device, D3D11Context, Events);
 
+	/*##############################################################*/
+
+	// Getting user data and initializing user instance
+	uint32_t LocalIP;
+	QueryLocalIP(LocalIP);
+	if (LocalIP != 0) {
+		IP2Char(LocalIP, ActiveInstances[Local].IPv4_String);
+	}
+	WinGetComputerName(ActiveInstances[Local].InstanceName);
+
+
+	/*##############################################################*/
+
+
+	//Creating an instance scanner object. Passing in local device name plus the IP and then the port to use.
+	InstanceProbe = new Instances(ActiveInstances[Local].InstanceName, LocalIP, 62485);
+	InstanceProbe->AwaitInstances([this]() {
+		ScanInstances();
+		});
+	ScanInstances();
+
+
+	/*##############################################################*/
+
+
+	/*Link = new WinForge(WProc2);
+	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);*/
+	//Link.SetFPSLimit(60);
+
+	/*##############################################################*/
+
 
 	///* ################################################################ */
-	
-	
-	std::string IP_STR = std::format("{}.{}.{}.{}", (LocalIP >> 24) & 0xFF, (LocalIP >> 16) & 0xFF, (LocalIP >> 8) & 0xFF, LocalIP & 0xFF);
 
-	session1 = new session(sessions, IP_STR.c_str(), "192.168.1.59", 62485, 1450, Link);
-	
+
+
 	///* ################################################################ */
-
 
 	/*OmniCap.ToggleWindowCap(true);
 	OmniCap.ToggleInputEventCap(hwnd, true);*/
-	
-	ToggleDDAPI();
+
+
 	//ToggleWGC();
 
-	AsyncWorker::Uncached TempWorker;
-	TempWorker.StartSpinThread(OmniLink::DXGICapSend, session1, DXGICap, Nv);
+
 	//testarray.Workers[1].StartWaitThread(1, OmniLink::WGCapSend, session1, WGSCapture, Nv);
 
 
@@ -226,23 +258,6 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 }
 
 
-int OmniLink::test2(HINSTANCE hInstance, int nCmdShow) {
-
-	Link = new WinForge(WProc2);
-	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
-
-	uint32_t LocalIP = QueryLocalIP();
-	std::string IP_STR = std::format("{}.{}.{}.{}", (LocalIP >> 24) & 0xFF, (LocalIP >> 16) & 0xFF, (LocalIP >> 8) & 0xFF, LocalIP & 0xFF);
-
-	session1 = new session(sessions, IP_STR.c_str(), "192.168.1.59", 62485, 1450, Link);
-
-
-	while (true) {
-
-		Sleep(999);
-	}
-
-}
 
 
 void OmniLink::OmniMainLoop() {
@@ -270,22 +285,22 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 0:
-			//GUI->FrameBegin();
+			GUI->FrameBegin();
 
-			//D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
-			//D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
-			////D3D11Context->Draw(4, 0);
+			D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
+			D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
+			//D3D11Context->Draw(4, 0);
 
-			//GUI->Render();
+			GUI->Render();
 			//
-			//swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+			swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 			LastFrameTime = std::chrono::steady_clock::now();
 
 			break;
 
 		case WAIT_OBJECT_0 + 1:
 			ToggleWGC();
-			
+
 			break;
 
 		case WAIT_OBJECT_0 + 2:
@@ -310,15 +325,26 @@ void OmniLink::OmniMainLoop() {
 			unsigned int Tail = CommandBurstQWArgs.Tail;
 			switch (CommandBurstQWArgs.Queue[Tail].index()) {
 			case 0:
+			{
 				auto& args = std::get<0>(CommandBurstQWArgs.Queue[Tail]);
 				(this->SwapInstanceLayout)(args.index1, args.index2);
 				CommandBurstQWArgs.pop();
+				break;
+			}
+
+			case 1:
+			{
+				uint8_t args = std::get<1>(CommandBurstQWArgs.Queue[Tail]);
+				(this->ConnectInstance)(args);
+				CommandBurstQWArgs.pop();
+				break;
+			}
 			}
 		}
-			break;
-		
+		break;
+
 		case WAIT_TIMEOUT:
-			
+
 			(this->*ExecuteCommand)();
 
 			break;
@@ -330,7 +356,7 @@ void OmniLink::OmniMainLoop() {
 }
 
 void OmniLink::PanelRendererSwitch(HWND hwnd) {
-	
+
 
 	NOTIFYICONDATAW TrayIconData = {};
 
@@ -379,7 +405,7 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(omni));
 		break;
 
-	
+
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

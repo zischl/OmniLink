@@ -27,7 +27,7 @@ struct ArraySwapLayout {
 
 };
 
-using FuncArgTypes = std::variant<ArraySwapLayout>;
+using FuncArgTypes = std::variant<ArraySwapLayout, uint8_t>;
 
 //template <typename ArgType>
 //struct Command {
@@ -65,12 +65,37 @@ struct BurstQ {
 
 
 class session;
+class WinForge;
+//class NvencSession;
 
-struct OmniInstance {
-	char InstanceName[16];
+
+struct OmniIP {
 	uint32_t InstanceIP = NULL;
 	char IPv4_String[16] = {};
+
+};
+
+struct OmniInstance {
+	char InstanceName[MAX_COMPUTERNAME_LENGTH + 1];
+	uint32_t InstanceIP = NULL;
+	char IPv4_String[16] = {};
+
+};
+
+struct OmniActiveInstance : OmniInstance
+{
 	session* InstanceSession = nullptr;
+	std::vector <WinForge> ActiveWindows;
+	//std::vector<NvencSession> NVEncoderSessions;
+
+};
+
+enum DeviceMap {
+	Local,
+	Left,
+	Up,
+	Right,
+	Down
 };
 
 
@@ -85,7 +110,7 @@ struct FrameByte
 
 
 namespace AsyncWorker {
-	
+
 	template <typename ResultPoolType, size_t ResultPoolSize>
 	class Cached
 	{
@@ -172,7 +197,6 @@ namespace AsyncWorker {
 
 
 	};
-
 
 
 	class Uncached

@@ -79,9 +79,13 @@ public:
 
 	void WinGetComputerName(char(&CharArray)[MAX_COMPUTERNAME_LENGTH + 1]);
 
-	uint32_t QueryLocalIP(const int index = 0);
+	void QueryLocalIP(uint32_t& LocalIP, const int index = 0);
 
 	void ScanInstances();
+
+	void Connect(char IP[16], char Auth[4]);
+
+	void ConnectInstance(uint8_t index);
 
 	void SwapInstanceLayout(int index1, int index2);
 
@@ -89,7 +93,7 @@ public:
 
 
 	//Command Queue System
-	std::array<void (OmniCore::* )(), 10> CommandTable = {
+	std::array<void (OmniCore::*)(), 10> CommandTable = {
 		&OmniCore::ScanInstances
 	};
 
@@ -105,30 +109,30 @@ public:
 	/// </summary>
 	BurstQ<FuncArgTypes, 20> CommandBurstQWArgs = BurstQ<FuncArgTypes, 20>();
 
-	inline void ExecuteCommandQueue() 
+	inline void ExecuteCommandQueue()
 	{
 		SetEvent(Events[4]);
 	}
 
-	inline void ExecuteCommandQueueWArgs() 
+	inline void ExecuteCommandQueueWArgs()
 	{
 		SetEvent(Events[5]);
 	}
 
-	inline void PushCommand(CoreCommands CommandType) 
+	inline void PushCommand(CoreCommands CommandType)
 	{
 		CommandBurstQ.push(CommandType);
 
 	}
 
-	inline void PushCommands(std::vector<CoreCommands>& CommandTypeArray) 
+	inline void PushCommands(std::vector<CoreCommands>& CommandTypeArray)
 	{
 		for (CoreCommands command : CommandTypeArray) {
 			CommandBurstQ.push(command);
 		}
 	}
 
-	inline void PushCommandWArgs(FuncArgTypes& CommandArgs) 
+	inline void PushCommandWArgs(FuncArgTypes& CommandArgs)
 	{
 		CommandBurstQWArgs.push(CommandArgs);
 	}
@@ -142,7 +146,7 @@ public:
 
 	//helper funcs
 
-	inline void TCharCpy(TCHAR (&Tarr), char(&arr), const size_t size) 
+	inline void TCharCpy(TCHAR(&Tarr), char(&arr), const size_t size)
 	{
 #ifndef UNICODE
 		strcpy(&arr, &Tarr);
@@ -154,17 +158,23 @@ public:
 	}
 
 
+	inline void IP2Char(const uint32_t IP, char* array)
+	{
+		std::sprintf(array, "%u.%u.%u.%u", (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF);
+	}
+
 protected:
 
 	HANDLE* Events = nullptr;
 	DWORD EventDW = NULL;
 
 	OmniCap OmniCap;
-	Instances* InstanceProbe = nullptr;
 	std::mutex Mutex;
+	Instances* InstanceProbe = nullptr;
 	std::array<OmniInstance, 5> AllInstances;
-	//OmniInstance ActiveInstances[4];
+	OmniActiveInstance ActiveInstances[5];
 	sessions sessions;
+	uint8_t SessionCount = 0;
 
 	ID3D11Device* D3D11Device = nullptr;
 	ID3D11DeviceContext* D3D11Context = nullptr;
@@ -180,51 +190,45 @@ protected:
 	bool WGCStatus = false;
 
 	DXGICapture* DXGICap = nullptr;
-	ComPtr<IDXGIOutputDuplication> DXGIOutDuplication;
 	ID3D11Texture2D* DXGIBuffer = nullptr;
 	bool DXGIStatus = false;
 
 };
 
 
+
+
+
+
 class OmniLink : public OmniCore {
 public:
-	session* session1 = nullptr;
-
-	WinForge* Link = nullptr;
 
 	void OmniMain(HINSTANCE hInstance, int nCmdShow);
-	int test2(HINSTANCE hInstance, int nCmdShow);
 
 	void ToggleWGC();
 
-	inline static int WGCapSend(session* session, WGScreenCapture* WGSCapture, NVENCODER* Nv) {
+	void ToggleDDAPI();
+
+	inline static void WGCapSend(session* session, WGScreenCapture* WGSCapture, NVENCODER* Nv) {
 		WGSCapture->WriteStateLock();
 
-		Nv->Encode();
+		//Nv->Encode();
 
 		WGSCapture->WriteStateUnlock();
 
-		session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-
-		Nv->NVUnlockBitStream();
-
-		return 0;
-	}
-
-	void ToggleDDAPI();
-
-	inline static int DXGICapSend(session* session, DXGICapture* DXGICap, NVENCODER* Nv) {
-		if (DXGICap->CaptureDXGI() == 0) {
-
-			Nv->Encode();
-			session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-		}
-		
+		//session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
 
 		//Nv->NVUnlockBitStream();
-		
-		return 0;
+
+	}
+
+	inline static void DXGICapSend(session* session, DXGICapture* DXGICap, NVENCODER* Nv) {
+		if (DXGICap->CaptureDXGI() == 0) {
+
+			//Nv->Encode();
+			//session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+		}
+
 	}
 
 	inline void CommandListEmpty() {
@@ -240,17 +244,16 @@ private:
 
 	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-	MSG msg = { };
-
 	void (OmniLink::* ExecuteCommand)() = &OmniLink::CommandListEmpty;
 
 	static LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
 
 	//Streamer Links Window Proc
 	static LRESULT CALLBACK WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 
+
+	MSG msg = { };
 
 	void OmniMainLoop();
 
