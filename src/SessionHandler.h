@@ -55,7 +55,7 @@ public:
 	static void RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey = 0);
 
 	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
-	static void StartCompletionPortHandlerThread(const HANDLE& IOCP, const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool, WinForge& Link)
+	static void StartCompletionPortHandlerThread(const HANDLE& IOCP, const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool, OmniActiveInstance& Link)
 	{
 		std::thread StatusQueue([&]()
 			{
@@ -83,7 +83,8 @@ public:
 					case OmniNet::OP_RECV:
 						// header structure's packet type index = 0 and the header size is 3,
 						// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
-						switch (*(Buffer->TransmitBuffer.buf + BufferSize - 3)) {
+						uint8_t BufferHeader = *(Buffer->TransmitBuffer.buf + BufferSize - 3);
+						switch (BufferHeader) {
 						case OmniNet::ChunkStart:
 							Pool.PushChunk();
 							break;
@@ -93,8 +94,8 @@ public:
 						case OmniNet::ChunkEnd:
 							if (Pool.TryPushFinalChunk(BufferSize))
 							{
-								Link.SetBufferData(&Pool.BufferPool[0], Pool.CurrentChunkUsage);
-								Link.SetRenderEvent();
+								Link.ActiveWindows[BufferHeader + 1].SetBufferData(&Pool.BufferPool[0], Pool.CurrentChunkUsage);
+								Link.ActiveWindows[BufferHeader + 1].SetRenderEvent();
 
 							}
 
@@ -119,7 +120,7 @@ public:
 
 	};
 
-	
+
 	static void BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket);
 
 
@@ -146,15 +147,13 @@ public:
 
 class session {
 private:
-	sessions Sessions;
-	WinForge* Link = nullptr;
+	OmniActiveInstance& Link;
 	int WSResult;
 
 	sockaddr_in address;
 	SOCKET socketR;
-	HANDLE IOCP = NULL;
 
-	int MTU = 0;
+	const int MTU;
 
 	uint32_t SPoolHead = 0;
 	OmniNet::SEND_BUF TransmitPool[256];
@@ -162,7 +161,7 @@ private:
 
 	OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, 256, 1450> RecvPool;
 
- 
+
 
 	typedef std::chrono::steady_clock Clock;
 	typedef std::chrono::time_point<Clock> TimePoint;
@@ -196,13 +195,13 @@ private:
 
 public:
 
-	session(sessions& sessions, PCSTR Local_IP, PCSTR TARGET_IP, unsigned short port, int MTU_Size, WinForge* Link_);
+	session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, OmniActiveInstance& SessionInstance);
 
 	inline void SessionSend(CHAR* data, int MTU, const OmniNet::OmniHeader& header) {
 		CHeaderPool[SPoolHead].PacketType = header.PacketType;
 		CHeaderPool[SPoolHead].Target = header.Target;
 		CHeaderPool[SPoolHead].Reserved = header.Reserved;
-		
+
 		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
 

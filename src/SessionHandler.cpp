@@ -62,12 +62,14 @@ void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 	do {
 
 		locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(locals_size);
-		if (locals == NULL) {
+		if (locals == NULL)
+		{
 			return;
 		}
 
 		WSResult = GetAdaptersAddresses(Family, Flags, NULL, locals, &locals_size);
-		if (WSResult != ERROR_BUFFER_OVERFLOW && WSResult != ERROR_SUCCESS) {
+		if (WSResult != ERROR_BUFFER_OVERFLOW && WSResult != ERROR_SUCCESS)
+		{
 			Logger::log("Error {}: Could Not Retrieve Local Addresses !\n", WSResult);
 			FREE(locals);
 		}
@@ -76,12 +78,24 @@ void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 
 	} while (WSResult != ERROR_SUCCESS && Retries != 0);
 
-	if (WSResult == ERROR_SUCCESS && locals != NULL) {
+	if (WSResult == ERROR_SUCCESS && locals != NULL)
+	{
 		IterAddress = locals;
-		while (IterAddress) {
+		while (IterAddress)
+		{
 
 			Unicast = IterAddress->FirstUnicastAddress;
-			if (Unicast != NULL && IterAddress->OperStatus == IfOperStatusUp && IterAddress->IfType != IF_TYPE_SOFTWARE_LOOPBACK) {
+
+			if (Unicast != NULL &&
+				IterAddress->OperStatus == IfOperStatusUp &&
+				IterAddress->IfType != IF_TYPE_SOFTWARE_LOOPBACK
+				&& IterAddress->IfType != IF_TYPE_TUNNEL
+				&& (
+					(IterAddress->PhysicalAddress[0] != 0x00 && IterAddress->PhysicalAddress[1] != 0x00) ||
+					(IterAddress->PhysicalAddress[0] != 0x00 && IterAddress->PhysicalAddress[1] != 0xFF)
+					)
+				)
+			{
 				for (i = 0; Unicast != NULL; i++)
 				{
 					sockaddr_in* addr = (sockaddr_in*)Unicast->Address.lpSockaddr;
@@ -129,7 +143,7 @@ void sessions::RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionK
 	if (IOCP == NULL) {
 		OutputDebugStringA("IOCP Port Binding Failed Successfully\n");
 	}
-	
+
 }
 
 
@@ -163,19 +177,16 @@ void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR
 }
 
 
-session::session(sessions& sessions, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, WinForge* Link_)
+session::session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, OmniActiveInstance& SessionInstance) :
+	Link(SessionInstance), MTU(MTU_Size)
 {
-	Link = Link_;
 
-	IOCP = Sessions.IOCP;
-
-	MTU = MTU_Size;
 	PreSetBufferMTU();
 	address = sessions::CreateAddress(IP, port);
 	socketR = sessions::CreateSocket();
 	sessions::ConnectSesssion(address, socketR);
 	sessions::RegIOCP(IOCP, socketR);
-	sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, *Link);
+	sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, SessionInstance);
 	sessions::BindReceiver(Local_IP, 62485, socketR);
 
 	sessions::PostWSARecv(socketR, RecvPool);
