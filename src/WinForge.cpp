@@ -35,6 +35,7 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 
 	//SetLayeredWindowAttributes(hwnd_, RGB(0,0,0), 0, ULW_COLORKEY);
 
+	SetProcessDPIAware();
 
 	if (hwnd_ == NULL)
 	{
