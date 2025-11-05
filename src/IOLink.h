@@ -11,6 +11,23 @@
 #include <WinUser.h>
 #include <hidusage.h>
 
+
+struct MouseXY {
+	int X = 0;
+	int Y = 0;
+
+	MouseXY(int x, int y)
+	{
+		X = x;
+		Y = y;
+	}
+};
+
+struct KeyData
+{
+	unsigned char Key;
+};
+
 class OmniCap {
 public:
 	UINT MouseX;
@@ -20,12 +37,12 @@ public:
 
 	void ToggleWindowCap(bool state = false);
 	void ToggleInputEventCap(HWND hwnd, bool state = false);
-	
+
 	UINT RawInputSize;
 
-	void (OmniCap::*InputProc)(LPARAM& lParam) = nullptr;
+	void (OmniCap::* InputProc)(LPARAM& lParam) = nullptr;
 	void ToggleInputCap(HWND hwnd, bool state = false);
-	
+
 	void InputProcInit(LPARAM& lParam);
 	void InputProcCallback(LPARAM& lParam);
 	void VoidExitCallback(LPARAM& lParam);
@@ -53,6 +70,11 @@ private:
 
 class OmniSynth {
 public:
+	void static ProcMouse(int x, int y);
+
+	void static ProcKey(INPUT& input);
+
+	void static ProcKey(RAWINPUT& input);
 
 };
 

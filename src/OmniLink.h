@@ -61,15 +61,16 @@
 
 #define WM_TRAYICON (WM_USER + 1)
 
+#define OmniPort 62485
+#define MTU 1450
 
 
 class OmniCore {
 
 public:
 
-	inline static int testcmd(int x, int y, int z) {
+	inline void testcmd(int x) {
 		std::cout << "AM I WORKING ! " << x << "\n";
-		return x;
 	}
 
 	//Core Functions
@@ -77,7 +78,7 @@ public:
 
 	void WinGetUserName(char(&CharArray)[UNLEN + 1]);
 
-	void WinGetComputerName(char(&CharArray)[MAX_COMPUTERNAME_LENGTH + 1]);
+	void WinGetComputerName(char(&CharArray)[OmniDevNameLen + 1]);
 
 	void QueryLocalIP(uint32_t& LocalIP, const int index = 0);
 
@@ -85,11 +86,11 @@ public:
 
 	void Connect(char IP[16], char Auth[4]);
 
-	void ConnectInstance(uint8_t index);
+	void ConnectInstance(DeviceMap index);
 
 	void SwapInstanceLayout(int index1, int index2);
 
-	std::array<OmniInstance, 5>* GetAvailableInstances() noexcept;
+	std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept;
 
 
 	//Command Queue System
@@ -171,8 +172,16 @@ protected:
 	OmniCap OmniCap;
 	std::mutex Mutex;
 	Instances* InstanceProbe = nullptr;
-	std::array<OmniInstance, 5> AllInstances;
-	OmniActiveInstance ActiveInstances[5];
+
+	std::unordered_map<DeviceMap, OmniInstance> AllInstances = {
+		{ DeviceMap::LU1, OmniInstance(5) }, { DeviceMap::U1, OmniInstance(2) }, { DeviceMap::RU1, OmniInstance(6) },
+		{ DeviceMap::L1, OmniInstance(1) }, { DeviceMap::C0, OmniInstance(0) }, { DeviceMap::R1, OmniInstance(3) },
+		{ DeviceMap::LD1, OmniInstance(8) }, { DeviceMap::D1, OmniInstance(4) }, { DeviceMap::RD1, OmniInstance(7) }
+	};
+
+	std::unordered_map<uint32_t, DeviceMap> InstanceLookup = {};
+
+	std::unordered_map<DeviceMap, OmniActiveInstance> ActiveInstances;
 	sessions sessions;
 	uint8_t SessionCount = 0;
 

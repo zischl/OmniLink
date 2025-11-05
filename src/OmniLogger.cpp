@@ -10,6 +10,10 @@ void Logger::log(std::string_view text) {
 	File << text;
 
 	File.close();
+
+#if defined(_DEBUG)
+	std::cout << text << "\n";
+#endif
 }
 
 

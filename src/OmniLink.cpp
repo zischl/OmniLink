@@ -12,9 +12,9 @@ void OmniCore::WinGetUserName(char(&CharArray)[UNLEN + 1])
 
 }
 
-void OmniCore::WinGetComputerName(char(&CharArray)[MAX_COMPUTERNAME_LENGTH + 1])
+void OmniCore::WinGetComputerName(char(&CharArray)[OmniDevNameLen + 1])
 {
-	TCHAR ComputerName[MAX_COMPUTERNAME_LENGTH + 1];
+	TCHAR ComputerName[OmniDevNameLen + 1];
 	DWORD size = sizeof(ComputerName) / sizeof(ComputerName[0]);
 	GetComputerName(ComputerName, &size);
 
@@ -40,11 +40,26 @@ void OmniCore::QueryLocalIP(uint32_t& LocalIP, const int index)
 
 }
 
-std::array<OmniInstance, 5>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
+std::unordered_map<DeviceMap, OmniInstance>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
 
 
-void OmniCore::SwapInstanceLayout(int index1, int index2) {
-	std::swap(AllInstances[index1], AllInstances[index2]);
+void OmniCore::SwapInstanceLayout(int source, int dest) {
+	if (AllInstances[DeviceMap(dest)].InstanceIP == NULL)
+	{
+		AllInstances[DeviceMap(dest)].InstanceIP = AllInstances[DeviceMap(source)].InstanceIP;
+		strncpy(AllInstances[DeviceMap(dest)].InstanceName, AllInstances[DeviceMap(source)].InstanceName, OmniDevNameLen);
+		strncpy(AllInstances[DeviceMap(dest)].IPv4_String, AllInstances[DeviceMap(source)].IPv4_String, 16);
+
+		AllInstances[DeviceMap(source)].Clear();
+
+	}
+
+	else
+	{
+		OmniInstance temp = AllInstances[DeviceMap(source)];
+		AllInstances[DeviceMap(source)].Edit(AllInstances[DeviceMap(dest)].InstanceName, AllInstances[DeviceMap(dest)].IPv4_String, AllInstances[DeviceMap(dest)].InstanceIP);
+		AllInstances[DeviceMap(dest)].Edit(temp.InstanceName, temp.IPv4_String, temp.InstanceIP);
+	}
 }
 
 
@@ -53,18 +68,27 @@ void OmniCore::SwapInstanceLayout(int index1, int index2) {
 void OmniCore::ScanInstances() {
 	if (InstanceProbe->ScanState.load()) {
 		std::unordered_map<uint32_t, std::string> AvailableInstances = *InstanceProbe->get();
+
 		int DevIdx = 0;
+
+		//AllInstances.clear();
 
 		for (const auto& [IP, Name] : AvailableInstances)
 		{
-			if (DevIdx > 5) break;
+			if (InstanceLookup.contains(IP)) continue;
 
 			std::lock_guard<std::mutex> lock(Mutex);
-			AllInstances[DevIdx].InstanceIP = IP;
-			std::sprintf(AllInstances[DevIdx].IPv4_String, "%u.%u.%u.%u", (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF);
-
+			AllInstances[static_cast<DeviceMap>(DevIdx)].InstanceIP = IP;
+			std::sprintf(AllInstances [static_cast<DeviceMap>(DevIdx)].IPv4_String, "%u.%u.%u.%u", (IP >> 24) & 0xFF, (IP >> 16) & 0xFF, (IP >> 8) & 0xFF, IP & 0xFF);
 			DevIdx++;
+		}
 
+		for (auto& [DevMapIDx, Instance] : AllInstances)
+		{
+			if (AvailableInstances.find(Instance.InstanceIP) == AvailableInstances.end())
+			{
+				Instance.Clear();
+			}
 		}
 
 		SetEvent(Events[0]);
@@ -83,10 +107,11 @@ void OmniCore::Connect(char IP[16], char Auth[4])
 
 }
 
-void OmniCore::ConnectInstance(uint8_t index)
+void OmniCore::ConnectInstance(DeviceMap index)
 {
-	//ActiveInstances[index].InstanceIP = AllInstances[index].InstanceIP;
-	//ActiveInstances[index].InstanceSession = new session(sessions.IOCP, ActiveInstances[Local].IPv4_String, AllInstances[index].IPv4_String, 62485, 1450, ActiveInstances[index]);
+	ActiveInstances[index] = OmniActiveInstance(AllInstances[index].InstanceName, AllInstances[index].IPv4_String, AllInstances[index].InstanceIP);
+	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, ActiveInstances[index]);
+	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
 }
 
 
@@ -211,16 +236,16 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	uint32_t LocalIP;
 	QueryLocalIP(LocalIP);
 	if (LocalIP != 0) {
-		IP2Char(LocalIP, ActiveInstances[Local].IPv4_String);
+		IP2Char(LocalIP, ActiveInstances[DeviceMap::C0].IPv4_String);
 	}
-	WinGetComputerName(ActiveInstances[Local].InstanceName);
+	WinGetComputerName(ActiveInstances[DeviceMap::C0].InstanceName);
 
 
 	/*##############################################################*/
 
 
 	//Creating an instance scanner object. Passing in local device name plus the IP and then the port to use.
-	InstanceProbe = new Instances(ActiveInstances[Local].InstanceName, LocalIP, 62485);
+	InstanceProbe = new Instances(ActiveInstances[DeviceMap::C0].InstanceName, LocalIP, 62485);
 	InstanceProbe->AwaitInstances([this]() {
 		ScanInstances();
 		});
@@ -228,6 +253,11 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 
 	/*##############################################################*/
+
+
+	OmniCap.ToggleWindowCap(true);
+	//OmniCap.ToggleInputEventCap(hwnd, true);
+	OmniCap.ToggleInputCap(hwnd, true);
 
 
 	/*Link = new WinForge(WProc2);
@@ -239,12 +269,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	///* ################################################################ */
 
-
+	 
 
 	///* ################################################################ */
-
-	/*OmniCap.ToggleWindowCap(true);
-	OmniCap.ToggleInputEventCap(hwnd, true);*/
 
 
 	//ToggleWGC();
@@ -278,7 +305,7 @@ void OmniLink::OmniMainLoop() {
 			}
 
 			if (std::chrono::steady_clock::now() - LastFrameTime >= FrameTimeLimit) {
-				//SetEvent(Events[0]);
+				SetEvent(Events[0]);
 			}
 
 
@@ -334,11 +361,18 @@ void OmniLink::OmniMainLoop() {
 
 			case 1:
 			{
-				uint8_t args = std::get<1>(CommandBurstQWArgs.Queue[Tail]);
+				DeviceMap args = std::get<1>(CommandBurstQWArgs.Queue[Tail]);
 				(this->ConnectInstance)(args);
 				CommandBurstQWArgs.pop();
 				break;
 			}
+
+			case 2:
+				TestArg arg = std::get<2>(CommandBurstQWArgs.Queue[Tail]);
+				(this->testcmd)(arg.x);
+				CommandBurstQWArgs.pop();
+				break;
+
 			}
 		}
 		break;
@@ -365,7 +399,7 @@ void OmniLink::PanelRendererSwitch(HWND hwnd) {
 	TrayIconData.uID = 62485;
 	TrayIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	TrayIconData.uCallbackMessage = WM_TRAYICON;
-	TrayIconData.hIcon = LoadIcon(nullptr, IDI_APPLICATION); // or your own icon
+	TrayIconData.hIcon = LoadIcon(nullptr, IDI_APPLICATION); 
 	lstrcpy(TrayIconData.szTip, L"OmniLink");
 
 	Shell_NotifyIcon(NIM_ADD, &TrayIconData);
@@ -398,14 +432,12 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 		SetCursor(LoadCursor(NULL, IDC_ARROW));
 		return true;
 	case WM_INPUT:
-		//(omni->OmniCap.*(omni->OmniCap.InputProc))(lParam);
+		(omni->OmniCap.*(omni->OmniCap.InputProc))(lParam);
 		break;
 	case WM_NCCREATE:
 		omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);
 		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(omni));
 		break;
-
-
 	}
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

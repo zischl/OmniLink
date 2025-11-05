@@ -65,7 +65,7 @@ void OmniCap::ToggleInputEventCap(HWND hwnd, bool state) {
 				GetCursorPos(&pos);
 				MouseX = pos.x;
 				MouseY = pos.y;
-				//OutputDebugString((std::to_string(MouseX) + "\n").c_str());
+				OutputDebugString((std::to_string(MouseX) + "\n").c_str());
 				if (MouseX == 1919) {
 					ToggleInputCap(hwnd, true);
 					break;
@@ -75,7 +75,7 @@ void OmniCap::ToggleInputEventCap(HWND hwnd, bool state) {
 
 			while (MouseEventStatus->load()) {
 				GetCursorPos(&pos);
-				//OutputDebugString((std::to_string(MouseX) + "2nd\n").c_str());
+				OutputDebugString((std::to_string(MouseX) + "2nd\n").c_str());
 
 				if (MouseX <= 1918) {
 					ToggleInputCap(hwnd, false);
@@ -117,7 +117,7 @@ void OmniCap::ToggleInputCap(HWND hwnd, bool state) {
 		RegisterRawInputDevices(InputDevices, 2, sizeof(InputDevices));
 
 	}
-	
+
 }
 
 
@@ -128,26 +128,52 @@ void OmniCap::InputProcInit(LPARAM& lParam) {
 }
 
 void OmniCap::InputProcCallback(LPARAM& lParam) {
-	
+
 	std::vector<BYTE> Buffer(RawInputSize);
 	GetRawInputData((HRAWINPUT)lParam, RID_INPUT, Buffer.data(), &RawInputSize, sizeof(RAWINPUTHEADER));
 	RAWINPUT* input = (RAWINPUT*)Buffer.data();
-	
-	if (input->header.dwType == RIM_TYPEMOUSE){
+
+	if (input->header.dwType == RIM_TYPEMOUSE) {
 		MouseX += input->data.mouse.lLastX;
 		MouseY += input->data.mouse.lLastY;
-		//OutputDebugString((std::to_string(MouseX) + " raw x\n").c_str());
-	} else if (input->header.dwType == RIM_TYPEKEYBOARD) {
+		OutputDebugString((std::to_string(MouseX) + " raw x\n").c_str());
+	}
+	else if (input->header.dwType == RIM_TYPEKEYBOARD) {
 		USHORT key = input->data.keyboard.MakeCode;
 
-		//OutputDebugString((std::to_string(key) + " raw key\n").c_str());
+		OutputDebugString((std::to_string(key) + " raw key\n").c_str());
 	}
 
 
 }
 
-void OmniCap::VoidExitCallback(LPARAM& lParam) { 
+void OmniCap::VoidExitCallback(LPARAM& lParam) {
 	return;
 }
 
 
+void OmniSynth::ProcMouse(int x, int y)
+{
+	SetCursorPos(x, y);
+}
+
+void OmniSynth::ProcKey(INPUT& input)
+{
+	SendInput(1, &input, sizeof(input));
+}
+
+void OmniSynth::ProcKey(RAWINPUT& input)
+{
+	INPUT InputStruct;
+	InputStruct.ki.wVk = 0;
+	InputStruct.ki.wScan = input.data.keyboard.MakeCode;
+	InputStruct.ki.dwFlags = KEYEVENTF_SCANCODE;
+
+	if (input.data.keyboard.Flags & RI_KEY_BREAK) {
+		InputStruct.ki.dwFlags |= KEYEVENTF_KEYUP;
+	}
+	if (input.data.keyboard.Flags & RI_KEY_E0) {
+		InputStruct.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+	}
+	SendInput(1, &InputStruct, sizeof(InputStruct));
+}

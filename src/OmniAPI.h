@@ -13,9 +13,17 @@ class OmniAPI
 public:
 	static void Ignite(OmniLink& OmniLinkInstance);
 
-	static void SwapDeviceLayout();
+	static void SwapDeviceLayout(uint8_t index1, uint8_t index2);
 
 	static void Scan();
+
+	static void Connect(DeviceMap DevMapIDx);
+
+	static void ExecuteNetCommand(CoreCommands Command);
+
+	static void ExecuteNetCommandWArgs(OmniCommand Command);
+
+
 
 	inline static void perf_test_start() { 
 		t1 = std::chrono::high_resolution_clock::now();

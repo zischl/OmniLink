@@ -188,7 +188,7 @@ public:
 
 		if (ImGui::BeginDragDropSource())
 		{
-			ImGui::SetDragDropPayload("DeviceInfo", DeviceData->IPv4_String, sizeof(DeviceData->IPv4_String));
+			ImGui::SetDragDropPayload("DeviceInfo", &(DeviceData->DevMapIndex), sizeof(DeviceData->DevMapIndex));
 			DeviceIconPreview(ImGui::GetCursorScreenPos(), col, text_size, DeviceData->IPv4_String);
 			ImGui::EndDragDropSource();
 		}
@@ -196,8 +196,8 @@ public:
 		{
 			const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DeviceInfo");
 			if (payload != nullptr) {
-				const char* data = static_cast<char*> (payload->Data);
-				OmniAPI::SwapDeviceLayout();
+				const uint8_t data = *static_cast<uint8_t*> (payload->Data);
+				OmniAPI::SwapDeviceLayout(data, DeviceData->DevMapIndex);
 			}
 			//test animation : device order swap (failed -_- )
 			/*else { 
@@ -215,7 +215,17 @@ public:
 		DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), col, 5.0f, 0, 2.0f);				//handle
 		DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55), ImVec2(pos.x + 15, pos.y + 55), col, 10.0f, 0, 1.0f);	//stand
 
+
+		if (ImGui::BeginPopupContextItem("MyItemContextMenu")) {
+			if (ImGui::MenuItem("Connect Instance")) {
+				OmniAPI::Connect(static_cast<DeviceMap>(DeviceData->DevMapIndex));
+			}
 		
+			ImGui::EndPopup();
+		}
+
+	
+
 
 		ImGui::PopID();
 
@@ -227,7 +237,7 @@ public:
 private:
 	HANDLE* EventHandler = nullptr;
 	OmniLink& App;
-	std::array<OmniInstance, 5>* AvailableDevices = nullptr;
+	std::unordered_map<DeviceMap, OmniInstance>* AvailableDevices = nullptr;
 
 	bool ImGuiState = true;
 	bool DeviceHoverState = false;
@@ -239,6 +249,7 @@ private:
 	ImDrawList* DrawList = nullptr;
 
 	int ActiveMenu = 0;
+	//bool PopUp1 = false;
 
 	bool IconizedButton(const char* label, ImVec2& ButtonSize);
 	bool VerticalMenuItem(const char* label);

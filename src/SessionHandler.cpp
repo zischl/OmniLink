@@ -147,7 +147,7 @@ void sessions::RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionK
 }
 
 
-void  sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket) {
+void sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket) {
 	int WSResult = 0;
 
 	sockaddr_in local;
@@ -184,15 +184,13 @@ session::session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, in
 	PreSetBufferMTU();
 	address = sessions::CreateAddress(IP, port);
 	socketR = sessions::CreateSocket();
+	sessions::BindReceiver(Local_IP, port, socketR);
 	sessions::ConnectSesssion(address, socketR);
 	sessions::RegIOCP(IOCP, socketR);
 	sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, SessionInstance);
-	sessions::BindReceiver(Local_IP, 62485, socketR);
 
 	sessions::PostWSARecv(socketR, RecvPool);
-	if (WSAGetLastError() != WSA_IO_PENDING) {
-		OutputDebugStringA("Recv Pre Post Failed\n");
-	}
+	
 
 }
 

@@ -7,6 +7,8 @@
 #include "OmniTypes.h"
 #include "OmniLogger.h"
 #include "WinForge.h"
+#include "IOLink.h"
+#include "OmniAPI.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
@@ -35,7 +37,6 @@ private:
 	int WSResult;
 
 	int WinsockInit();
-
 
 
 public:
@@ -84,14 +85,15 @@ public:
 						// header structure's packet type index = 0 and the header size is 3,
 						// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
 						uint8_t BufferHeader = *(Buffer->TransmitBuffer.buf + BufferSize - 3);
-						switch (BufferHeader) {
+						switch (BufferHeader) 
+						{
 						case OmniNet::ChunkStart:
 							Pool.PushChunk();
 							break;
-						case OmniNet::ChunkData:
+						case OmniNet::PacketType::ChunkData:
 							Pool.PushChunk();
 							break;
-						case OmniNet::ChunkEnd:
+						case OmniNet::PacketType::ChunkEnd:
 							if (Pool.TryPushFinalChunk(BufferSize))
 							{
 								Link.ActiveWindows[BufferHeader + 1].SetBufferData(&Pool.BufferPool[0], Pool.CurrentChunkUsage);
@@ -100,14 +102,44 @@ public:
 							}
 
 							Pool.ResetChunk();
+							break;
 
 						case OmniNet::Command:
-
-							break;
+						{
+							OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer->TransmitBuffer.buf + BufferSize - 3));
+							if (header->Flags == OmniNet::VoidArg)
+							{
+								OmniAPI::ExecuteNetCommand(*reinterpret_cast<CoreCommands*>(Buffer->TransmitBuffer.buf));
+							}
+							else
+							{
+								//OmniNetCommand<BufferSize - OmniHeaderSize>* Payload = reinterpret_cast<OmniNetCommand<BufferSize - OmniHeaderSize>*>(Buffer->TransmitBuffer.buf);
+								//OmniCommand Command;
+								//Command.CommandType = *(Payload->CommandType);
+								//Command.ArgTypeIndex = *(Payload->ArgTypeIndex);
+								//Command.Args = *(Payload->Args);
+							}
 						}
+						case OmniNet::PacketType::ProcMouse:
+						{
+							MouseXY* Payload = reinterpret_cast<MouseXY*>(Buffer->TransmitBuffer.buf);
+							OmniSynth::ProcMouse(Payload->X, Payload->Y);
+						}
+						break;
+
+						case OmniNet::ProcKey:
+						{
+							RAWINPUT* Payload = reinterpret_cast<RAWINPUT*>(Buffer->TransmitBuffer.buf);
+							OmniSynth::ProcKey(*Payload);
+						}
+						break;
+						}
+						
 
 						PostWSARecv(socket, Pool);
 						break;
+
+
 
 
 					}
@@ -128,17 +160,19 @@ public:
 	inline static void PostWSARecv(const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool) {
 		DWORD flags = 0;
 
-		WSARecvFrom(
+		int WSResult = WSARecv(
 			socket,
 			&Pool.ContextPool[Pool.PoolHead].TransmitBuffer,
 			1,
 			NULL,
 			&flags,
-			(sockaddr*)&Pool.ContextPool[Pool.PoolHead].addr,
-			&Pool.ContextPool[Pool.PoolHead].addr_len,
 			&Pool.ContextPool[Pool.PoolHead].OVStruct,
 			NULL
 		);
+
+		if (WSAGetLastError() != WSA_IO_PENDING) {
+			OutputDebugStringA("Recv Pre Post Failed\n");
+		}
 	};
 
 };
@@ -200,7 +234,7 @@ public:
 	inline void SessionSend(CHAR* data, int MTU, const OmniNet::OmniHeader& header) {
 		CHeaderPool[SPoolHead].PacketType = header.PacketType;
 		CHeaderPool[SPoolHead].Target = header.Target;
-		CHeaderPool[SPoolHead].Reserved = header.Reserved;
+		CHeaderPool[SPoolHead].Flags = header.Flags;
 
 		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;

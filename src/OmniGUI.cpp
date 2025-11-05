@@ -132,62 +132,63 @@ void OmniGUI::ConnectionRing(const char* label)
 	ImGui::PopID();
 
 	int radius = 205;
-	ImVec2 text_size = ImGui::CalcTextSize("192.168.1.59");
+	ImVec2 text_size = ImGui::CalcTextSize("192.168.1.255");
 
 	ImGui::PushFont(JetBrainsReg18);
 
-	DeviceIcon("PC0", pos, text_size, &(*AvailableDevices)[0]);
+	DeviceIcon("C0", pos, text_size, &(*AvailableDevices)[DeviceMap::C0]);
 
 
-	if ((*AvailableDevices)[1].InstanceIP) {
+	if ((*AvailableDevices)[DeviceMap::L1].InstanceIP) {
+		DeviceIcon("L1", ImVec2(pos.x - radius, pos.y), text_size, &(*AvailableDevices)[DeviceMap::L1]);
+	}
+
+	if ((*AvailableDevices)[DeviceMap::LU1].InstanceIP) {
+		DeviceIcon("LU1", ImVec2(pos.x - radius, pos.y - radius), text_size, &(*AvailableDevices)[DeviceMap::LU1]);
+	}
+
+	if ((*AvailableDevices)[DeviceMap::U1].InstanceIP) {
+		DeviceIcon("U1", ImVec2(pos.x, pos.y - radius), text_size, &(*AvailableDevices)[DeviceMap::U1]);
+	}
+
+	if ((*AvailableDevices)[DeviceMap::RU1].InstanceIP) {
+		DeviceIcon("RU1", ImVec2(pos.x + radius, pos.y - radius), text_size, &(*AvailableDevices)[DeviceMap::RU1]);
+	}
+
+	if ((*AvailableDevices)[DeviceMap::R1].InstanceIP) {
+		DeviceIcon("R1", ImVec2(pos.x + radius, pos.y), text_size, &(*AvailableDevices)[DeviceMap::R1]);
+	}
+
+	if ((*AvailableDevices)[DeviceMap::RD1].InstanceIP) {
+		DeviceIcon("RD1", ImVec2(pos.x + radius, pos.y + radius), text_size, &(*AvailableDevices)[DeviceMap::RD1]);
+	}
+
+	if ((*AvailableDevices)[DeviceMap::D1].InstanceIP) {
+		DeviceIcon("D1", ImVec2(pos.x, pos.y + radius), text_size, &(*AvailableDevices)[DeviceMap::D1]);
+	}
+
+	if ((*AvailableDevices)[DeviceMap::LD1].InstanceIP) {
+		DeviceIcon("LD1", ImVec2(pos.x - radius, pos.y + radius), text_size, &(*AvailableDevices)[DeviceMap::LD1]);
+	}
+
 	
-		pos.y -= radius;
-		DeviceIcon("PC1", pos, text_size, &(*AvailableDevices)[1]);
 
-	}
+	//if (DeviceHoverState) {
+	//	ImGui::PushID("Connect");
 
-	if ((*AvailableDevices)[2].InstanceIP) {
+	//	const ImGuiID id = ImGui::GetID("Connect");
+	//	ImRect bb(ImVec2(SelectedDevicePos.x - 35, SelectedDevicePos.y - 15), ImVec2(SelectedDevicePos.x + 35, SelectedDevicePos.y + 15));
+	//	ImGui::ItemAdd(bb, id, NULL, ImGuiItemFlags_None);
 
-		pos.x += radius;
-		pos.y += radius;
-		DeviceIcon("PC2", pos, text_size, &(*AvailableDevices)[2]);
+	//	bool hovered, held;
+	//	bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, 0);
+	//	ImGui::RenderNavCursor(bb, id);
+	//	
+	//	//DrawList->AddRectFilled(ImVec2(SelectedDevicePos.x - 35, SelectedDevicePos.y - 15), ImVec2(SelectedDevicePos.x + 35, SelectedDevicePos.y + 15), col, 5.0f, 0);
+	//	
 
-	}
-
-	if ((*AvailableDevices)[3].InstanceIP) {
-
-		pos.x -= radius * 2;
-		DeviceIcon("PC3", pos, text_size, &(*AvailableDevices)[3]);
-
-	}
-
-	if ((*AvailableDevices)[4].InstanceIP) {
-
-		pos.x += radius;
-		pos.y += radius;
-		DeviceIcon("PC4", pos, text_size, &(*AvailableDevices)[4]);
-
-	}
-
-	if (DeviceHoverState) {
-		ImGui::PushID("Connect");
-
-		const ImGuiID id = ImGui::GetID("Connect");
-		ImRect bb(ImVec2(SelectedDevicePos.x - 35, SelectedDevicePos.y - 15), ImVec2(SelectedDevicePos.x + 35, SelectedDevicePos.y + 15));
-		ImGui::ItemAdd(bb, id, NULL, ImGuiItemFlags_None);
-
-		bool hovered, held;
-		bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, 0);
-		ImGui::RenderNavCursor(bb, id);
-		
-		DrawList->AddRectFilled(ImVec2(SelectedDevicePos.x - 35, SelectedDevicePos.y - 15), ImVec2(SelectedDevicePos.x + 35, SelectedDevicePos.y + 15), col, 5.0f, 0);
-		
-		if (pressed) {
-			std::cout << "shit works x2\n";
-		}
-
-		ImGui::PopID();
-	}
+	//	ImGui::PopID();
+	//}
 
 
 	ImGui::PopFont();

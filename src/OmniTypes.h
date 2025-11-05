@@ -17,9 +17,42 @@
 #include <variant>
 #include <WinSock2.h>
 
+#if defined(_WIN32)
+#define OmniDevNameLen MAX_COMPUTERNAME_LENGTH
+#elif defined(__linux__)
+#define OmniDevNameLen 16
+#else
+#define OmniDevNameLen 16
+#endif
+
+
+class session;
+class WinForge;
+//class NvencSession;
+
+
+enum DeviceMap {
+	C0,
+	L1,
+	U1,
+	R1,
+	D1,
+	LU1,
+	RU1,
+	RD1,
+	LD1
+};
+
 enum CoreCommands {
 	ScanInstances
 };
+
+enum CoreCommandsWArgs {
+	TESTCOMMAND,
+	SwapLayout,
+	ConnectDevice
+};
+
 
 struct ArraySwapLayout {
 	int index1 = 0;
@@ -27,7 +60,27 @@ struct ArraySwapLayout {
 
 };
 
-using FuncArgTypes = std::variant<ArraySwapLayout, uint8_t>;
+
+struct TestArg {
+	int x = 0;
+};
+
+using FuncArgTypes = std::variant<ArraySwapLayout, DeviceMap, TestArg>;
+
+
+template <size_t size>
+struct OmniNetCommand {
+	CoreCommandsWArgs CommandType = TESTCOMMAND;
+	uint32_t ArgTypeIndex = 0;
+	unsigned char Args[size - (sizeof(CoreCommandsWArgs) + sizeof(uint32_t))] = {};
+
+};
+
+struct OmniCommand {
+	CoreCommandsWArgs CommandType = TESTCOMMAND;
+	uint32_t ArgTypeIndex = 0;
+	FuncArgTypes Args = TestArg{ 0 };
+};
 
 //template <typename ArgType>
 //struct Command {
@@ -64,11 +117,6 @@ struct BurstQ {
 };
 
 
-class session;
-class WinForge;
-//class NvencSession;
-
-
 struct OmniIP {
 	uint32_t InstanceIP = NULL;
 	char IPv4_String[16] = {};
@@ -76,26 +124,51 @@ struct OmniIP {
 };
 
 struct OmniInstance {
-	char InstanceName[MAX_COMPUTERNAME_LENGTH + 1];
+	char InstanceName[MAX_COMPUTERNAME_LENGTH + 1] = {};
 	uint32_t InstanceIP = NULL;
 	char IPv4_String[16] = {};
+	uint8_t DevMapIndex = 0;
+
+	OmniInstance() {}
+
+	OmniInstance(uint8_t DevMIndex) {
+		DevMapIndex = DevMIndex;
+	}
+
+	void Clear()
+	{
+		memset(&InstanceIP, 0, MAX_COMPUTERNAME_LENGTH + 1);
+		InstanceIP = NULL;
+		memset(&IPv4_String, 0, 16);
+	}
+
+	void Edit(char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_)
+	{
+		InstanceIP = InstanceIP_;
+		strncpy(IPv4_String, IPv4_String_, 16);
+		strncpy(InstanceName, InstanceName_, (OmniDevNameLen + 1));
+	}
 
 };
 
 struct OmniActiveInstance : OmniInstance
 {
 	session* InstanceSession = nullptr;
-	std::vector <WinForge> ActiveWindows;
+	std::vector<WinForge> ActiveWindows;
+	uint16_t port = 62485;
 	//std::vector<NvencSession> NVEncoderSessions;
 
-};
 
-enum DeviceMap {
-	Local,
-	Left,
-	Up,
-	Right,
-	Down
+	OmniActiveInstance() {}
+
+	OmniActiveInstance(char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_)
+	{
+		InstanceIP = InstanceIP_;
+		strncpy(IPv4_String, IPv4_String_, 16);
+		strncpy(InstanceName, InstanceName_, (OmniDevNameLen + 1));
+	}
+
+
 };
 
 
@@ -324,13 +397,6 @@ namespace AsyncDispatch
 
 
 
-
-
-
-
-
-
-
 namespace OmniNet
 {
 	enum BufferType : uint8_t {
@@ -342,13 +408,20 @@ namespace OmniNet
 		ChunkStart,
 		ChunkData,
 		ChunkEnd,
-		Command
+		Command,
+		ProcMouse,
+		ProcKey
+	};
+
+	enum FlagTypes : uint8_t {
+		VoidArg,
+		ArgCount
 	};
 
 	struct OmniHeader {
 		PacketType PacketType;
 		uint8_t Target;
-		uint8_t Reserved;
+		uint8_t Flags;
 	};
 
 	struct SEND_BUF {
@@ -375,7 +448,7 @@ namespace OmniNet
 		char BufferPool[PoolSize * (ChunkSize + 1)] = "";		// extra chunk for safety
 		uint32_t CurrentChunkUsage = 0;
 
-		uint32_t _mask = PoolSize - 1;							// reserved 
+		uint32_t _mask = PoolSize - 1;							// Flags 
 
 
 		inline void PushChunk() {
@@ -413,7 +486,7 @@ namespace OmniNet
 		ContextType ContextPool[PoolSize];
 		Header HeaderPool[PoolSize];
 
-		uint32_t _mask = PoolSize - 1;							// reserved 
+		uint32_t _mask = PoolSize - 1;							// Flags 
 
 
 		inline void PushChunk() {
