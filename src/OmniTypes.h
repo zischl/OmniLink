@@ -44,6 +44,7 @@ enum DeviceMap {
 };
 
 enum CoreCommands {
+	OmniStatus,
 	ScanInstances
 };
 
@@ -68,19 +69,36 @@ struct TestArg {
 using FuncArgTypes = std::variant<ArraySwapLayout, DeviceMap, TestArg>;
 
 
-template <size_t size>
+struct OmniNetCommandType {
+	CoreCommandsWArgs CommandType = TESTCOMMAND;
+	uint32_t ArgTypeIndex = 0;
+	unsigned char* Args = nullptr;
+};
+
+
+
 struct OmniNetCommand {
 	CoreCommandsWArgs CommandType = TESTCOMMAND;
 	uint32_t ArgTypeIndex = 0;
-	unsigned char Args[size - (sizeof(CoreCommandsWArgs) + sizeof(uint32_t))] = {};
+	unsigned char* Args = nullptr;
+	size_t ArgArrayLength = 0;
 
-};
+	OmniNetCommand(OmniNetCommandType& Command, size_t ArgArrayLen)
+	{
+		CommandType = Command.CommandType;
+		ArgTypeIndex = Command.ArgTypeIndex;
+		Args = Command.Args;
+		ArgArrayLength = ArgArrayLen;
+	}
+
+};	
 
 struct OmniCommand {
 	CoreCommandsWArgs CommandType = TESTCOMMAND;
 	uint32_t ArgTypeIndex = 0;
 	FuncArgTypes Args = TestArg{ 0 };
 };
+
 
 //template <typename ArgType>
 //struct Command {

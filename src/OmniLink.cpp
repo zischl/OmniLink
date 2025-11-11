@@ -368,9 +368,7 @@ void OmniLink::OmniMainLoop() {
 			}
 
 			case 2:
-				TestArg arg = std::get<2>(CommandBurstQWArgs.Queue[Tail]);
-				(this->testcmd)(arg.x);
-				CommandBurstQWArgs.pop();
+
 				break;
 
 			}

@@ -9,6 +9,7 @@
 #include "WinForge.h"
 #include "IOLink.h"
 #include "OmniAPI.h"
+#include "Helper.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
@@ -113,12 +114,20 @@ public:
 							}
 							else
 							{
-								//OmniNetCommand<BufferSize - OmniHeaderSize>* Payload = reinterpret_cast<OmniNetCommand<BufferSize - OmniHeaderSize>*>(Buffer->TransmitBuffer.buf);
-								//OmniCommand Command;
-								//Command.CommandType = *(Payload->CommandType);
-								//Command.ArgTypeIndex = *(Payload->ArgTypeIndex);
-								//Command.Args = *(Payload->Args);
+								OmniNetCommandType* Payload = reinterpret_cast<OmniNetCommandType*>(Buffer->TransmitBuffer.buf);
+								
+								OmniCommand Command;
+								Command.CommandType = Payload->CommandType;
+								Command.ArgTypeIndex = Payload->ArgTypeIndex;
+								Variance::VariantDeserializer<FuncArgTypes>
+									(
+										Command.Args, 
+										Payload->ArgTypeIndex, 
+										std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
+										Payload->Args
+									);
 							}
+							break;
 						}
 						case OmniNet::PacketType::ProcMouse:
 						{

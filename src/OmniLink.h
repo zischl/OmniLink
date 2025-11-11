@@ -69,8 +69,8 @@ class OmniCore {
 
 public:
 
-	inline void testcmd(int x) {
-		std::cout << "AM I WORKING ! " << x << "\n";
+	inline void OmniCmdStatus() {
+		Logger::log("CMD Queue Status Test\n");
 	}
 
 	//Core Functions
@@ -95,7 +95,9 @@ public:
 
 	//Command Queue System
 	std::array<void (OmniCore::*)(), 10> CommandTable = {
+		&OmniCore::OmniCmdStatus,
 		&OmniCore::ScanInstances
+
 	};
 
 	/// <summary>

@@ -84,6 +84,7 @@ add_executable(main WIN32
     src/OmniGUI.cpp
     src/OmniDiscovery.cpp
     src/OmniAPI.cpp
+    
  )
 
 target_compile_definitions(main PUBLIC 
