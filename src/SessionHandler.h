@@ -56,8 +56,8 @@ public:
 
 	static void RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey = 0);
 
-	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
-	static void StartCompletionPortHandlerThread(const HANDLE& IOCP, const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool, OmniActiveInstance& Link)
+	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize, typename PacketHandler>
+	static void StartCompletionPortHandlerThread(const HANDLE& IOCP, const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool, PacketHandler&& PacketHandlerFn, void* Ctx)
 	{
 		std::thread StatusQueue([&]()
 			{
@@ -80,15 +80,17 @@ public:
 					}
 
 					OmniNet::RECV_BUF* Buffer = reinterpret_cast<OmniNet::RECV_BUF*>(OVStruct);
+					
 
 					switch (Buffer->Type) {
 					case OmniNet::OP_RECV:
 						// header structure's packet type index = 0 and the header size is 3,
 						// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
 						uint8_t BufferHeader = *(Buffer->TransmitBuffer.buf + BufferSize - 3);
-						switch (BufferHeader) 
+
+						switch (BufferHeader)
 						{
-						case OmniNet::ChunkStart:
+						case OmniNet::PacketType::ChunkStart:
 							Pool.PushChunk();
 							break;
 						case OmniNet::PacketType::ChunkData:
@@ -97,53 +99,17 @@ public:
 						case OmniNet::PacketType::ChunkEnd:
 							if (Pool.TryPushFinalChunk(BufferSize))
 							{
-								Link.ActiveWindows[BufferHeader + 1].SetBufferData(&Pool.BufferPool[0], Pool.CurrentChunkUsage);
-								Link.ActiveWindows[BufferHeader + 1].SetRenderEvent();
-
+								PacketHandlerFn(&Pool.BufferPool[0], Pool.CurrentChunkUsage, BufferHeader, Ctx);
 							}
-
+							Pool.ResetChunk();
+							break;
+						default:
+							PacketHandlerFn(Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Ctx);
+						}
 							Pool.ResetChunk();
 							break;
 
-						case OmniNet::Command:
-						{
-							OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer->TransmitBuffer.buf + BufferSize - 3));
-							if (header->Flags == OmniNet::VoidArg)
-							{
-								OmniAPI::ExecuteNetCommand(*reinterpret_cast<CoreCommands*>(Buffer->TransmitBuffer.buf));
-							}
-							else
-							{
-								OmniNetCommandType* Payload = reinterpret_cast<OmniNetCommandType*>(Buffer->TransmitBuffer.buf);
-								
-								OmniCommand Command;
-								Command.CommandType = Payload->CommandType;
-								Command.ArgTypeIndex = Payload->ArgTypeIndex;
-								Variance::VariantDeserializer<FuncArgTypes>
-									(
-										Command.Args, 
-										Payload->ArgTypeIndex, 
-										std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
-										Payload->Args
-									);
-							}
-							break;
-						}
-						case OmniNet::PacketType::ProcMouse:
-						{
-							MouseXY* Payload = reinterpret_cast<MouseXY*>(Buffer->TransmitBuffer.buf);
-							OmniSynth::ProcMouse(Payload->X, Payload->Y);
-						}
-						break;
 
-						case OmniNet::ProcKey:
-						{
-							RAWINPUT* Payload = reinterpret_cast<RAWINPUT*>(Buffer->TransmitBuffer.buf);
-							OmniSynth::ProcKey(*Payload);
-						}
-						break;
-						}
-						
 
 						PostWSARecv(socket, Pool);
 						break;
@@ -190,7 +156,6 @@ public:
 
 class session {
 private:
-	OmniActiveInstance& Link;
 	int WSResult;
 
 	sockaddr_in address;
@@ -238,7 +203,10 @@ private:
 
 public:
 
-	session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, OmniActiveInstance& SessionInstance);
+	session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, void* Context);
+
+	void (*OnIOCompletion) (CHAR * Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) = nullptr;
+
 
 	inline void SessionSend(CHAR* data, int MTU, const OmniNet::OmniHeader& header) {
 		CHeaderPool[SPoolHead].PacketType = header.PacketType;

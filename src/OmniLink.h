@@ -147,6 +147,58 @@ public:
 
 
 
+	void (*NetworkPacketHandler)(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) = [](CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
+		{
+			OmniActiveInstance* UserInstance = reinterpret_cast<OmniActiveInstance*>(Context);
+			switch (BufferHeader)
+			{
+			case OmniNet::PacketType::ChunkEnd:
+				//zeroth window since i'm still implenting multi window creation
+				UserInstance->ActiveWindows[0]->SetBufferData(Buffer, BufferSize);
+				UserInstance->ActiveWindows[0]->SetRenderEvent();
+				break;
+
+			case OmniNet::Command:
+			{
+				OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
+				if (header->Flags == OmniNet::VoidArg)
+				{
+					OmniAPI::ExecuteNetCommand(*reinterpret_cast<CoreCommands*>(Buffer));
+				}
+				else
+				{
+					OmniNetCommandType* Payload = reinterpret_cast<OmniNetCommandType*>(Buffer);
+
+					OmniCommand Command;
+					Command.CommandType = Payload->CommandType;
+					Command.ArgTypeIndex = Payload->ArgTypeIndex;
+					Variance::VariantDeserializer<FuncArgTypes>
+						(
+							Command.Args,
+							Payload->ArgTypeIndex,
+							std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
+							Payload->Args
+						);
+				}
+				break;
+			}
+			case OmniNet::PacketType::ProcMouse:
+			{
+				MouseXY* Payload = reinterpret_cast<MouseXY*>(Buffer);
+				OmniSynth::ProcMouse(Payload->X, Payload->Y);
+			}
+			break;
+
+			case OmniNet::ProcKey:
+			{
+				RAWINPUT* Payload = reinterpret_cast<RAWINPUT*>(Buffer);
+				//OmniSynth::ProcKey(*Payload);
+			}
+			break;
+			}
+		};
+
+
 	//helper funcs
 
 	inline void TCharCpy(TCHAR(&Tarr), char(&arr), const size_t size)
@@ -204,6 +256,9 @@ protected:
 	ID3D11Texture2D* DXGIBuffer = nullptr;
 	bool DXGIStatus = false;
 
+
+	DeviceMap SelectedInstance = DeviceMap::L1;
+
 };
 
 
@@ -219,6 +274,8 @@ public:
 	void ToggleWGC();
 
 	void ToggleDDAPI();
+
+	void ToggleFeature(DeviceMap Index, int FeatureIndex);
 
 	inline static void WGCapSend(session* session, WGScreenCapture* WGSCapture, NVENCODER* Nv) {
 		WGSCapture->WriteStateLock();

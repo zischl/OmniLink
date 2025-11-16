@@ -110,8 +110,31 @@ void OmniCore::Connect(char IP[16], char Auth[4])
 void OmniCore::ConnectInstance(DeviceMap index)
 {
 	ActiveInstances[index] = OmniActiveInstance(AllInstances[index].InstanceName, AllInstances[index].IPv4_String, AllInstances[index].InstanceIP);
-	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, ActiveInstances[index]);
+	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveInstances[DeviceMap::C0]);
 	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
+	ActiveInstances[index].InstanceSession->OnIOCompletion = NetworkPacketHandler;
+}
+
+
+void OmniLink::ToggleFeature(DeviceMap Index, int FeatureIndex)
+{
+	switch (FeatureIndex)
+	{
+	case 0:
+		ToggleDDAPI();
+		break;
+	case 1:
+		ToggleWGC();
+		break;
+	case 2:
+		if (OmniCap.ConditionManager.Find(Index)) { 
+			OmniCap.ConditionManager.Remove(Index); 
+		}
+		else {
+			OmniCap.AddEdgeCondition(Index);
+		}
+		break;
+	}
 }
 
 
@@ -239,6 +262,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 		IP2Char(LocalIP, ActiveInstances[DeviceMap::C0].IPv4_String);
 	}
 	WinGetComputerName(ActiveInstances[DeviceMap::C0].InstanceName);
+	//OmniCore::UserInstance = ActiveInstances[DeviceMap::C0];
 
 
 	/*##############################################################*/
@@ -255,9 +279,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	/*##############################################################*/
 
 
-	OmniCap.ToggleWindowCap(true);
+	//OmniCap.ToggleWindowCap(true);
 	//OmniCap.ToggleInputEventCap(hwnd, true);
-	OmniCap.ToggleInputCap(hwnd, true);
+	OmniCap.ToggleInputCapture(hwnd, true);
 
 
 	/*Link = new WinForge(WProc2);
@@ -269,7 +293,17 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	///* ################################################################ */
 
-	 
+	OmniCap.OnMouseCapture = [&](RAWINPUT& input) {
+		Logger::log(": ", input.data.mouse.lLastX, ": ", input.data.mouse.lLastX);
+		};
+
+	OmniCap.OnKeyboardCapture = [&](RAWINPUT& input) {
+		OutputDebugStringA((": " + std::to_string(input.data.keyboard.MakeCode)+ "\n").c_str());
+		};
+
+	OmniCap.OnInitialMouseCapture = [&](int MouseX, int MouseY) {
+
+		};
 
 	///* ################################################################ */
 

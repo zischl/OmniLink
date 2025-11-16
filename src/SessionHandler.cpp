@@ -177,8 +177,8 @@ void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR
 }
 
 
-session::session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, OmniActiveInstance& SessionInstance) :
-	Link(SessionInstance), MTU(MTU_Size)
+session::session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, void* Context) :
+	MTU(MTU_Size)
 {
 
 	PreSetBufferMTU();
@@ -187,7 +187,7 @@ session::session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, in
 	sessions::BindReceiver(Local_IP, port, socketR);
 	sessions::ConnectSesssion(address, socketR);
 	sessions::RegIOCP(IOCP, socketR);
-	sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, SessionInstance);
+	sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, OnIOCompletion, Context);
 
 	sessions::PostWSARecv(socketR, RecvPool);
 	

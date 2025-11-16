@@ -3,6 +3,13 @@
 
 #pragma once
 
+#include "OmniTypes.h"
+#include "Helper.h"
+
+#include "system_probe_impl.h"
+#include <unordered_map>
+#include <mutex>
+#include <functional>
 #include <thread>
 #include <string>
 #include <vector>
@@ -25,36 +32,78 @@ struct MouseXY {
 
 struct KeyData
 {
-	unsigned char Key;
+	USHORT MakeCode;
+	USHORT Flags;
 };
 
 class OmniCap {
 public:
-	UINT MouseX;
-	UINT MouseY;
-
 	OmniCap();
+	
+	// Mouse cursor position used by both edge detection and high performance input capture
+	unsigned int MouseX = 0;
+	unsigned int MouseY = 0;
 
-	void ToggleWindowCap(bool state = false);
-	void ToggleInputEventCap(HWND hwnd, bool state = false);
+	
+	/// ########################################################################################## ///
+	///	Display Edge Detection For the Mouse							    					   ///
+	/// ########################################################################################## ///
+	
+	unsigned int ResWidth = 0;
+	unsigned int ResHeight = 0;
 
-	UINT RawInputSize;
+	FlowMorph<int, int, DeviceMap> ConditionManager;
+
+
+
+	void ToggleEdgeProbe(HWND hwnd, bool state = false);
+
+	void AddEdgeCondition(DeviceMap Index);
+
+	/// ########################################################################################## ///
+	/// High Perofrmance Input Capture															   ///
+	/// ########################################################################################## ///
 
 	void (OmniCap::* InputProc)(LPARAM& lParam) = nullptr;
-	void ToggleInputCap(HWND hwnd, bool state = false);
+	void ToggleInputCapture(HWND hwnd, bool state = false);
 
+	// Initial mouse input event proc used for calculating the size of the raw input struct
 	void InputProcInit(LPARAM& lParam);
+
+	// Default mouse input event proc for high performance input capturing
 	void InputProcCallback(LPARAM& lParam);
+
+	// Termination sequence for input capturing process
 	void VoidExitCallback(LPARAM& lParam);
+
+	std::function<void(RAWINPUT&)> OnMouseCapture = [&](RAWINPUT& RawInput) {};
+
+	std::function<void(RAWINPUT&)> OnKeyboardCapture = [&](RAWINPUT& RawInput) {};
+
+	std::function<void(int MouseX, int MouseY)> OnInitialMouseCapture = [&](int MouseX, int MouseY) {};
+
+	//void (*InputCaptureEvent)(RAWINPUT& RawInput) = nullptr;
+
+	/// ########################################################################################## ///
+	/// Window Move Event Detection																   ///
+	/// ########################################################################################## ///
+
+	void WindowMoveListener(bool state = false);
 
 
 private:
 
+	std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions = ConditionManager.conditions;
+
+	std::mutex ConditionMutex;
+
 	std::atomic_bool MouseEventCapStatus;
 	HWINEVENTHOOK WinCapHook = NULL;
 	HHOOK MouseCapHook = NULL;
+	UINT RawInputSize;
 
 
+	//Callback for window movement detection
 	static void CALLBACK WinMvEventProc(
 		HWINEVENTHOOK hWinEventHook,
 		DWORD event,
@@ -68,13 +117,41 @@ private:
 
 };
 
+
+
 class OmniSynth {
 public:
+	int MouseX = 0;
+	int MouseY = 0;
+
+	//Sets current cursor position using absolute pixel cordinates
 	void static ProcMouse(int x, int y);
 
+	//Simulate keyboard button actions
 	void static ProcKey(INPUT& input);
 
-	void static ProcKey(RAWINPUT& input);
+	//Simulate keyboard button actions 
+	void static ProcKey(KeyData& input);
+
+	void SetMouseCursor(int MouseX, int MouseY);
+
+	//Move cursor by pixel count rather than set cursor to an exact position
+	//Set current cursor position before using this function in order to avoid incorrect starting points
+	void inline MvMouse(int toX, int toY)
+	{
+		MouseX += toX;
+		MouseY += toY;
+
+		SetCursorPos(MouseX, MouseY);
+	}
+
+	//Returns true if the current registered mouse position matches with the give positions
+	bool inline CheckMousePos(int MX, int MY)
+	{
+		if (MX != MouseX && MY != MouseY) 
+			{ return false; }
+		else return true;
+	}
 
 };
 
