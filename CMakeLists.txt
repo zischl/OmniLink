@@ -48,6 +48,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 
+
+
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(architecture x64)
 else()
@@ -59,7 +61,11 @@ endif()
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architecture}/)
 
-
+if(WIN32)
+    set(SourceDir ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/windows)
+else()
+    set(SourceDir ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/unix)
+endif()
 
 add_executable(main WIN32 
     src/main.cpp
@@ -84,8 +90,9 @@ add_executable(main WIN32
     src/OmniGUI.cpp
     src/OmniDiscovery.cpp
     src/OmniAPI.cpp
-    
- )
+    ${SourceDir}/system_probe.cpp
+
+)
 
 target_compile_definitions(main PUBLIC 
     $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>

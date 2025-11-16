@@ -31,6 +31,15 @@ class WinForge;
 //class NvencSession;
 
 
+enum FeatureFlags {
+	Inactive = 0,
+	ScreenLink = 1 < 0,
+	WindowLink = 1 < 1,
+	InputLink = 1 < 2,
+	Link = 1 < 3,
+
+};
+
 enum DeviceMap {
 	C0,
 	L1,
@@ -174,6 +183,7 @@ struct OmniActiveInstance : OmniInstance
 	session* InstanceSession = nullptr;
 	std::vector<WinForge> ActiveWindows;
 	uint16_t port = 62485;
+	int ActiveFlags = FeatureFlags::Inactive;
 	//std::vector<NvencSession> NVEncoderSessions;
 
 

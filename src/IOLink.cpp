@@ -7,6 +7,10 @@ OmniCap::OmniCap() {
 	MouseY = pos.y;
 
 	RawInputSize = 48;
+
+	MonitorRes MonRes = Device::GetMonitorResolution();
+	ResHeight = MonRes.Height;
+	ResWidth = MonRes.Width;
 }
 
 void OmniCap::ToggleWindowCap(bool state) {
@@ -66,10 +70,14 @@ void OmniCap::ToggleInputEventCap(HWND hwnd, bool state) {
 				MouseX = pos.x;
 				MouseY = pos.y;
 				OutputDebugString((std::to_string(MouseX) + "\n").c_str());
-				if (MouseX == 1919) {
-					ToggleInputCap(hwnd, true);
-					break;
+
+				for (auto& [name, cond] : Conditions) {
+					if (cond(MouseX, MouseY)) {
+						ToggleInputCap(hwnd, true);
+						break;
+					}
 				}
+
 				std::this_thread::sleep_for(std::chrono::milliseconds(150));
 			}
 
@@ -77,7 +85,12 @@ void OmniCap::ToggleInputEventCap(HWND hwnd, bool state) {
 				GetCursorPos(&pos);
 				OutputDebugString((std::to_string(MouseX) + "2nd\n").c_str());
 
-				if (MouseX <= 1918) {
+				unsigned uMx = MouseX;
+				unsigned uMy = MouseY;
+
+				bool InsideCheck = (uMx <= ResWidth) & (uMy <= ResHeight);
+
+				if (InsideCheck) {
 					ToggleInputCap(hwnd, false);
 					break;
 				}
@@ -136,6 +149,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 	if (input->header.dwType == RIM_TYPEMOUSE) {
 		MouseX += input->data.mouse.lLastX;
 		MouseY += input->data.mouse.lLastY;
+		input->data.mouse.usButtonFlags;
 		OutputDebugString((std::to_string(MouseX) + " raw x\n").c_str());
 	}
 	else if (input->header.dwType == RIM_TYPEKEYBOARD) {

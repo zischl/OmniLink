@@ -255,9 +255,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	/*##############################################################*/
 
 
-	OmniCap.ToggleWindowCap(true);
+	//OmniCap.ToggleWindowCap(true);
 	//OmniCap.ToggleInputEventCap(hwnd, true);
-	OmniCap.ToggleInputCap(hwnd, true);
+	//OmniCap.ToggleInputCap(hwnd, true);
 
 
 	/*Link = new WinForge(WProc2);

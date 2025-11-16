@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include "system_probe_impl.h"
+#include <unordered_map>
+#include <mutex>
+#include <functional>
 #include <thread>
 #include <string>
 #include <vector>
@@ -30,8 +34,11 @@ struct KeyData
 
 class OmniCap {
 public:
-	UINT MouseX;
-	UINT MouseY;
+	unsigned int MouseX = 0;
+	unsigned int MouseY = 0;
+
+	unsigned int ResWidth = 0;
+	unsigned int ResHeight = 0;
 
 	OmniCap();
 
@@ -49,6 +56,8 @@ public:
 
 
 private:
+	std::unordered_map<std::string, std::function<bool(int, int)>> Conditions;
+	std::mutex ConditionMutex;
 
 	std::atomic_bool MouseEventCapStatus;
 	HWINEVENTHOOK WinCapHook = NULL;
@@ -67,6 +76,8 @@ private:
 
 
 };
+
+
 
 class OmniSynth {
 public:

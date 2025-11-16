@@ -6,6 +6,9 @@
 #include "OmniTypes.h"
 #include <iostream>
 #include <variant>
+#include <unordered_map>
+#include <mutex>
+#include <functional>
 
 
 class Variance
@@ -20,6 +23,24 @@ public:
 		
 
 
+};
+
+template <typename Type1, typename Type2>
+class FlowMorph {
+public:
+	void Add(const std::string& name, std::function<bool(Type1, Type2)> condition)
+	{
+		conditions[name] = condition;
+	}
+
+	void Remove(const std::string& name)
+	{
+		conditions.erase(name);
+	}
+
+
+private:
+	std::unordered_map<std::string, std::function<bool(int, int)>> conditions;
 };
 
 
