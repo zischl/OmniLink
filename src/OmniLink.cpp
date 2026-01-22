@@ -279,10 +279,10 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	/*##############################################################*/
 
 
-	//OmniCap.ToggleWindowCap(true);
-	//OmniCap.ToggleInputEventCap(hwnd, true);
-	OmniCap.ToggleInputCapture(hwnd, true);
-
+	//OmniCap.WindowMoveListener(true);
+	//OmniCap.ToggleInputCapture(hwnd, true);
+	OmniCap.ToggleEdgeProbe(hwnd, true);
+	OmniCap.AddEdgeCondition(DeviceMap::L1);
 
 	/*Link = new WinForge(WProc2);
 	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);*/
@@ -293,16 +293,18 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	///* ################################################################ */
 
-	OmniCap.OnMouseCapture = [&](RAWINPUT& input) {
-		Logger::log(": ", input.data.mouse.lLastX, ": ", input.data.mouse.lLastX);
+	OmniCap.OnMouseCapture = [](RAWINPUT& input) {
+		Logger::log(": ", input.data.mouse.lLastX, ": ", input.data.mouse.lLastX);		
+		//ActiveInstances[]
 		};
 
-	OmniCap.OnKeyboardCapture = [&](RAWINPUT& input) {
-		OutputDebugStringA((": " + std::to_string(input.data.keyboard.MakeCode)+ "\n").c_str());
+	OmniCap.OnKeyboardCapture = [](RAWINPUT& input) {
+		Logger::log(": ", input.data.keyboard.MakeCode);
+		
 		};
 
-	OmniCap.OnInitialMouseCapture = [&](int MouseX, int MouseY) {
-
+	OmniCap.OnInitialMouseCapture = [](int MouseX, int MouseY) {
+		Logger::log(": Init M Cap : ", MouseX, " :: ", MouseY);
 		};
 
 	///* ################################################################ */

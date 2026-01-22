@@ -69,21 +69,28 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 				GetCursorPos(&pos);
 				MouseX = pos.x;
 				MouseY = pos.y;
-				OutputDebugStringA((std::to_string(MouseX) + "\n").c_str());
 
 				for (auto& [name, cond] : Conditions) {
 					if (cond(MouseX, MouseY)) {
 						ToggleInputCapture(hwnd, true);
+						MouseEventStatus->store(false);
+						const RECT CuLockPos = { MouseX, MouseY, MouseX, MouseY };
+						ClipCursor(&CuLockPos);
+						OutputDebugStringA("true");
 						break;
 					}
 				}
 
+
 				std::this_thread::sleep_for(std::chrono::milliseconds(150));
 			}
 
+			MouseEventStatus->store(true);
+
+
 			while (MouseEventStatus->load()) {
 				GetCursorPos(&pos);
-				OutputDebugStringA((std::to_string(MouseX) + "2nd\n").c_str());
+				
 
 				unsigned uMx = MouseX;
 				unsigned uMy = MouseY;
@@ -92,6 +99,9 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 
 				if (InsideCheck) {
 					ToggleInputCapture(hwnd, false);
+					ClipCursor(NULL);
+					SetCursorPos(uMx, uMy);
+					OutputDebugStringA("false");
 					break;
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(150));
@@ -207,6 +217,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 	if (input->header.dwType == RIM_TYPEMOUSE) {
 		MouseX += input->data.mouse.lLastX;
 		MouseY += input->data.mouse.lLastY;
+		OutputDebugStringA((std::to_string(MouseX) + " " + std::to_string(MouseY) + "\n").c_str());
 		OnMouseCapture(*input);
 	}
 	else if (input->header.dwType == RIM_TYPEKEYBOARD) {

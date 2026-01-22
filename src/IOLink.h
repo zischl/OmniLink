@@ -41,8 +41,8 @@ public:
 	OmniCap();
 	
 	// Mouse cursor position used by both edge detection and high performance input capture
-	unsigned int MouseX = 0;
-	unsigned int MouseY = 0;
+	int MouseX = 0;
+	int MouseY = 0;
 
 	
 	/// ########################################################################################## ///
@@ -76,11 +76,11 @@ public:
 	// Termination sequence for input capturing process
 	void VoidExitCallback(LPARAM& lParam);
 
-	std::function<void(RAWINPUT&)> OnMouseCapture = [&](RAWINPUT& RawInput) {};
+	void (*OnMouseCapture)(RAWINPUT& input) = nullptr;
 
-	std::function<void(RAWINPUT&)> OnKeyboardCapture = [&](RAWINPUT& RawInput) {};
+	void (*OnKeyboardCapture)(RAWINPUT& RawInput) = nullptr;
 
-	std::function<void(int MouseX, int MouseY)> OnInitialMouseCapture = [&](int MouseX, int MouseY) {};
+	void (*OnInitialMouseCapture)(int MouseX, int MouseY) = nullptr;
 
 	//void (*InputCaptureEvent)(RAWINPUT& RawInput) = nullptr;
 
@@ -153,6 +153,9 @@ public:
 		else return true;
 	}
 
+	MouseXY inline GetCursorPos() {
+
+	}
 };
 
 #endif

@@ -186,6 +186,7 @@ public:
 			{
 				MouseXY* Payload = reinterpret_cast<MouseXY*>(Buffer);
 				OmniSynth::ProcMouse(Payload->X, Payload->Y);
+				
 			}
 			break;
 
@@ -224,6 +225,7 @@ protected:
 	DWORD EventDW = NULL;
 
 	OmniCap OmniCap;
+	OmniSynth OmniSynth;
 	std::mutex Mutex;
 	Instances* InstanceProbe = nullptr;
 
@@ -319,6 +321,9 @@ private:
 	//Streamer Links Window Proc
 	static LRESULT CALLBACK WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+
+	//Active Input Proc Target Device
+	static DeviceMap ActiveIOProcTarget;
 
 
 	MSG msg = { };
