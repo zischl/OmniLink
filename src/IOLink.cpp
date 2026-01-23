@@ -213,10 +213,10 @@ void OmniCap::InputProcInit(LPARAM& lParam) {
 	IOHeader.PacketType = OmniNet::PacketType::ProcMouse;
 	IOHeader.Flags = 0;
 
-	POINT InitPos = {};
-	GetCursorPos(&InitPos);
+	MouseXY MousePos = { 9999,MouseY };
 
-	ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&InitPos), sizeof(POINT), IOHeader);
+	ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MousePos), sizeof(MouseXY), IOHeader);
+	OutputDebugStringA("We going in");
 }
 
 void OmniCap::InputProcCallback(LPARAM& lParam) {
@@ -228,7 +228,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 	if (input->header.dwType == RIM_TYPEMOUSE) {
 		MouseX += input->data.mouse.lLastX;
 		MouseY += input->data.mouse.lLastY;
-		//OutputDebugStringA((std::to_string(MouseX) + " " + std::to_string(MouseY) + "\n").c_str());
+		OutputDebugStringA((std::to_string(MouseX) + " " + std::to_string(MouseY) + " | ").c_str());
 
 		OmniNet::OmniHeader IOHeader;
 
@@ -236,7 +236,10 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 		IOHeader.PacketType = OmniNet::PacketType::ProcMouse;
 		IOHeader.Flags = 0;
 
-		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&input), sizeof(RAWINPUT), IOHeader);
+		MouseXY MousePos = { MouseX+1920,MouseY };
+
+		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MousePos), sizeof(MouseXY), IOHeader);
+
 		
 	}
 	else if (input->header.dwType == RIM_TYPEKEYBOARD) {
@@ -244,8 +247,8 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 		
 		OmniNet::OmniHeader IOHeader;
 
-		IOHeader.Target = 0;
 		IOHeader.PacketType = OmniNet::PacketType::ProcKey;
+		IOHeader.Target = 0;
 		IOHeader.Flags = 0;
 
 		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&input), sizeof(RAWINPUT), IOHeader);

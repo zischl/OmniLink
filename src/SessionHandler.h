@@ -105,9 +105,10 @@ public:
 							break;
 						default:
 							PacketHandlerFn(Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Ctx);
-						}
-							Pool.ResetChunk();
+							//Pool.ResetChunk();
 							break;
+						}
+							
 
 
 
@@ -208,13 +209,14 @@ public:
 	void (*OnIOCompletion) (CHAR * Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) = nullptr;
 
 
-	inline void SessionSend(CHAR* data, int MTU, const OmniNet::OmniHeader& header) {
+	inline void SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header) {
 		CHeaderPool[SPoolHead].PacketType = header.PacketType;
 		CHeaderPool[SPoolHead].Target = header.Target;
 		CHeaderPool[SPoolHead].Flags = header.Flags;
 
 		TransmitPool[SPoolHead].TransmitBuffer[1].buf = reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
+		TransmitPool[SPoolHead].TransmitBuffer[0].len = packet_size;
 
 
 		WSASend(socketR, TransmitPool[SPoolHead].TransmitBuffer, 2, NULL, 0, &TransmitPool[SPoolHead].OVStruct, NULL);
@@ -229,6 +231,7 @@ public:
 		CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkStart;
 		CHeaderPool[SPoolHead].Target = 0;
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
+		TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
 
 		WSASend(
 			socketR,
@@ -246,6 +249,7 @@ public:
 			CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkData;
 			CHeaderPool[SPoolHead].Target = 0;
 			TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
+			TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
 
 
 			WSASend(
@@ -272,6 +276,7 @@ public:
 		}
 		CHeaderPool[SPoolHead].Target = 0;
 		TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices - MTU;
+		TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
 
 
 
@@ -301,7 +306,7 @@ public:
 				NULL
 			);
 
-			TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
+			
 
 			SPoolHead = (SPoolHead + 1) & 255;
 		}
