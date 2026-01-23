@@ -113,6 +113,8 @@ void OmniCore::ConnectInstance(DeviceMap index)
 	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveInstances[DeviceMap::C0]);
 	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
 	ActiveInstances[index].InstanceSession->OnIOCompletion = NetworkPacketHandler;
+	
+	OmniCap.SetActiveSession(ActiveInstances[index].InstanceSession);
 }
 
 
@@ -208,9 +210,6 @@ void OmniLink::ToggleDDAPI() {
 
 
 
-
-
-
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	OmniAPI::Ignite(*this);
@@ -276,38 +275,20 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	ScanInstances();
 
 
-	/*##############################################################*/
-
+	/// Input Capture Test Cases ///
 
 	//OmniCap.WindowMoveListener(true);
 	//OmniCap.ToggleInputCapture(hwnd, true);
 	OmniCap.ToggleEdgeProbe(hwnd, true);
 	OmniCap.AddEdgeCondition(DeviceMap::L1);
+	
+
+
+	/// ......................................... ///
 
 	/*Link = new WinForge(WProc2);
 	HWND hwnd_cap = Link->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);*/
 	//Link.SetFPSLimit(60);
-
-	/*##############################################################*/
-
-
-	///* ################################################################ */
-
-	OmniCap.OnMouseCapture = [](RAWINPUT& input) {
-		Logger::log(": ", input.data.mouse.lLastX, ": ", input.data.mouse.lLastX);		
-		//ActiveInstances[]
-		};
-
-	OmniCap.OnKeyboardCapture = [](RAWINPUT& input) {
-		Logger::log(": ", input.data.keyboard.MakeCode);
-		
-		};
-
-	OmniCap.OnInitialMouseCapture = [](int MouseX, int MouseY) {
-		Logger::log(": Init M Cap : ", MouseX, " :: ", MouseY);
-		};
-
-	///* ################################################################ */
 
 
 	//ToggleWGC();

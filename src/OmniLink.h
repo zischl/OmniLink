@@ -186,7 +186,7 @@ public:
 			{
 				MouseXY* Payload = reinterpret_cast<MouseXY*>(Buffer);
 				OmniSynth::ProcMouse(Payload->X, Payload->Y);
-				
+
 			}
 			break;
 
@@ -211,7 +211,7 @@ public:
 #endif
 
 		(&arr)[size] = '\0';
-	}
+	};
 
 
 	inline void IP2Char(const uint32_t IP, char* array)

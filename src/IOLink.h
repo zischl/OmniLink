@@ -36,6 +36,9 @@ struct KeyData
 	USHORT Flags;
 };
 
+
+class session;
+
 class OmniCap {
 public:
 	OmniCap();
@@ -76,13 +79,13 @@ public:
 	// Termination sequence for input capturing process
 	void VoidExitCallback(LPARAM& lParam);
 
-	void (*OnMouseCapture)(RAWINPUT& input) = nullptr;
+
+	// for future usage if dynamic assignment of input capture handling is needed
+	/*void (*OnMouseCapture)(RAWINPUT& Input) = nullptr;
 
 	void (*OnKeyboardCapture)(RAWINPUT& RawInput) = nullptr;
 
-	void (*OnInitialMouseCapture)(int MouseX, int MouseY) = nullptr;
-
-	//void (*InputCaptureEvent)(RAWINPUT& RawInput) = nullptr;
+	void (*OnInitialMouseCapture)(int MouseX, int MouseY) = nullptr;*/
 
 	/// ########################################################################################## ///
 	/// Window Move Event Detection																   ///
@@ -90,8 +93,14 @@ public:
 
 	void WindowMoveListener(bool state = false);
 
+	inline void SetActiveSession(session* target) {
+		ActiveSession = target;
+	}
 
 private:
+
+	DeviceMap ActiveEdgeCondition;
+	session* ActiveSession = nullptr;
 
 	std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions = ConditionManager.conditions;
 
@@ -101,7 +110,6 @@ private:
 	HWINEVENTHOOK WinCapHook = NULL;
 	HHOOK MouseCapHook = NULL;
 	UINT RawInputSize;
-
 
 	//Callback for window movement detection
 	static void CALLBACK WinMvEventProc(
@@ -116,7 +124,6 @@ private:
 
 
 };
-
 
 
 class OmniSynth {
