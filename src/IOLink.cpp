@@ -213,10 +213,15 @@ void OmniCap::InputProcInit(LPARAM& lParam) {
 	IOHeader.PacketType = OmniNet::PacketType::ProcMouse;
 	IOHeader.Flags = 0;
 
-	MouseXY MousePos = { 9999,MouseY };
+	INPUT MouseInput = { 0 };
 
-	ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MousePos), sizeof(MouseXY), IOHeader);
-	OutputDebugStringA("We going in");
+	MouseInput.type = INPUT_MOUSE;
+	MouseInput.mi.dx = MouseX + 1920;
+	MouseInput.mi.dx = MouseY;
+	MouseInput.mi.dwFlags = MOUSEEVENTF_ABSOLUTE;
+
+	ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), IOHeader);
+	//OutputDebugStringA("We going in");
 }
 
 void OmniCap::InputProcCallback(LPARAM& lParam) {
@@ -236,9 +241,22 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 		IOHeader.PacketType = OmniNet::PacketType::ProcMouse;
 		IOHeader.Flags = 0;
 
-		MouseXY MousePos = { MouseX+1920,MouseY };
+		INPUT MouseInput = { 0 };
 
-		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MousePos), sizeof(MouseXY), IOHeader);
+		MouseInput.type = INPUT_MOUSE;
+		MouseInput.mi.dx = input->data.mouse.lLastX;
+		MouseInput.mi.dx = input->data.mouse.lLastY;
+		MouseInput.mi.mouseData = input->data.mouse.usButtonData;
+		MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE;
+
+		if (input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)   MouseInput.mi.dwFlags |= MOUSEEVENTF_LEFTDOWN;
+		if (input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)     MouseInput.mi.dwFlags |= MOUSEEVENTF_LEFTUP;
+		if (input->data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)  MouseInput.mi.dwFlags |= MOUSEEVENTF_RIGHTDOWN;
+		if (input->data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)    MouseInput.mi.dwFlags |= MOUSEEVENTF_RIGHTUP;
+		if (input->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)              MouseInput.mi.dwFlags |= MOUSEEVENTF_WHEEL;
+		if (input->data.mouse.usButtonFlags & RI_MOUSE_HWHEEL)             MouseInput.mi.dwFlags |= MOUSEEVENTF_HWHEEL;
+
+		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), IOHeader);
 
 		
 	}
@@ -271,6 +289,9 @@ void OmniSynth::SetMouseCursor(int X, int Y)
 	SetCursorPos(X, Y);
 }
 
+void OmniSynth::ProcInput(INPUT& input) {
+	SendInput(1, &input, sizeof(INPUT));
+}
 
 void OmniSynth::ProcMouse(int x, int y)
 {

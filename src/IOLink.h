@@ -20,8 +20,8 @@
 
 
 struct MouseXY {
-	int X = 0;
-	int Y = 0;
+	int32_t X;
+	int32_t Y;
 
 	MouseXY(int x, int y)
 	{
@@ -133,6 +133,8 @@ public:
 
 	//Sets current cursor position using absolute pixel cordinates
 	void static ProcMouse(int x, int y);
+
+	void static ProcInput(INPUT& input);
 
 	//Simulate keyboard button actions
 	void static ProcKey(INPUT& input);
