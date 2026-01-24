@@ -216,9 +216,10 @@ void OmniCap::InputProcInit(LPARAM& lParam) {
 	INPUT MouseInput = { 0 };
 
 	MouseInput.type = INPUT_MOUSE;
-	MouseInput.mi.dx = MouseX + 1920;
-	MouseInput.mi.dx = MouseY;
-	MouseInput.mi.dwFlags = MOUSEEVENTF_ABSOLUTE;
+	MouseInput.mi.dx = 65535;
+	MouseInput.mi.dy = 32767;
+	MouseInput.mi.mouseData =  0;
+	MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
 
 	ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), IOHeader);
 	//OutputDebugStringA("We going in");
@@ -233,7 +234,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 	if (input->header.dwType == RIM_TYPEMOUSE) {
 		MouseX += input->data.mouse.lLastX;
 		MouseY += input->data.mouse.lLastY;
-		OutputDebugStringA((std::to_string(MouseX) + " " + std::to_string(MouseY) + " | ").c_str());
+		//OutputDebugStringA((std::to_string(MouseX) + " " + std::to_string(MouseY) + " | ").c_str());
 
 		OmniNet::OmniHeader IOHeader;
 
@@ -245,7 +246,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 
 		MouseInput.type = INPUT_MOUSE;
 		MouseInput.mi.dx = input->data.mouse.lLastX;
-		MouseInput.mi.dx = input->data.mouse.lLastY;
+		MouseInput.mi.dy = input->data.mouse.lLastY;
 		MouseInput.mi.mouseData = input->data.mouse.usButtonData;
 		MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE;
 

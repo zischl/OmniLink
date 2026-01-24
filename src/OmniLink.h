@@ -184,7 +184,6 @@ public:
 			}
 			case OmniNet::PacketType::ProcMouse:
 			{
-				OutputDebugStringA("Receiving Mouse Inputs");
 				INPUT* Payload = reinterpret_cast<INPUT*>(Buffer);
 				OmniSynth::ProcInput(*Payload);
 
