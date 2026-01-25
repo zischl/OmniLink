@@ -1,0 +1,9 @@
+// Microsoft Visual C++ generated resource script.
+
+#include "resource.h"
+
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+OmniIcon                ICON                    "D:\\Workspace\\Repositories\\OmniLink\\OmniLink.ico"
+

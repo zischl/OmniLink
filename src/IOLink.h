@@ -41,7 +41,7 @@ class session;
 
 class OmniCap {
 public:
-	OmniCap();
+	OmniCap(ActiveInstanceContainer& ctx);
 	
 	// Mouse cursor position used by both edge detection and high performance input capture
 	int MouseX = 0;
@@ -101,6 +101,7 @@ private:
 
 	DeviceMap ActiveEdgeCondition;
 	session* ActiveSession = nullptr;
+	ActiveInstanceContainer& ActiveSessions;
 
 	std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions = ConditionManager.conditions;
 

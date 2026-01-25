@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "resource.h"
+
 #include "OmniAPI.h"
 #include "OmniTypes.h"
 #include "SessionHandler.h"
@@ -226,10 +228,9 @@ protected:
 	HANDLE* Events = nullptr;
 	DWORD EventDW = NULL;
 
-	OmniCap OmniCap;
-	OmniSynth OmniSynth;
-	std::mutex Mutex;
 	Instances* InstanceProbe = nullptr;
+	
+	std::mutex Mutex;
 
 	std::unordered_map<DeviceMap, OmniInstance> AllInstances = {
 		{ DeviceMap::LU1, OmniInstance(5) }, { DeviceMap::U1, OmniInstance(2) }, { DeviceMap::RU1, OmniInstance(6) },
@@ -240,6 +241,11 @@ protected:
 	std::unordered_map<uint32_t, DeviceMap> InstanceLookup = {};
 
 	std::unordered_map<DeviceMap, OmniActiveInstance> ActiveInstances;
+
+
+	OmniCap OmniCap{ ActiveInstances };
+	OmniSynth OmniSynth;
+
 	sessions sessions;
 	uint8_t SessionCount = 0;
 
@@ -310,6 +316,8 @@ private:
 	//GUI
 	OmniGUI* GUI = nullptr;
 
+	NOTIFYICONDATAW TrayIconData = {};
+
 	std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::nanoseconds(15 * 1000000);
 
 	std::chrono::time_point<std::chrono::steady_clock> LastFrameTime = std::chrono::steady_clock::now();
@@ -332,7 +340,7 @@ private:
 
 	void OmniMainLoop();
 
-	static void PanelRendererSwitch(HWND hwnd);
+	void InitTrayIcon(HWND hwnd);
 
 };
 

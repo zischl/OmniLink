@@ -199,6 +199,7 @@ struct OmniActiveInstance : OmniInstance
 
 };
 
+using ActiveInstanceContainer = std::unordered_map<DeviceMap, OmniActiveInstance>;
 
 template <size_t MaxFrameLen>
 struct FrameByte

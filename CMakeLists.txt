@@ -46,6 +46,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/cuda)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 
 
@@ -92,7 +93,7 @@ add_executable(main WIN32
     src/OmniAPI.cpp
     ${SourceDir}/system_probe.cpp
     src/AudioCap.cpp
-
+    resource.rc
 )
 
 target_compile_definitions(main PUBLIC 

@@ -81,7 +81,7 @@ public:
 					ImGui::SameLine(0.0f, 0.0f);
 
 					if (IconizedButton("Input Link", size)) {
-						//SetEvent(EventHandler[0]);
+						SetEvent(EventHandler[3]);
 					}
 					ImGui::SameLine(0.0f, 0.0f);
 

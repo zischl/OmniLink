@@ -1,7 +1,7 @@
 #include <IOLink.h>
 #include <SessionHandler.h>
 
-OmniCap::OmniCap() {
+OmniCap::OmniCap(ActiveInstanceContainer& ActiveSessionList): ActiveSessions(ActiveSessionList){
 	POINT pos = {};
 	GetCursorPos(&pos);
 	MouseX = pos.x;
@@ -70,7 +70,7 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 				GetCursorPos(&pos);
 				MouseX = pos.x;
 				MouseY = pos.y;
-
+				
 				for (auto& [name, cond] : Conditions) {
 					if (cond(MouseX, MouseY)) {
 						ToggleInputCapture(hwnd, true);
@@ -78,6 +78,27 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 						const RECT CuLockPos = { MouseX, MouseY, MouseX, MouseY };
 						ClipCursor(&CuLockPos);
 						ActiveEdgeCondition = name;
+
+						OutputDebugStringA("Initializing Connection\n");
+						auto session = ActiveSessions.find(name);
+
+						if (session != ActiveSessions.end()) {
+							ActiveSession = session->second.InstanceSession;
+							OutputDebugStringA("Instance connected\n");
+
+						}
+						else {
+							OutputDebugStringA("No instance connected\n");
+						}
+
+						SetWindowLong(hwnd, GWL_EXSTYLE,
+							GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+						SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+
+						ShowWindow(hwnd, SW_MINIMIZE);
+						SetForegroundWindow(hwnd);
+						SetFocus(hwnd);
+
 						//OutputDebugStringA("true");
 						break;
 					}
@@ -103,6 +124,11 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 					ToggleInputCapture(hwnd, false);
 					ClipCursor(NULL);
 					SetCursorPos(uMx, uMy);
+
+					SetWindowLong(hwnd, GWL_EXSTYLE,
+						GetWindowLong(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+					ShowWindow(hwnd, SW_MINIMIZE);
+
 					//OutputDebugStringA("false");
 					break;
 				}

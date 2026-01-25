@@ -113,8 +113,8 @@ void OmniCore::ConnectInstance(DeviceMap index)
 	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveInstances[DeviceMap::C0]);
 	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
 	ActiveInstances[index].InstanceSession->OnIOCompletion = NetworkPacketHandler;
-	
-	OmniCap.SetActiveSession(ActiveInstances[index].InstanceSession);
+
+	OmniCap.AddEdgeCondition(index);
 }
 
 
@@ -211,14 +211,14 @@ void OmniLink::ToggleDDAPI() {
 
 
 void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
-
+	
 	OmniAPI::Ignite(*this);
 
 	Events = new HANDLE[6];
 	Events[0] = CreateEvent(NULL, FALSE, TRUE, L"PanelRender");
 	Events[1] = CreateEvent(NULL, FALSE, FALSE, L"ToggleWGC");
 	Events[2] = CreateEvent(NULL, FALSE, FALSE, L"ToggleDDAPI");
-	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"empty");
+	Events[3] = CreateEvent(NULL, FALSE, FALSE, L"InputLink");
 	Events[4] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommand");
 	Events[5] = CreateEvent(NULL, FALSE, FALSE, L"ExecuteCommandWArgs");
 
@@ -230,7 +230,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	HWND hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
 	ShowWindow(hwnd, SW_SHOW);
 	UpdateWindow(hwnd);
-
+	InitTrayIcon(hwnd);
 
 	OmniRenderer Renderer;
 
@@ -279,8 +279,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	//OmniCap.WindowMoveListener(true);
 	//OmniCap.ToggleInputCapture(hwnd, true);
+	
 	OmniCap.ToggleEdgeProbe(hwnd, true);
-	OmniCap.AddEdgeCondition(DeviceMap::L1);
+
 	
 
 
@@ -296,7 +297,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	//testarray.Workers[1].StartWaitThread(1, OmniLink::WGCapSend, session1, WGSCapture, Nv);
 
-
+	
 	OmniMainLoop();
 
 }
@@ -353,8 +354,9 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 3:
-			(this->*ExecuteCommand)();
-			SetEvent(Events[3]);
+
+			/*(this->*ExecuteCommand)();
+			SetEvent(Events[3]);*/
 			break;
 
 		case WAIT_OBJECT_0 + 4:
@@ -404,17 +406,14 @@ void OmniLink::OmniMainLoop() {
 	}
 }
 
-void OmniLink::PanelRendererSwitch(HWND hwnd) {
+void OmniLink::InitTrayIcon(HWND hwnd) {
 
-
-	NOTIFYICONDATAW TrayIconData = {};
-
-	TrayIconData.cbSize = sizeof(TrayIconData);
+	TrayIconData.cbSize = sizeof(NOTIFYICONDATAW);
 	TrayIconData.hWnd = hwnd;
 	TrayIconData.uID = 62485;
 	TrayIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	TrayIconData.uCallbackMessage = WM_TRAYICON;
-	TrayIconData.hIcon = LoadIcon(nullptr, IDI_APPLICATION); 
+	TrayIconData.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(OmniIcon));
 	lstrcpy(TrayIconData.szTip, L"OmniLink");
 
 	Shell_NotifyIcon(NIM_ADD, &TrayIconData);
@@ -441,7 +440,7 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 		return 0;
 	case WM_CLOSE:
 		ShowWindow(hwnd, SW_HIDE);
-		PanelRendererSwitch(hwnd);
+		Shell_NotifyIcon(NIM_DELETE, &(omni->TrayIconData));
 		return 0;
 	case WM_SETCURSOR:
 		SetCursor(LoadCursor(NULL, IDC_ARROW));
