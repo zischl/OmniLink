@@ -270,6 +270,20 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 		IOHeader.Target = 0;
 		IOHeader.Flags = 0;
 
+		INPUT KBInput = { 0 };
+
+		KBInput.type = INPUT_KEYBOARD;
+		KBInput.ki.wScan = key;
+		KBInput.ki.dwFlags = KEYEVENTF_SCANCODE;
+
+		if (input->data.keyboard.Flags & RI_KEY_E0)
+			KBInput.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+
+		if (input->data.keyboard.Flags & RI_KEY_BREAK)
+			KBInput.ki.dwFlags |= KEYEVENTF_KEYUP;
+
+
+
 		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&input), sizeof(RAWINPUT), IOHeader);
 	}
 

@@ -193,8 +193,8 @@ public:
 
 			case OmniNet::ProcKey:
 			{
-				RAWINPUT* Payload = reinterpret_cast<RAWINPUT*>(Buffer);
-				//OmniSynth::ProcKey(*Payload);
+				INPUT* Payload = reinterpret_cast<INPUT*>(Buffer);
+				OmniSynth::ProcInput(*Payload);
 				break;
 
 			}
