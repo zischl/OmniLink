@@ -219,7 +219,7 @@ void OmniCap::InputProcInit(LPARAM& lParam) {
 	MouseInput.mi.dx = 65535;
 	MouseInput.mi.dy = 32767;
 	MouseInput.mi.mouseData =  0;
-	MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+	MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
 
 	ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), IOHeader);
 	//OutputDebugStringA("We going in");
@@ -247,8 +247,8 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 		MouseInput.type = INPUT_MOUSE;
 		MouseInput.mi.dx = input->data.mouse.lLastX;
 		MouseInput.mi.dy = input->data.mouse.lLastY;
-		MouseInput.mi.mouseData = input->data.mouse.usButtonData;
-		MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE;
+		MouseInput.mi.mouseData = (SHORT)input->data.mouse.usButtonData;
+		MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK;
 
 		if (input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)   MouseInput.mi.dwFlags |= MOUSEEVENTF_LEFTDOWN;
 		if (input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)     MouseInput.mi.dwFlags |= MOUSEEVENTF_LEFTUP;
