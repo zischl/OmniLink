@@ -262,10 +262,10 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 		
 	}
 	else if (input->header.dwType == RIM_TYPEKEYBOARD) {
-		USHORT key = input->data.keyboard.MakeCode;
+		SHORT key = (SHORT)input->data.keyboard.MakeCode;
 		
 		OmniNet::OmniHeader IOHeader;
-
+		
 		IOHeader.PacketType = OmniNet::PacketType::ProcKey;
 		IOHeader.Target = 0;
 		IOHeader.Flags = 0;
@@ -274,6 +274,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 
 		KBInput.type = INPUT_KEYBOARD;
 		KBInput.ki.wScan = key;
+		//OutputDebugStringA(std::to_string(KBInput.ki.wScan).c_str());
 		KBInput.ki.dwFlags = KEYEVENTF_SCANCODE;
 
 		if (input->data.keyboard.Flags & RI_KEY_E0)
@@ -284,7 +285,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 
 
 
-		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&input), sizeof(RAWINPUT), IOHeader);
+		ActiveSession->SessionSend(reinterpret_cast<CHAR*>(&KBInput), sizeof(INPUT), IOHeader);
 	}
 
 
