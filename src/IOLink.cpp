@@ -242,8 +242,8 @@ void OmniCap::InputProcInit(LPARAM& lParam) {
 	INPUT MouseInput = { 0 };
 
 	MouseInput.type = INPUT_MOUSE;
-	MouseInput.mi.dx = 65535;
-	MouseInput.mi.dy = 32767;
+	MouseInput.mi.dx = PointCache[DeviceMap(ActiveEdgeCondition)].x;
+	MouseInput.mi.dy = PointCache[DeviceMap(ActiveEdgeCondition)].y;
 	MouseInput.mi.mouseData =  0;
 	MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
 

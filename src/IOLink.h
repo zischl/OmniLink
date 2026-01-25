@@ -37,6 +37,23 @@ struct KeyData
 };
 
 
+struct Point {
+	LONG x;
+	LONG y;
+};
+
+static constexpr std::array<Point, 9> PointCache = { {
+	{32767,32767},  // C0
+	{65535, 32767}, // L1 
+	{32767, 65535}, // U1 
+	{0, 32767},     // R1 
+	{32767, 0},     // D1
+	{65535, 65535}, // LU1
+	{0, 65535},     // RU1
+	{0, 0},         // RD1
+	{65535, 0}      // LD1
+} };
+
 class session;
 
 class OmniCap {
