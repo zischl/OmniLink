@@ -73,33 +73,36 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 				
 				for (auto& [name, cond] : Conditions) {
 					if (cond(MouseX, MouseY)) {
-						ToggleInputCapture(hwnd, true);
-						MouseEventStatus->store(false);
-						const RECT CuLockPos = { MouseX, MouseY, MouseX, MouseY };
-						ClipCursor(&CuLockPos);
-						ActiveEdgeCondition = name;
-
-						OutputDebugStringA("Initializing Connection\n");
 						auto session = ActiveSessions.find(name);
 
 						if (session != ActiveSessions.end()) {
 							ActiveSession = session->second.InstanceSession;
-							OutputDebugStringA("Instance connected\n");
+							//OutputDebugStringA("Instance connected\n");
 
 						}
-						else {
-							OutputDebugStringA("No instance connected\n");
-						}
+						
+						ActiveEdgeCondition = name;
 
-						SetWindowLong(hwnd, GWL_EXSTYLE,
-							GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+						/*SetWindowLong(hwnd, GWL_EXSTYLE,
+							GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+
 						SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
 
-						ShowWindow(hwnd, SW_MINIMIZE);
+						ShowWindow(hwnd, SW_SHOW);
 						SetForegroundWindow(hwnd);
 						SetFocus(hwnd);
 
-						//OutputDebugStringA("true");
+						
+						const RECT CuLockPos = { MouseX, MouseY, MouseX, MouseY};
+						ClipCursor(&CuLockPos);*/
+
+						MouseEventStatus->store(false);
+						ToggleInputCapture(hwnd_, true);
+
+						LockState.store(true);
+
+
+						OutputDebugStringA("true");
 						break;
 					}
 				}
@@ -112,24 +115,34 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 
 
 			while (MouseEventStatus->load()) {
-				GetCursorPos(&pos);
-				
 
-				unsigned uMx = MouseX;
-				unsigned uMy = MouseY;
+				/*unsigned uMx = MouseX;
+				unsigned uMy = MouseY;*/
 
-				bool InsideCheck = (uMx <= ResWidth) & (uMy <= ResHeight);
+				bool InsideCheck = (MouseX < ResWidth) && (MouseX > 0) && (MouseY < ResHeight) && (MouseY > 0);
 
 				if (InsideCheck) {
-					ToggleInputCapture(hwnd, false);
-					ClipCursor(NULL);
+					LockState.store(false);
+
+					ToggleInputCapture(hwnd_, false);
+
+
+					ActiveSession = nullptr;
+
+
+
+					/*ClipCursor(NULL);
 					SetCursorPos(uMx, uMy);
 
-					SetWindowLong(hwnd, GWL_EXSTYLE,
-						GetWindowLong(hwnd, GWL_EXSTYLE) & ~WS_EX_LAYERED);
-					ShowWindow(hwnd, SW_MINIMIZE);
+					SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+					LONG wl = GetWindowLong(hwnd, GWL_EXSTYLE);
+					wl &= ~WS_EX_TRANSPARENT;
+					SetWindowLong(hwnd, GWL_EXSTYLE, wl);
 
-					//OutputDebugStringA("false");
+					ShowWindow(hwnd, SW_MINIMIZE);*/
+
+					OutputDebugStringA("false");
+					std::this_thread::sleep_for(std::chrono::milliseconds(300));
 					break;
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(150));
@@ -260,7 +273,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam) {
 	if (input->header.dwType == RIM_TYPEMOUSE) {
 		MouseX += input->data.mouse.lLastX;
 		MouseY += input->data.mouse.lLastY;
-		//OutputDebugStringA((std::to_string(MouseX) + " " + std::to_string(MouseY) + " | ").c_str());
+		OutputDebugStringA((std::to_string(MouseX) + " " + std::to_string(MouseY) + " | \n").c_str());
 
 		OmniNet::OmniHeader IOHeader;
 
@@ -361,3 +374,35 @@ void OmniSynth::ProcKey(KeyData& input)
 	SendInput(1, &InputStruct, sizeof(InputStruct));
 }
 
+
+
+OmniShield::OmniShield() {
+
+}
+
+LRESULT OmniShield::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+	return LockState.load() ? 1 : CallNextHookEx(nullptr, nCode, wParam, lParam);
+	//return 1;
+}
+
+LRESULT OmniShield::MouseProc(int nCode, WPARAM wParam, LPARAM lParam) {
+	return LockState.load() ? 1 : CallNextHookEx(nullptr, nCode, wParam, lParam);
+	//return 1;
+}
+
+
+void OmniShield::InvokeInputFilter()
+{
+	KeyboardBlock = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
+	MouseBlock = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
+
+	if (!KeyboardBlock || !MouseBlock)
+		std::cout << "Failed to install hooks." << std::endl;
+}
+
+
+void OmniShield::ReleaseInputFilter()
+{
+	if (KeyboardBlock) UnhookWindowsHookEx(KeyboardBlock);
+	if (MouseBlock) UnhookWindowsHookEx(MouseBlock);
+}

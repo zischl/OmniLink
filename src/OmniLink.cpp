@@ -227,7 +227,7 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	//Control Panel Creation
 	WinConfig config(L'Controller Window', 1280, 810, L'Nexus', (LPVOID)this);
-	HWND hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
+	hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
 	ShowWindow(hwnd, SW_SHOW);
 	UpdateWindow(hwnd);
 	InitTrayIcon(hwnd);
@@ -280,10 +280,6 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 	//OmniCap.WindowMoveListener(true);
 	//OmniCap.ToggleInputCapture(hwnd, true);
 	
-	OmniCap.ToggleEdgeProbe(hwnd, true);
-
-	
-
 
 	/// ......................................... ///
 
@@ -354,7 +350,8 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 3:
-
+			OmniCap.ToggleEdgeProbe(hwnd, true); 
+			InputFilter.InvokeInputFilter();
 			/*(this->*ExecuteCommand)();
 			SetEvent(Events[3]);*/
 			break;

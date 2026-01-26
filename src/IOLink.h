@@ -19,6 +19,8 @@
 #include <hidusage.h>
 
 
+
+
 struct MouseXY {
 	int32_t X;
 	int32_t Y;
@@ -55,6 +57,28 @@ static constexpr std::array<Point, 9> PointCache = { {
 } };
 
 class session;
+
+static std::atomic<bool> LockState = false;
+
+class OmniShield {
+public:
+
+	OmniShield();
+
+	void InvokeInputFilter();
+
+	void ReleaseInputFilter();
+
+	static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+
+	static LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam);
+
+
+private:
+	HHOOK KeyboardBlock = NULL;
+	HHOOK MouseBlock = NULL;
+};
+
 
 class OmniCap {
 public:
@@ -116,6 +140,7 @@ public:
 
 private:
 
+
 	DeviceMap ActiveEdgeCondition;
 	session* ActiveSession = nullptr;
 	ActiveInstanceContainer& ActiveSessions;
@@ -141,7 +166,11 @@ private:
 	);
 
 
+	
+
+
 };
+
 
 
 class OmniSynth {

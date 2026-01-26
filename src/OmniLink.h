@@ -316,6 +316,8 @@ private:
 	//GUI
 	OmniGUI* GUI = nullptr;
 
+	HWND hwnd;
+
 	NOTIFYICONDATAW TrayIconData = {};
 
 	std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::nanoseconds(15 * 1000000);
@@ -335,8 +337,9 @@ private:
 	//Active Input Proc Target Device
 	static DeviceMap ActiveIOProcTarget;
 
-
 	MSG msg = { };
+
+	OmniShield InputFilter;
 
 	void OmniMainLoop();
 
