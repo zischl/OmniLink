@@ -58,14 +58,31 @@ void CALLBACK OmniCap::WinMvEventProc(
 
 }
 
-void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
+void OmniCap::ToggleEdgeProbe(HWND hwnd) {
+	if (InputLinkStatus.load()) {
+		InputLinkStatus.store(false);
+		MouseEventCapStatus.store(false);
+	}
+	else {
+		CreateEdgeProbe(hwnd, true);
+	}
+}
+
+
+bool OmniCap::GetEdgeProbeState() {
+	return InputLinkStatus.load();
+}
+
+
+void OmniCap::CreateEdgeProbe(HWND hwnd, bool state) {
+	InputLinkStatus.store(true);
 	MouseEventCapStatus.store(true);
 	std::atomic_bool* MouseEventStatus = &MouseEventCapStatus;
 	std::thread EventThread([hwnd, MouseEventStatus, this]() {
 		HWND hwnd_ = hwnd;
 		POINT pos = {};
 		while (true) {
-
+			std::cout << "Edge Probe Thread Running\n";
 			while (MouseEventStatus->load()) {
 				GetCursorPos(&pos);
 				MouseX = pos.x;
@@ -111,6 +128,7 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 				std::this_thread::sleep_for(std::chrono::milliseconds(150));
 			}
 
+			if (!InputLinkStatus.load()) { break; }
 			MouseEventStatus->store(true);
 
 
@@ -147,6 +165,8 @@ void OmniCap::ToggleEdgeProbe(HWND hwnd, bool state) {
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(150));
 			}
+
+			if (!InputLinkStatus.load()) { break; }
 
 		}
 		});

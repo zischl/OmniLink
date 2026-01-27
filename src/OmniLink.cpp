@@ -118,22 +118,24 @@ void OmniCore::ConnectInstance(DeviceMap index)
 }
 
 
-void OmniLink::ToggleFeature(DeviceMap Index, int FeatureIndex)
+void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
 {
 	switch (FeatureIndex)
 	{
-	case 0:
+	case FeatureTypes::ScreenLink:
 		ToggleDDAPI();
 		break;
-	case 1:
+	case FeatureTypes::WindowLink:
 		ToggleWGC();
 		break;
-	case 2:
-		if (OmniCap.ConditionManager.Find(Index)) { 
-			OmniCap.ConditionManager.Remove(Index); 
+	case FeatureTypes::InputLink:
+		OmniCap.ToggleEdgeProbe(hwnd);
+		if (OmniCap.GetEdgeProbeState()) 
+		{ 
+			InputFilter.InvokeInputFilter(); 
 		}
 		else {
-			OmniCap.AddEdgeCondition(Index);
+			InputFilter.ReleaseInputFilter();
 		}
 		break;
 	}
@@ -350,8 +352,7 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 3:
-			OmniCap.ToggleEdgeProbe(hwnd, true); 
-			InputFilter.InvokeInputFilter();
+			
 			/*(this->*ExecuteCommand)();
 			SetEvent(Events[3]);*/
 			break;

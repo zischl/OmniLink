@@ -32,12 +32,18 @@ class WinForge;
 
 
 enum FeatureFlags {
-	Inactive = 0,
-	ScreenLink = 1 < 0,
-	WindowLink = 1 < 1,
-	InputLink = 1 < 2,
-	Link = 1 < 3,
+	fInactive = 0,
+	fScreenLink = 1 < 0,
+	fWindowLink = 1 < 1,
+	fInputLink = 1 < 2,
+	fLink = 1 < 3,
 
+};
+
+enum FeatureTypes {
+	ScreenLink,
+	WindowLink,
+	InputLink
 };
 
 enum DeviceMap {
@@ -183,7 +189,7 @@ struct OmniActiveInstance : OmniInstance
 	session* InstanceSession = nullptr;
 	std::vector<WinForge*> ActiveWindows;
 	uint16_t port = 62485;
-	int ActiveFlags = FeatureFlags::Inactive;
+	int ActiveFlags = FeatureFlags::fInactive;
 	//std::vector<NvencSession> NVEncoderSessions;
 
 

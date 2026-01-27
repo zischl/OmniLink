@@ -98,9 +98,11 @@ public:
 
 	FlowMorph<int, int, DeviceMap> ConditionManager;
 
+	void ToggleEdgeProbe(HWND hwnd);
 
+	bool GetEdgeProbeState();
 
-	void ToggleEdgeProbe(HWND hwnd, bool state = false);
+	void CreateEdgeProbe(HWND hwnd, bool state = true);
 
 	void AddEdgeCondition(DeviceMap Index);
 
@@ -139,7 +141,7 @@ public:
 	}
 
 private:
-
+	std::atomic_bool InputLinkStatus = false;
 
 	DeviceMap ActiveEdgeCondition;
 	session* ActiveSession = nullptr;
@@ -151,7 +153,6 @@ private:
 
 	std::atomic_bool MouseEventCapStatus;
 	HWINEVENTHOOK WinCapHook = NULL;
-	HHOOK MouseCapHook = NULL;
 	UINT RawInputSize;
 
 	//Callback for window movement detection

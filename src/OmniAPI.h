@@ -23,6 +23,7 @@ public:
 
 	static void ExecuteNetCommandWArgs(OmniCommand Command);
 
+	static void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
 
 
 	inline static void perf_test_start() { 

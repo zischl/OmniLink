@@ -71,17 +71,17 @@ public:
 					ImVec2 size = ImVec2(165, 135);
 
 					if (IconizedButton("Screen Link", size)) {
-						SetEvent(EventHandler[2]);
+						OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, DeviceMap::C0);
 					}
 					ImGui::SameLine(0.0f, 0.0f);
 
 					if (IconizedButton("Window Link", size)) {
-						SetEvent(EventHandler[1]);
+						OmniAPI::ToggleFeature(FeatureTypes::WindowLink, DeviceMap::C0);
 					}
 					ImGui::SameLine(0.0f, 0.0f);
 
 					if (IconizedButton("Input Link", size)) {
-						SetEvent(EventHandler[3]);
+						OmniAPI::ToggleFeature(FeatureTypes::InputLink, DeviceMap::C0);
 					}
 					ImGui::SameLine(0.0f, 0.0f);
 

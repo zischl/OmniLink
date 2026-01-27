@@ -285,7 +285,7 @@ public:
 
 	void ToggleDDAPI();
 
-	void ToggleFeature(DeviceMap Index, int FeatureIndex);
+	void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
 
 	inline static void WGCapSend(session* session, WGScreenCapture* WGSCapture, NVENCODER* Nv) {
 		WGSCapture->WriteStateLock();
