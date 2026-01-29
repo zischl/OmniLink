@@ -88,6 +88,10 @@ public:
 
 	NvencSession(void* D3DDevice, NV_ENCODE_API_FUNCTION_LIST& NVFunctions_, ID3D11Texture2D* inputResource, UINT encodeWidth, UINT encodeHeight);
 
+	void Encode();
+	void NVUnlockBitStream();
+	void NVCleanup();
+
 private:
 	NVENCSTATUS status;
 	NV_ENCODE_API_FUNCTION_LIST& NVFunctions;
@@ -101,9 +105,7 @@ private:
 	void RegisterResource(ID3D11Texture2D* inputResource, NvencResourceRegConfig& Config);
 
 	void CreateBitStream();
-	void Encode();
-	void NVUnlockBitStream();
-	void NVCleanup();
+	
 
 	NV_ENC_OUTPUT_PTR getBitstream() const { return NvencOutput; }
 	NV_ENC_REGISTER_RESOURCE getRegisteredResource() const { return NVRegisterResource; }

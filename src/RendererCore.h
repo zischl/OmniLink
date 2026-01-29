@@ -6,6 +6,8 @@
 #pragma warning(default : 4714)
 
 #pragma once
+#include "Logger.h"
+
 #include <Windows.h>
 #include <string>
 #include <vector>

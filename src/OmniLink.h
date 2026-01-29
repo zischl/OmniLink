@@ -287,7 +287,7 @@ public:
 
 	void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
 
-	inline static void WGCapSend(session* session, WGScreenCapture* WGSCapture, NVENCODER* Nv) {
+	inline static void WGCapSend(session* session, WGScreenCapture* WGSCapture, NvencSession* Nv) {
 		WGSCapture->WriteStateLock();
 
 		//Nv->Encode();
@@ -300,11 +300,12 @@ public:
 
 	}
 
-	inline static void DXGICapSend(session* session, DXGICapture* DXGICap, NVENCODER* Nv) {
+	inline static void DXGICapSend(session* session, DXGICapture* DXGICap, WinForge* Link, NvencSession* Nv) {
 		if (DXGICap->CaptureDXGI() == 0) {
-
-			//Nv->Encode();
-			//session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+			Nv->Encode();
+			//Link->SetBufferData(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+			//Link->SetRenderEvent();
+			session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
 		}
 
 	}
@@ -340,6 +341,10 @@ private:
 	MSG msg = { };
 
 	OmniShield InputFilter;
+
+	WinForge Link{WProc2};
+
+	NvencSession* NvencSessionPtr = nullptr;
 
 	void OmniMainLoop();
 

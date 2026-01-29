@@ -171,7 +171,10 @@ std::vector <ComPtr<ID3D11RenderTargetView>> Renderer::CreateRTVArray(ID3D11Devi
 ComPtr<ID3D11PixelShader> Renderer::CreatePixelShader(ID3D11Device* D3D11Device, LPCWSTR FileName) {
 	
 	ComPtr<ID3DBlob> pixelShaderBlob = nullptr;
-	D3DReadFileToBlob(FileName, &pixelShaderBlob);
+	hr = D3DReadFileToBlob(FileName, &pixelShaderBlob);
+	if (hr != S_OK) {
+		Logger::log("rdgdrg");
+	}
 
 	ComPtr<ID3D11PixelShader> pixelShader;
 

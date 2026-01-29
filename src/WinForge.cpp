@@ -52,7 +52,6 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 HWND WinForge::CreateWindowAsync(wchar_t window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct) {
 
 	std::thread test1([&] {
-
 		hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 		WinConfig config(L'Linker', 1920, 1080, window_name, NULL);
 		hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
@@ -86,7 +85,7 @@ HWND WinForge::CreateWindowAsync(wchar_t window_name, HINSTANCE& hInstance, int 
 
 		stride = ShaderPtrs.VertexBufferStride;
 		offset = ShaderPtrs.VertexBufferOffset;
-		
+
 		Renderer.SetShaders(D3D11Context, &ShaderPtrs);
 
 		srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
