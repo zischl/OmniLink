@@ -13,27 +13,27 @@ set(CMAKE_CUDA_ARCHITECTURES 75 80 86 89 90 100 120)
 
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/debug/VertexShader.cso
-    COMMAND fxc /T vs_5_0 /E VSMain /Fo debug/VertexShader.cso /Fc vsshaderAssembly.txt ${CMAKE_CURRENT_SOURCE_DIR}/src/vertex_shader.hlsl
+    COMMAND fxc /T vs_5_0 /E VSMain /Fo VertexShader.cso /Fc vsshaderAssembly.txt ${CMAKE_CURRENT_SOURCE_DIR}/src/vertex_shader.hlsl
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/vertex_shader.hlsl
 )
 
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/debug/PixelShader.cso
-    COMMAND fxc /T ps_5_0 /E PSMain /Fo debug/PixelShader.cso /Fc psshaderAssembly.txt ${CMAKE_CURRENT_SOURCE_DIR}/src/pixel_shader.hlsl
+    COMMAND fxc /T ps_5_0 /E PSMain /Fo PixelShader.cso /Fc psshaderAssembly.txt ${CMAKE_CURRENT_SOURCE_DIR}/src/pixel_shader.hlsl
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/pixel_shader.hlsl
 )
 
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/debug/BGRA2NV12Shader.cso
-    COMMAND fxc /T cs_5_0 /E CSMain /Fo debug/BGRA2NV12Shader.cso /Fc csshaderAssembly.txt ${CMAKE_CURRENT_SOURCE_DIR}/src/BGRA2NV12Shader.hlsl
+    COMMAND fxc /T cs_5_0 /E CSMain /Fo BGRA2NV12Shader.cso /Fc csshaderAssembly.txt ${CMAKE_CURRENT_SOURCE_DIR}/src/BGRA2NV12Shader.hlsl
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/BGRA2NV12Shader.hlsl
 )
 
 add_custom_target(CompileShaders ALL
     DEPENDS
-        ${CMAKE_CURRENT_BINARY_DIR}/debug/VertexShader.cso
-        ${CMAKE_CURRENT_BINARY_DIR}/debug/PixelShader.cso
-        ${CMAKE_CURRENT_BINARY_DIR}/debug/BGRA2NV12Shader.cso
+        ${CMAKE_CURRENT_BINARY_DIR}/VertexShader.cso
+        ${CMAKE_CURRENT_BINARY_DIR}/PixelShader.cso
+        ${CMAKE_CURRENT_BINARY_DIR}/BGRA2NV12Shader.cso
 )
 
 
