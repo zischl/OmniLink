@@ -287,16 +287,18 @@ public:
 
 	void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
 
-	inline static void WGCapSend(session* session, WGScreenCapture* WGSCapture, NvencSession* Nv) {
+	inline static void WGCapSend(session* session, WGScreenCapture* WGSCapture, NvencSession* Nvs) {
 		WGSCapture->WriteStateLock();
 
-		//Nv->Encode();
+		Nvs->Encode();
 
 		WGSCapture->WriteStateUnlock();
 
+		OutputDebugStringA((std::to_string(Nvs->NVBitstreamLock.bitstreamSizeInBytes) + "\n").c_str());
+
 		//session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
 
-		//Nv->NVUnlockBitStream();
+		Nvs->NVUnlockBitStream();
 
 	}
 

@@ -16,4 +16,12 @@ void Logger::log(std::string_view text) {
 #endif
 }
 
+void Logger::logHR(const HRESULT hr) {
+
+	_com_error error(hr);
+	LPCTSTR errorMsg = error.ErrorMessage();
+
+
+	log("Error: {}" , errorMsg);
+}
 

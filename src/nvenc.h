@@ -23,7 +23,7 @@ struct NvencResourceRegConfig {
 struct NvencStaticConfig : NvencResourceRegConfig
 {
 	GUID NvencCodecGUID = NV_ENC_CODEC_H264_GUID;
-	GUID NvencProfileGUID = NV_ENC_H264_PROFILE_HIGH_GUID;
+	GUID NvencProfileGUID = NV_ENC_CODEC_H264_GUID;
 	NV_ENC_TUNING_INFO NvencTuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
 };
 
@@ -68,7 +68,7 @@ public:
 
 	void LoadNvEncodeAPI();
 
-	void GetSupportedCodecGUIDs(void* NVEncoder);
+	static void GetSupportedCodecGUIDs(void* NVEncoder, NV_ENCODE_API_FUNCTION_LIST& NVFunctions_);
 	void GetAvailablePresetGUIDs(void* NVEncoder);
 	void GetAvailableProfileGUIDs(void* NVEncoder, GUID NvencCodecGUID);
 	void GetSupportedInputFormats(void* NVEncoder, GUID NvencCodecGUID);
@@ -80,7 +80,7 @@ public:
 class NvencSession
 {
 public:
-	void* NVEncoder;
+	void* NVEncoder = nullptr;
 
 	NV_ENC_REGISTER_RESOURCE NVRegisterResource = {};
 	NV_ENC_OUTPUT_PTR NvencOutput;

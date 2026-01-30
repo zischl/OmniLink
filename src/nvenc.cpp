@@ -49,14 +49,14 @@ void NVENCODER::LoadNvEncodeAPI()
 
 
 
-void NVENCODER::GetSupportedCodecGUIDs(void* NVEncoder)
+void NVENCODER::GetSupportedCodecGUIDs(void* NVEncoder, NV_ENCODE_API_FUNCTION_LIST& NVFunctions_)
 {
 	NVENCSTATUS status;
 
 	uint32_t NvencGUIDCount;
-	NVFunctions.nvEncGetEncodeGUIDCount(NVEncoder, &NvencGUIDCount);
+	NVFunctions_.nvEncGetEncodeGUIDCount(NVEncoder, &NvencGUIDCount);
 	std::vector<GUID> NvencGUIDs(NvencGUIDCount);
-	status = NVFunctions.nvEncGetEncodeGUIDs(NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount);
+	status = NVFunctions_.nvEncGetEncodeGUIDs(NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount);
 	if (status != NV_ENC_SUCCESS) {
 		Logger::log("RIP Encode GUIDS \n");
 	}
@@ -152,15 +152,48 @@ void NvencSession::OpenNvEncSession(void* D3DDevice)
 void NvencSession::LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams, NvencInitConfig& config)
 {
 
-	NV_ENC_PRESET_CONFIG NVPresetConfig = {};
+	NVENCODER::GetSupportedCodecGUIDs(NVEncoder, NVFunctions);
 
+	NV_ENC_PRESET_CONFIG NVPresetConfig = {};
 	NVPresetConfig.version = NV_ENC_PRESET_CONFIG_VER;
 	NVPresetConfig.presetCfg.version = NV_ENC_CONFIG_VER;
-	NVFunctions.nvEncGetEncodePresetConfig(NVEncoder, config.NvencCodecGUID, config.NvencPresetGUID, &NVPresetConfig);
+
+	status = NVFunctions.nvEncGetEncodePresetConfigEx(NVEncoder, config.NvencCodecGUID, config.NvencPresetGUID	, config.NvencTuningInfo, &NVPresetConfig);
+	if (status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
+		Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
+		Logger::log("Encoder did not feel like giving me the preset config \n");
+	}
+
+
 
 	NVPresetConfig.presetCfg.gopLength = 1;
-	NVPresetConfig.presetCfg.encodeCodecConfig.h264Config.idrPeriod = 1;
-	NVPresetConfig.presetCfg.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
+	NVPresetConfig.presetCfg.frameIntervalP = 1;
+
+	NVPresetConfig.presetCfg.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
+
+	//NVPresetConfig.presetCfg.rcParams.averageBitRate = 0;
+	NVPresetConfig.presetCfg.rcParams.maxBitRate = 9000;
+	//NVPresetConfig.presetCfg.rcParams.vbvBufferSize = 0;
+	//NVPresetConfig.presetCfg.rcParams.vbvInitialDelay = 0;
+
+	NVPresetConfig.presetCfg.rcParams.enableLookahead = 0;
+	NVPresetConfig.presetCfg.rcParams.lookaheadDepth = 0;
+	NVPresetConfig.presetCfg.rcParams.disableIadapt = 1;
+	NVPresetConfig.presetCfg.rcParams.disableBadapt = 1;
+
+	NVPresetConfig.presetCfg.rcParams.enableAQ = 1;
+	NVPresetConfig.presetCfg.rcParams.aqStrength = 8;
+
+	auto& h264 = NVPresetConfig.presetCfg.encodeCodecConfig.h264Config;
+
+	h264.idrPeriod = 1;
+	h264.repeatSPSPPS = 1;
+	h264.disableDeblockingFilterIDC = 0;
+
+	h264.level = NV_ENC_LEVEL_AUTOSELECT;
+	h264.maxNumRefFrames = 1;
+	h264.entropyCodingMode = NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC;
+	h264.sliceMode = 0;
 
 	NvInitParams.encodeConfig = &NVPresetConfig.presetCfg;
 

@@ -23,13 +23,13 @@ ComPtr<IDXGIOutputDuplication> DXGICapture::InitDXGI(ID3D11Device* D3D11Device_)
 	hr = DXGIOutput.As(&DXGIOutputEnhanced);
 
 	hr = DXGIOutputEnhanced->DuplicateOutput(D3D11Device.Get(), &DXGIOutDuplication);
-	if (FAILED(hr)) { Logger::log((std::to_string(hr)+"\n").c_str()); }
+	HRCheck(hr);
 
 	DXGIOutDuplication->AcquireNextFrame(1000, &frameinfo, &framepixeldata);
 	framepixeldata.As(&DXGIComBuffer);
 
 	DXGIOutDuplication->ReleaseFrame();
-
+		
 	return DXGIOutDuplication;
 
 }

@@ -173,7 +173,7 @@ ComPtr<ID3D11PixelShader> Renderer::CreatePixelShader(ID3D11Device* D3D11Device,
 	ComPtr<ID3DBlob> pixelShaderBlob = nullptr;
 	hr = D3DReadFileToBlob(FileName, &pixelShaderBlob);
 	if (hr != S_OK) {
-		Logger::log("rdgdrg");
+		Logger::log("Failed to read pixel shader file to blob");
 	}
 
 	ComPtr<ID3D11PixelShader> pixelShader;

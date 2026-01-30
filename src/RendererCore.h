@@ -6,7 +6,7 @@
 #pragma warning(default : 4714)
 
 #pragma once
-#include "Logger.h"
+#include <OmniLogger.h>
 
 #include <Windows.h>
 #include <string>
