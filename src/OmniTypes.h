@@ -6,6 +6,7 @@
 #define OMNITYPES_H
 
 #pragma once
+
 #include <functional>
 #include <utility>
 #include <array>
@@ -16,6 +17,8 @@
 #include <iostream>
 #include <variant>
 #include <WinSock2.h>
+
+
 
 #if defined(_WIN32)
 #define OmniDevNameLen MAX_COMPUTERNAME_LENGTH
@@ -82,6 +85,8 @@ struct TestArg {
 };
 
 using FuncArgTypes = std::variant<ArraySwapLayout, DeviceMap, TestArg>;
+
+using DataTypes = std::variant<int>;
 
 
 struct OmniNetCommandType {

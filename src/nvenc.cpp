@@ -166,34 +166,34 @@ void NvencSession::LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams,
 
 
 
-	NVPresetConfig.presetCfg.gopLength = 1;
-	NVPresetConfig.presetCfg.frameIntervalP = 1;
+	NVPresetConfig.presetCfg.gopLength = config.gopLength;
+	NVPresetConfig.presetCfg.frameIntervalP = config.frameIntervalP;
 
-	NVPresetConfig.presetCfg.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
+	NVPresetConfig.presetCfg.rcParams.rateControlMode = config.rcParams.rateControlMode;
 
 	//NVPresetConfig.presetCfg.rcParams.averageBitRate = 0;
-	NVPresetConfig.presetCfg.rcParams.maxBitRate = 9000;
+	NVPresetConfig.presetCfg.rcParams.maxBitRate = config.rcParams.averageBitRate;
 	//NVPresetConfig.presetCfg.rcParams.vbvBufferSize = 0;
 	//NVPresetConfig.presetCfg.rcParams.vbvInitialDelay = 0;
 
-	NVPresetConfig.presetCfg.rcParams.enableLookahead = 0;
-	NVPresetConfig.presetCfg.rcParams.lookaheadDepth = 0;
-	NVPresetConfig.presetCfg.rcParams.disableIadapt = 1;
-	NVPresetConfig.presetCfg.rcParams.disableBadapt = 1;
+	NVPresetConfig.presetCfg.rcParams.enableLookahead = config.rcParams.enableLookahead;
+	NVPresetConfig.presetCfg.rcParams.lookaheadDepth = config.rcParams.enableLookahead;
+	NVPresetConfig.presetCfg.rcParams.disableIadapt = config.rcParams.disableIadapt;
+	NVPresetConfig.presetCfg.rcParams.disableBadapt = config.rcParams.disableBadapt;
 
-	NVPresetConfig.presetCfg.rcParams.enableAQ = 1;
-	NVPresetConfig.presetCfg.rcParams.aqStrength = 8;
+	NVPresetConfig.presetCfg.rcParams.enableAQ = config.rcParams.enableAQ;
+	NVPresetConfig.presetCfg.rcParams.aqStrength = config.rcParams.aqStrength;
 
 	auto& h264 = NVPresetConfig.presetCfg.encodeCodecConfig.h264Config;
 
-	h264.idrPeriod = 1;
-	h264.repeatSPSPPS = 1;
-	h264.disableDeblockingFilterIDC = 0;
+	h264.idrPeriod = config.h264Config.idrPeriod;
+	h264.repeatSPSPPS = config.h264Config.repeatSPSPPS;
+	h264.disableDeblockingFilterIDC = config.h264Config.disableDeblockingFilterIDC;
 
-	h264.level = NV_ENC_LEVEL_AUTOSELECT;
-	h264.maxNumRefFrames = 1;
-	h264.entropyCodingMode = NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC;
-	h264.sliceMode = 0;
+	h264.level = config.h264Config.level;
+	h264.maxNumRefFrames = config.h264Config.maxNumRefFrames;
+	h264.entropyCodingMode = config.h264Config.entropyCodingMode;
+	h264.sliceMode = config.h264Config.sliceMode;
 
 	NvInitParams.encodeConfig = &NVPresetConfig.presetCfg;
 

@@ -25,6 +25,8 @@ public:
 
 	static void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
 
+	static void Get(DataTypes);
+
 
 	inline static void perf_test_start() { 
 		t1 = std::chrono::high_resolution_clock::now();

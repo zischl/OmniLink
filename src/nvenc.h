@@ -4,48 +4,12 @@
 #include <string>
 #include <vector>
 #include "OmniLogger.h"
-
+#include "NvencTypes.h"
 #include <d3d11.h>
 #include <nvEncodeAPI.h>
 
 #pragma comment(lib, "nvencodeapi.lib")
 
-struct NVec2U {
-	size_t Width = 1920;
-	size_t Height = 1080;
-};
-
-struct NvencResourceRegConfig {
-	NVec2U Dimensions = {};
-	NV_ENC_BUFFER_FORMAT NvencBufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
-};
-
-struct NvencStaticConfig : NvencResourceRegConfig
-{
-	GUID NvencCodecGUID = NV_ENC_CODEC_H264_GUID;
-	GUID NvencProfileGUID = NV_ENC_CODEC_H264_GUID;
-	NV_ENC_TUNING_INFO NvencTuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
-};
-
-struct NvencStaticConfigEx : NvencStaticConfig {
-	int maxReferenceFrames;
-	bool enableBFrames;
-	bool enableSlicingMode;
-};
-
-struct NvencLiveConfig {
-	GUID NvencPresetGUID = NV_ENC_PRESET_P7_GUID;
-	int avgBitrate;
-	int maxBitrate;
-};
-
-struct NvencLiveConfigEx : NvencLiveConfig {
-	uint32_t FrameRateNum = 60;
-	uint32_t FrameRateDen = 60;
-	uint32_t EnablePTD = 1;
-};
-
-struct NvencInitConfig : NvencLiveConfigEx, NvencStaticConfig {};
 
 
 class NVENCODER {

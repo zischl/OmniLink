@@ -42,3 +42,7 @@ void OmniAPI::ExecuteNetCommandWArgs(OmniCommand Command)
 void OmniAPI::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index) {
 	App->ToggleFeature(FeatureIndex, Index);
 }
+
+void OmniAPI::Get(DataTypes) {
+	App;
+}

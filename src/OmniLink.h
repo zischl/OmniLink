@@ -302,12 +302,15 @@ public:
 
 	}
 
-	inline static void DXGICapSend(session* session, DXGICapture* DXGICap, WinForge* Link, NvencSession* Nv) {
+	inline static void DXGICapSend(session* session, DXGICapture* DXGICap, NvencSession* Nvs) {
 		if (DXGICap->CaptureDXGI() == 0) {
-			Nv->Encode();
-			//Link->SetBufferData(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
-			//Link->SetRenderEvent();
-			session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+			Nvs->Encode();
+
+			OutputDebugStringA((std::to_string(Nvs->NVBitstreamLock.bitstreamSizeInBytes) + "\n").c_str());
+
+			//session->ChunkedSend(reinterpret_cast<char*>(Nvs->NVBitstreamLock.bitstreamBufferPtr), Nvs->NVBitstreamLock.bitstreamSizeInBytes);
+
+			Nvs->NVUnlockBitStream();
 		}
 
 	}
@@ -339,6 +342,8 @@ private:
 
 	//Active Input Proc Target Device
 	static DeviceMap ActiveIOProcTarget;
+	static DeviceMap SelectedTargetDevice;
+
 
 	MSG msg = { };
 
@@ -347,6 +352,8 @@ private:
 	WinForge Link{WProc2};
 
 	NvencSession* NvencSessionPtr = nullptr;
+
+	AsyncWorker::Uncached AsynLink;
 
 	void OmniMainLoop();
 

@@ -151,13 +151,16 @@ void OmniLink::ToggleWGC() {
 
 
 		delete Nv;
+		delete NvencSessionPtr;
 		Nv = nullptr;
+		
 
 		WGCStatus = false;
 
 		delete WGSCapture;
+		WGSCapture = nullptr;
 
-		ExecuteCommand = &OmniLink::CommandListEmpty;
+		//ExecuteCommand = &OmniLink::CommandListEmpty;
 
 
 	}
@@ -167,10 +170,14 @@ void OmniLink::ToggleWGC() {
 		WGSCapture->CreateMonitorCapSession(WGSCapBuffer, 1920, 1080);
 		WGSCapture->StartSession();
 		WGCStatus = true;
-		//ExecuteCommand = &OmniLink::WGCapSend;
 
 		Nv = new NVENCODER();
-		//(void*)D3D11Device, WGSCapBuffer, 1920, 1080
+		NvencSessionPtr = new NvencSession(D3D11Device, Nv->NVFunctions, WGSCapBuffer, 1920, 1080);
+
+		AsynLink.StartSpinThread(OmniLink::WGCapSend, ActiveInstances[DeviceMap::L1].InstanceSession, WGSCapture, NvencSessionPtr);
+
+		//ExecuteCommand = &OmniLink::WGCapSend;
+
 	}
 
 
@@ -181,15 +188,16 @@ void OmniLink::ToggleDDAPI() {
 		if (DXGICap != nullptr) {
 			DXGIStatus = false;
 			delete DXGICap;
+			DXGICap = nullptr;
 		}
 
-		/*Nv->NVUnlockBitStream();
-		Nv->NVCleanup();*/
 		delete Nv;
+		delete NvencSessionPtr;
+		Nv = nullptr;
+		NvencSessionPtr = nullptr;
+		
 
-		DXGIBuffer = nullptr;
-
-		ExecuteCommand = &OmniLink::CommandListEmpty;
+		//ExecuteCommand = &OmniLink::CommandListEmpty;
 
 		return;
 	}
@@ -198,13 +206,14 @@ void OmniLink::ToggleDDAPI() {
 		DXGICap->InitDXGI(D3D11Device);
 		DXGIBuffer = DXGICap->GetBuffer();
 		DXGIStatus = true;
-		//ExecuteCommand = &OmniLink::DXGICapSend;
-
-		//AsyncWorker::Uncached TempWorker;
-		//TempWorker.StartSpinThread(OmniLink::DXGICapSend, ActiveInstances->InstanceSession, DXGICap);
 
 		Nv = new NVENCODER();
+		NvencSessionPtr = new NvencSession(D3D11Device, Nv->NVFunctions, DXGIBuffer, 1920, 1080);
 
+		AsynLink.StartSpinThread(OmniLink::DXGICapSend, ActiveInstances[DeviceMap::L1].InstanceSession, DXGICap , NvencSessionPtr);
+
+
+		//ExecuteCommand = &OmniLink::DXGICapSend;
 	}
 
 
@@ -288,19 +297,8 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 
 
-	HWND hwnd_cap = Link.CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+	//HWND hwnd_cap = Link.CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
 	//Link->SetFPSLimit(60);
-
-	//ToggleDDAPI();
-	//NvencSessionPtr = new NvencSession(D3D11Device, Nv->NVFunctions, DXGIBuffer, 1920, 1080);
-
-	ToggleWGC();
-	NvencSessionPtr = new NvencSession(D3D11Device, Nv->NVFunctions, WGSCapBuffer, 1920, 1080);
-
-	AsyncWorker::Uncached TempWorker;
-	TempWorker.StartSpinThread(OmniLink::WGCapSend, ActiveInstances[DeviceMap::C0].InstanceSession, WGSCapture, NvencSessionPtr);
-	//testarray.Workers[1].StartWaitThread(1, OmniLink::WGCapSend, session1, WGSCapture, Nv);
-
 	
 	OmniMainLoop();
 
