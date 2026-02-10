@@ -45,7 +45,7 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 
 class WinForge {
 public:
-	WinForge(WNDPROC WindowProc);
+	WinForge(WNDPROC WindowProc = WProc2);
 
 	
 	HWND CreateWindowAsync(wchar_t window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct = {});
@@ -147,6 +147,9 @@ private:
 	void MainLoop();
 
 	__forceinline void null() {}
+
+	//Streamer Links Window Proc
+	static LRESULT CALLBACK WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 };
 

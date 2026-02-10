@@ -109,8 +109,10 @@ void OmniCore::Connect(char IP[16], char Auth[4])
 
 void OmniCore::ConnectInstance(DeviceMap index)
 {
+	
+
 	ActiveInstances[index] = OmniActiveInstance(AllInstances[index].InstanceName, AllInstances[index].IPv4_String, AllInstances[index].InstanceIP);
-	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveInstances[DeviceMap::C0]);
+	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveWindow);
 	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
 	ActiveInstances[index].InstanceSession->OnIOCompletion = NetworkPacketHandler;
 
@@ -296,8 +298,9 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 
 
-
-	//HWND hwnd_cap = Link.CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+	//ActiveInstances[DeviceMap::C0].ActiveWindows.push_back(&Link);
+	HWND hwnd_cap = ActiveWindow.CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+	
 	//Link->SetFPSLimit(60);
 	
 	OmniMainLoop();
@@ -458,24 +461,7 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-LRESULT CALLBACK OmniLink::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	//OutputDebugString((L"MSG: " + std::to_wstring(uMsg) + L"\n").c_str());
 
-	switch (uMsg)
-	{
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		return 0;
-	case WM_CLOSE:
-		DestroyWindow(hwnd);
-		return 0;
-	case WM_SETCURSOR:
-		SetCursor(LoadCursor(NULL, IDC_ARROW));
-		return true;
-
-	}
-	return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
 
 
 

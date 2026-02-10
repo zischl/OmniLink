@@ -151,13 +151,13 @@ public:
 
 	void (*NetworkPacketHandler)(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) = [](CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
 		{
-			OmniActiveInstance* UserInstance = reinterpret_cast<OmniActiveInstance*>(Context);
+			WinForge* PacketContext = reinterpret_cast<WinForge*>(Context);
 			switch (BufferHeader)
 			{
 			case OmniNet::PacketType::ChunkEnd:
 				//zeroth window since i'm still implenting multi window creation
-				UserInstance->ActiveWindows[0]->SetBufferData(Buffer, BufferSize);
-				UserInstance->ActiveWindows[0]->SetRenderEvent();
+				PacketContext->SetBufferData(Buffer, BufferSize);
+				PacketContext->SetRenderEvent();
 				break;
 
 			case OmniNet::Command:
@@ -268,7 +268,7 @@ protected:
 
 
 	DeviceMap SelectedInstance = DeviceMap::L1;
-
+	WinForge ActiveWindow{};
 };
 
 
@@ -336,9 +336,6 @@ private:
 
 	static LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-	//Streamer Links Window Proc
-	static LRESULT CALLBACK WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
 
 	//Active Input Proc Target Device
 	static DeviceMap ActiveIOProcTarget;
@@ -348,8 +345,6 @@ private:
 	MSG msg = { };
 
 	OmniShield InputFilter;
-
-	WinForge Link{WProc2};
 
 	NvencSession* NvencSessionPtr = nullptr;
 

@@ -59,8 +59,12 @@ public:
 	template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize, typename PacketHandler>
 	static void StartCompletionPortHandlerThread(const HANDLE& IOCP, const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool, PacketHandler&& PacketHandlerFn, void* Ctx)
 	{
-		std::thread StatusQueue([&]()
+		
+		std::thread StatusQueue([&, Ctx]()
 			{
+
+				void* Context = Ctx;
+
 				while (true) {
 					DWORD BufferSize = 0;
 					ULONG_PTR EventKey = 0;
@@ -99,12 +103,12 @@ public:
 						case OmniNet::PacketType::ChunkEnd:
 							if (Pool.TryPushFinalChunk(BufferSize))
 							{
-								PacketHandlerFn(&Pool.BufferPool[0], Pool.CurrentChunkUsage, BufferHeader, Ctx);
+								PacketHandlerFn(&Pool.BufferPool[0], Pool.CurrentChunkUsage, BufferHeader, Context);
 							}
 							Pool.ResetChunk();
 							break;
 						default:
-							PacketHandlerFn(Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Ctx);
+							PacketHandlerFn(Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Context);
 							//Pool.ResetChunk();
 							break;
 						}

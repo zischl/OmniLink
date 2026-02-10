@@ -194,3 +194,22 @@ void WinForge::MainLoop() {
 	}
 }
 
+
+LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	//OutputDebugString((L"MSG: " + std::to_wstring(uMsg) + L"\n").c_str());
+
+	switch (uMsg)
+	{
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		return 0;
+	case WM_CLOSE:
+		DestroyWindow(hwnd);
+		return 0;
+	case WM_SETCURSOR:
+		SetCursor(LoadCursor(NULL, IDC_ARROW));
+		return true;
+
+	}
+	return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}

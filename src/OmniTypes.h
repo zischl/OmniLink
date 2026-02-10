@@ -192,7 +192,7 @@ struct OmniInstance {
 struct OmniActiveInstance : OmniInstance
 {
 	session* InstanceSession = nullptr;
-	std::vector<WinForge*> ActiveWindows;
+	//std::vector<WinForge*> ActiveWindows;
 	uint16_t port = 62485;
 	int ActiveFlags = FeatureFlags::fInactive;
 	//std::vector<NvencSession> NVEncoderSessions;
@@ -208,6 +208,11 @@ struct OmniActiveInstance : OmniInstance
 	}
 
 
+};
+
+
+struct PacketHandlerContext {
+	WinForge* ActiveWindow;
 };
 
 using ActiveInstanceContainer = std::unordered_map<DeviceMap, OmniActiveInstance>;
