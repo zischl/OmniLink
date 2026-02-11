@@ -71,6 +71,8 @@ class OmniCore {
 
 public:
 
+	OmniCore(HINSTANCE hInst, int nCmdShow);
+
 	inline void OmniCmdStatus() {
 		Logger::log("CMD Queue Status Test\n");
 	}
@@ -91,6 +93,8 @@ public:
 	void ConnectInstance(DeviceMap index);
 
 	void SwapInstanceLayout(int index1, int index2);
+
+	void CreateNewWindow();
 
 	std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept;
 
@@ -151,15 +155,18 @@ public:
 
 	void (*NetworkPacketHandler)(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) = [](CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
 		{
-			WinForge* PacketContext = reinterpret_cast<WinForge*>(Context);
+			std::vector<WinForge*>* PacketContext = reinterpret_cast<std::vector<WinForge*>*>(Context);
 			switch (BufferHeader)
 			{
 			case OmniNet::PacketType::ChunkEnd:
+			{
 				//zeroth window since i'm still implenting multi window creation
-				PacketContext->SetBufferData(Buffer, BufferSize);
-				PacketContext->SetRenderEvent();
+				OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
+				auto* target = (*PacketContext)[header->Target];
+				target->SetBufferData(Buffer, BufferSize);
+				target->SetRenderEvent();
 				break;
-
+			}
 			case OmniNet::Command:
 			{
 				OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
@@ -225,6 +232,9 @@ public:
 
 protected:
 
+	HINSTANCE hInstance;
+	int nCmdShow;
+
 	HANDLE* Events = nullptr;
 	DWORD EventDW = NULL;
 
@@ -268,7 +278,7 @@ protected:
 
 
 	DeviceMap SelectedInstance = DeviceMap::L1;
-	WinForge ActiveWindow{};
+	std::vector<WinForge*> ActiveWindows{};
 };
 
 
@@ -278,6 +288,8 @@ protected:
 
 class OmniLink : public OmniCore {
 public:
+
+	OmniLink(HINSTANCE hInst, int nCmdShow);
 
 	void OmniMain(HINSTANCE hInstance, int nCmdShow);
 
@@ -296,7 +308,7 @@ public:
 
 		OutputDebugStringA((std::to_string(Nvs->NVBitstreamLock.bitstreamSizeInBytes) + "\n").c_str());
 
-		//session->ChunkedSend(reinterpret_cast<char*>(Nv->NVBitstreamLock.bitstreamBufferPtr), Nv->NVBitstreamLock.bitstreamSizeInBytes);
+		session->ChunkedSend(reinterpret_cast<char*>(Nvs->NVBitstreamLock.bitstreamBufferPtr), Nvs->NVBitstreamLock.bitstreamSizeInBytes);
 
 		Nvs->NVUnlockBitStream();
 
@@ -308,7 +320,7 @@ public:
 
 			OutputDebugStringA((std::to_string(Nvs->NVBitstreamLock.bitstreamSizeInBytes) + "\n").c_str());
 
-			//session->ChunkedSend(reinterpret_cast<char*>(Nvs->NVBitstreamLock.bitstreamBufferPtr), Nvs->NVBitstreamLock.bitstreamSizeInBytes);
+			session->ChunkedSend(reinterpret_cast<char*>(Nvs->NVBitstreamLock.bitstreamBufferPtr), Nvs->NVBitstreamLock.bitstreamSizeInBytes);
 
 			Nvs->NVUnlockBitStream();
 		}
@@ -322,7 +334,7 @@ private:
 	//GUI
 	OmniGUI* GUI = nullptr;
 
-	HWND hwnd;
+	HWND hwnd = 0;
 
 	NOTIFYICONDATAW TrayIconData = {};
 

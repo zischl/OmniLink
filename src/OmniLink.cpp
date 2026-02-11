@@ -112,11 +112,20 @@ void OmniCore::ConnectInstance(DeviceMap index)
 	
 
 	ActiveInstances[index] = OmniActiveInstance(AllInstances[index].InstanceName, AllInstances[index].IPv4_String, AllInstances[index].InstanceIP);
-	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveWindow);
+	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveWindows);
 	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
 	ActiveInstances[index].InstanceSession->OnIOCompletion = NetworkPacketHandler;
 
 	OmniCap.AddEdgeCondition(index);
+}
+
+
+void OmniCore::CreateNewWindow() {
+
+	WinForge* NewWindow = new WinForge();
+	ActiveWindows.push_back(NewWindow);
+	HWND hwnd_cap = NewWindow->CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
+
 }
 
 
@@ -222,9 +231,20 @@ void OmniLink::ToggleDDAPI() {
 }
 
 
+OmniCore::OmniCore(const HINSTANCE hInst, const int nCmdS) : hInstance(hInst), nCmdShow(nCmdS) {
 
-void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
-	
+}
+
+
+OmniLink::OmniLink(HINSTANCE hInst, int nCmdShow) : OmniCore(hInst, nCmdShow)
+{
+
+}	
+
+
+
+void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS) {
+
 	OmniAPI::Ignite(*this);
 
 	Events = new HANDLE[6];
@@ -296,12 +316,6 @@ void OmniLink::OmniMain(HINSTANCE hInstance, int nCmdShow) {
 
 	/// ......................................... ///
 
-
-
-	//ActiveInstances[DeviceMap::C0].ActiveWindows.push_back(&Link);
-	HWND hwnd_cap = ActiveWindow.CreateWindowAsync(L'Test Window', hInstance, nCmdShow);
-	
-	//Link->SetFPSLimit(60);
 	
 	OmniMainLoop();
 

@@ -123,12 +123,12 @@ HWND WinForge::CreateWindowAsync(wchar_t window_name, HINSTANCE& hInstance, int 
 
 		D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, NvdecBuffer.GetAddressOf());
 
-		NVDec = new NVDecoder(config.wdWidth, config.wdHeight, NvdecBuffer.Get());
-
-		//###############################################################################//
 		ShowWindow(hwnd, SW_SHOW);
 		UpdateWindow(hwnd);
 		
+		NVDec = new NVDecoder(config.wdWidth, config.wdHeight, NvdecBuffer.Get());
+
+
 		MainLoop();
 
 		});

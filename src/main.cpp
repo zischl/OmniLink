@@ -27,7 +27,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	AllocConsole();
 	freopen("CONOUT$", "w", stdout);
 
-	OmniLink OmniLink;
+	OmniLink OmniLink(hInstance, nCmdShow);
 	OmniLink.OmniMain(hInstance, nCmdShow);
 	//OmniLink.test2(hInstance, nCmdShow);
 }

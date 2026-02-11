@@ -84,13 +84,13 @@ public:
 					}
 
 					OmniNet::RECV_BUF* Buffer = reinterpret_cast<OmniNet::RECV_BUF*>(OVStruct);
-					
 
 					switch (Buffer->Type) {
 					case OmniNet::OP_RECV:
 						// header structure's packet type index = 0 and the header size is 3,
 						// going backwards from bytes means minus 2 but since the data stream is an array it would be minus 3 due to indexing. 
 						uint8_t BufferHeader = *(Buffer->TransmitBuffer.buf + BufferSize - 3);
+
 
 						switch (BufferHeader)
 						{
