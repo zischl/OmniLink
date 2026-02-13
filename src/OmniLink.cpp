@@ -109,8 +109,6 @@ void OmniCore::Connect(char IP[16], char Auth[4])
 
 void OmniCore::ConnectInstance(DeviceMap index)
 {
-	
-
 	ActiveInstances[index] = OmniActiveInstance(AllInstances[index].InstanceName, AllInstances[index].IPv4_String, AllInstances[index].InstanceIP);
 	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveWindows);
 	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
@@ -120,7 +118,7 @@ void OmniCore::ConnectInstance(DeviceMap index)
 }
 
 
-void OmniCore::CreateNewWindow() {
+void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo) {
 
 	WinForge* NewWindow = new WinForge();
 	ActiveWindows.push_back(NewWindow);
@@ -213,6 +211,17 @@ void OmniLink::ToggleDDAPI() {
 		return;
 	}
 	else {
+		WindowCreationData WCD("testing", 8, 1920, 1080);
+
+		OmniNetCommand Command;
+		Command.CommandType = CoreCommandsWArgs::CreateStreamLink;
+		Command.ArgTypeIndex = 2;
+		Command.Args = reinterpret_cast<unsigned char*>(&WCD);
+		Command.ArgArrayLength = sizeof(WindowCreationData);
+
+		TransmitNetCommand(DeviceMap::L1, Command, 0, 0);
+
+
 		DXGICap = new DXGICapture;
 		DXGICap->InitDXGI(D3D11Device);
 		DXGIBuffer = DXGICap->GetBuffer();
@@ -223,6 +232,7 @@ void OmniLink::ToggleDDAPI() {
 
 		AsynLink.StartSpinThread(OmniLink::DXGICapSend, ActiveInstances[DeviceMap::L1].InstanceSession, DXGICap , NvencSessionPtr);
 
+		
 
 		//ExecuteCommand = &OmniLink::DXGICapSend;
 	}
@@ -406,8 +416,12 @@ void OmniLink::OmniMainLoop() {
 			}
 
 			case 2:
-
+			{
+				WindowCreationData args = std::get<2>(CommandBurstQWArgs.Queue[Tail]);
+				(this->CreateStreamLink)(args);
 				break;
+			}
+
 
 			}
 		}

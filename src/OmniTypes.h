@@ -69,7 +69,8 @@ enum CoreCommands {
 enum CoreCommandsWArgs {
 	TESTCOMMAND,
 	SwapLayout,
-	ConnectDevice
+	ConnectDevice,
+	CreateStreamLink
 };
 
 
@@ -80,11 +81,64 @@ struct ArraySwapLayout {
 };
 
 
+struct WindowCreationData
+{
+	size_t NameLen = 0;
+	char WindowName[64]{};
+	size_t Width = 1920;
+	size_t Height = 1080;
+
+	WindowCreationData() {
+		SetTitle("Default Window", 15);
+	}
+
+	WindowCreationData(const char* Title, const size_t TitleLen, int w = 1920, int h = 1080)
+		: Width(w), Height(h)
+	{
+		SetTitle(Title, TitleLen);
+	}
+
+	WindowCreationData(const std::string& Title, const size_t TitleLen, int w = 1920, int h = 1080)
+		: Width(w), Height(h)
+	{
+		SetTitle(Title.c_str(), TitleLen);
+	}
+
+	WindowCreationData(std::string_view Title, int w = 1920, int h = 1080)
+		: Width(w), Height(h)
+	{
+		SetTitle(Title.data(), Title.length());
+	}
+
+	void SetTitle(const char* title, const size_t NameLen)
+	{
+		strncpy_s(WindowName, title, NameLen);
+		WindowName[NameLen+1] = '\0';
+	}
+
+	const wchar_t* GetTitleW()
+	{
+		wchar_t WCharName[64]{};
+		MultiByteToWideChar(
+			CP_UTF8,
+			0,
+			WindowName,
+			-1,
+			WCharName,
+			NameLen
+		);
+
+		return WCharName;
+	}
+
+};
+
+
 struct TestArg {
 	int x = 0;
 };
 
-using FuncArgTypes = std::variant<ArraySwapLayout, DeviceMap, TestArg>;
+using FuncArgTypes = std::variant<ArraySwapLayout, DeviceMap, WindowCreationData, TestArg>;
 
 using DataTypes = std::variant<int>;
 
@@ -102,6 +156,8 @@ struct OmniNetCommand {
 	uint32_t ArgTypeIndex = 0;
 	unsigned char* Args = nullptr;
 	size_t ArgArrayLength = 0;
+
+	OmniNetCommand(){};
 
 	OmniNetCommand(OmniNetCommandType& Command, size_t ArgArrayLen)
 	{
@@ -490,7 +546,7 @@ namespace OmniNet
 	{
 		uint32_t PoolHead = 0;
 		ContextType ContextPool[PoolSize];
-		char BufferPool[PoolSize * (ChunkSize + 1)] = "";		// extra chunk for safety
+		char BufferPool[PoolSize * (ChunkSize + 1)] = "";	// extra chunk for safety
 		uint32_t CurrentChunkUsage = 0;
 
 		uint32_t _mask = PoolSize - 1;							// Flags 

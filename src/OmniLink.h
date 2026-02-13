@@ -94,7 +94,7 @@ public:
 
 	void SwapInstanceLayout(int index1, int index2);
 
-	void CreateNewWindow();
+	void CreateStreamLink(WindowCreationData& WindowInfo);
 
 	std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept;
 
@@ -146,9 +146,14 @@ public:
 		CommandBurstQWArgs.push(CommandArgs);
 	}
 
-	inline void PushNetworkCommand()
-	{
+	inline void TransmitNetCommand(DeviceMap TargetDevice, OmniNetCommand& Command, uint8_t Target = 0, uint8_t Flags = 0)
+	{	
+		OmniNet::OmniHeader header;
+		header.PacketType = OmniNet::PacketType::Command;
+		header.Target = Target;
+		header.Flags = Flags;
 
+		ActiveInstances[TargetDevice].InstanceSession->SessionSend(reinterpret_cast<char*>(&Command), sizeof(Command), header);
 	}
 
 
