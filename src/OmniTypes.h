@@ -516,7 +516,7 @@ namespace OmniNet
 
 	enum FlagTypes : uint8_t {
 		VoidArg,
-		ArgCount
+		Argonized
 	};
 
 	struct OmniHeader {

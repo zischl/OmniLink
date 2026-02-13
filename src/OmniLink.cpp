@@ -219,7 +219,7 @@ void OmniLink::ToggleDDAPI() {
 		Command.Args = reinterpret_cast<unsigned char*>(&WCD);
 		Command.ArgArrayLength = sizeof(WindowCreationData);
 
-		TransmitNetCommand(DeviceMap::L1, Command, 0, 0);
+		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);
 
 
 		DXGICap = new DXGICapture;
