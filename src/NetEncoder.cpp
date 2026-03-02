@@ -3,19 +3,19 @@
 
 
 
-void ByteStreamReader::ReadU64(uint64_t& Dest) {
+void ByteStreamReader::ReadU64Ex(uint64_t& Dest) {
     ByteStream::ReadU64(reinterpret_cast<uint8_t*>(Data), Dest);
     Data += 8;
     CurrentLength -= 8;
 }
 
-void ByteStreamReader::ReadU32(uint32_t& Dest) {
+void ByteStreamReader::ReadU32Ex(uint32_t& Dest) {
     ByteStream::ReadU32(reinterpret_cast<uint8_t*>(Data), Dest);
     Data += 4;
     CurrentLength -= 4;
 }
 
-void ByteStreamReader::ReadU16(uint16_t& Dest) {
+void ByteStreamReader::ReadU16Ex(uint16_t& Dest) {
     ByteStream::ReadU16(reinterpret_cast<uint8_t*>(Data), Dest);
     Data += 2;
     CurrentLength -= 2;
@@ -26,7 +26,7 @@ bool ByteStreamReader::SafeReadU64(uint64_t& Dest) {
         Logger::log("ByteStreamReader U64 : Remaining bytestream length insufficient for decoding.");
         return false;
     }
-    ReadU64(Dest);
+    ReadU64Ex(Dest);
     return true;
 }
 
@@ -35,7 +35,7 @@ bool ByteStreamReader::SafeReadU32(uint32_t& Dest) {
         Logger::log("ByteStreamReader U32 : Remaining bytestream length insufficient for decoding.");
         return false;
     }
-    ReadU32(Dest);
+    ReadU32Ex(Dest);
     return true;
 }
 
@@ -44,13 +44,13 @@ bool ByteStreamReader::SafeReadU16(uint16_t& Dest) {
         Logger::log("ByteStreamReader U16 : Remaining bytestream length insufficient for decoding.");
         return false;
     }
-    ReadU16(Dest);
+    ReadU16Ex(Dest);
     return true;
 }
 
 void ByteStreamReader::ReadString(std::string& Dest) {
     uint32_t StringLength;
-    ReadU32(StringLength);
+    ReadU32Ex(StringLength);
 
     Dest.assign(reinterpret_cast<char*>(Data), StringLength);
     Data += StringLength;
@@ -73,7 +73,7 @@ void ByteStreamReader::SafeReadString(std::string& Dest) {
 
 void ByteStreamReader::ReadString(std::vector<char>& Dest) {
     uint32_t StringLength;
-    ReadU32(StringLength);
+    ReadU32Ex(StringLength);
 
     Dest.insert(Dest.end(),
         reinterpret_cast<char*>(Data),
@@ -102,7 +102,7 @@ void ByteStreamReader::SafeReadString(std::vector<char>& Dest) {
 
 void ByteStreamReader::ReadString(char* Dest) {
     uint32_t StringLength;
-    ReadU32(StringLength);
+    ReadU32Ex(StringLength);
 
     std::memcpy(Dest, Data, StringLength);
     Data += StringLength;
@@ -111,7 +111,7 @@ void ByteStreamReader::ReadString(char* Dest) {
 
 void ByteStreamReader::ReadString(char* Dest, uint32_t MaxLen) {
     uint32_t StringLength;
-    ReadU32(StringLength);
+    ReadU32Ex(StringLength);
 
     if (StringLength > MaxLen || CurrentLength < StringLength) {
         Logger::log("ByteStreamReader : String length exceeds maximum allowed length or remaining data length");
@@ -127,13 +127,13 @@ void ByteStreamReader::ReadString(char* Dest, uint32_t MaxLen) {
 
 
 
-void ByteStreamWriter::WriteU16(uint16_t Value, std::vector<uint8_t>& Dest) {
+void ByteStreamWriter::WriteU16Ex(uint16_t Value, std::vector<uint8_t>& Dest) {
     Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
     Dest.push_back(static_cast<uint8_t>(Value & 0xFF));
     CurrentLength += 2;
 }
 
-void ByteStreamWriter::WriteU32(uint32_t Value, std::vector<uint8_t>& Dest) {
+void ByteStreamWriter::WriteU32Ex(uint32_t Value, std::vector<uint8_t>& Dest) {
     Dest.push_back(static_cast<uint8_t>((Value >> 24) & 0xFF));
     Dest.push_back(static_cast<uint8_t>((Value >> 16) & 0xFF));
     Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
@@ -141,7 +141,7 @@ void ByteStreamWriter::WriteU32(uint32_t Value, std::vector<uint8_t>& Dest) {
     CurrentLength += 4;
 }
 
-void ByteStreamWriter::WriteU64(uint64_t Value, std::vector<uint8_t>& Dest) {
+void ByteStreamWriter::WriteU64Ex(uint64_t Value, std::vector<uint8_t>& Dest) {
     Dest.push_back(static_cast<uint8_t>((Value >> 56) & 0xFF));
     Dest.push_back(static_cast<uint8_t>((Value >> 48) & 0xFF));
     Dest.push_back(static_cast<uint8_t>((Value >> 40) & 0xFF));
@@ -153,7 +153,7 @@ void ByteStreamWriter::WriteU64(uint64_t Value, std::vector<uint8_t>& Dest) {
     CurrentLength += 8;
 }
 
-bool ByteStreamWriter::WriteU16(uint16_t Value, uint8_t* Dest) 
+bool ByteStreamWriter::WriteU16Ex(uint16_t Value, uint8_t* Dest)
 {
     if (!Dest) return false;
     ByteStream::WriteU16(Value, Dest);
@@ -161,7 +161,7 @@ bool ByteStreamWriter::WriteU16(uint16_t Value, uint8_t* Dest)
     return true;
 }
 
-bool ByteStreamWriter::WriteU32(uint32_t Value, uint8_t* Dest) 
+bool ByteStreamWriter::WriteU32Ex(uint32_t Value, uint8_t* Dest)
 {
     if (!Dest) return false;
     ByteStream::WriteU32(Value, Dest);
@@ -169,7 +169,7 @@ bool ByteStreamWriter::WriteU32(uint32_t Value, uint8_t* Dest)
     return true;
 }
 
-bool ByteStreamWriter::WriteU64(uint64_t Value, uint8_t* Dest) 
+bool ByteStreamWriter::WriteU64Ex(uint64_t Value, uint8_t* Dest)
 {
     if (!Dest) return false;
     ByteStream::WriteU64(Value, Dest);
@@ -177,20 +177,20 @@ bool ByteStreamWriter::WriteU64(uint64_t Value, uint8_t* Dest)
     return true;
 }
 
-bool ByteStreamWriter::WriteU16(uint16_t Value, unsigned char* Dest) 
-{
-    return WriteU16(Value, reinterpret_cast<uint8_t*>(Dest));
-}
-
-bool ByteStreamWriter::WriteU32(uint32_t Value, unsigned char* Dest) 
-{
-    return WriteU32(Value, reinterpret_cast<uint8_t*>(Dest));
-}
-
-bool ByteStreamWriter::WriteU64(uint64_t Value, unsigned char* Dest) 
-{
-    return WriteU64(Value, reinterpret_cast<uint8_t*>(Dest));
-}
+//bool ByteStreamWriter::WriteU16Ex(uint16_t Value, unsigned char* Dest)
+//{
+//    return WriteU16Ex(Value, reinterpret_cast<uint8_t*>(Dest));
+//}
+//
+//bool ByteStreamWriter::WriteU32Ex(uint32_t Value, unsigned char* Dest)
+//{
+//    return WriteU32Ex(Value, reinterpret_cast<uint8_t*>(Dest));
+//}
+//
+//bool ByteStreamWriter::WriteU64Ex(uint64_t Value, unsigned char* Dest)
+//{
+//    return WriteU64Ex(Value, reinterpret_cast<uint8_t*>(Dest));
+//}
 
 void ByteStreamWriter::WriteString(const std::string_view& String, std::vector<uint8_t>& Dest) 
 {
@@ -201,7 +201,7 @@ void ByteStreamWriter::WriteString(const std::string_view& String, std::vector<u
     }
 
     uint32_t StringLength = static_cast<uint32_t>(String.size());
-    WriteU32(StringLength, Dest);
+    WriteU32Ex(StringLength, Dest);
 
     Dest.reserve(Dest.size() + StringLength);
     Dest.insert(Dest.end(), String.begin(), String.end());

@@ -73,11 +73,11 @@ public:
     }
 
 
-    void ReadU64(uint64_t& Dest);
+    void ReadU64Ex(uint64_t& Dest);
 
-    void ReadU32(uint32_t& Dest);
+    void ReadU32Ex(uint32_t& Dest);
 
-    void ReadU16(uint16_t& Dest);
+    void ReadU16Ex(uint16_t& Dest);
 
 
     bool SafeReadU64(uint64_t& Dest);
@@ -111,25 +111,25 @@ public:
     explicit ByteStreamWriter(uint32_t StartingLen) : CurrentLength(StartingLen) {}
 
 
-    void WriteU16(uint16_t Value, std::vector<uint8_t>& Dest);
+    void WriteU16Ex(uint16_t Value, std::vector<uint8_t>& Dest);
 
-    void WriteU32(uint32_t Value, std::vector<uint8_t>& Dest);
+    void WriteU32Ex(uint32_t Value, std::vector<uint8_t>& Dest);
 
-    void WriteU64(uint64_t Value, std::vector<uint8_t>& Dest);
-
-
-    bool WriteU16(uint16_t Value, uint8_t* Dest);
-
-    bool WriteU32(uint32_t Value, uint8_t* Dest);
-
-    bool WriteU64(uint64_t Value, uint8_t* Dest);
+    void WriteU64Ex(uint64_t Value, std::vector<uint8_t>& Dest);
 
 
-    bool WriteU16(uint16_t Value, unsigned char* Dest);
+    bool WriteU16Ex(uint16_t Value, uint8_t* Dest);
 
-    bool WriteU32(uint32_t Value, unsigned char* Dest);
+    bool WriteU32Ex(uint32_t Value, uint8_t* Dest);
 
-    bool WriteU64(uint64_t Value, unsigned char* Dest);
+    bool WriteU64Ex(uint64_t Value, uint8_t* Dest);
+
+
+    /*bool WriteU16Ex(uint16_t Value, unsigned char* Dest);
+
+    bool WriteU32Ex(uint32_t Value, unsigned char* Dest);
+
+    bool WriteU64Ex(uint64_t Value, unsigned char* Dest);*/
 
 
     void WriteString(const std::string_view& String, std::vector<uint8_t>& Dest);
