@@ -94,6 +94,7 @@ add_executable(main WIN32
     ${SourceDir}/system_probe.cpp
     src/AudioCap.cpp
     resource.rc
+
 )
 
 target_compile_definitions(main PUBLIC 

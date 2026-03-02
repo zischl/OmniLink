@@ -146,14 +146,14 @@ public:
 		CommandBurstQWArgs.push(CommandArgs);
 	}
 
-	inline void TransmitNetCommand(DeviceMap TargetDevice, OmniNetCommand& Command, uint8_t Target = 0, uint8_t Flags = 0)
+	inline void TransmitNetCommand(DeviceMap TargetDevice, OmniNetCommandType& Command, uint8_t Target = 0, uint8_t Flags = 0)
 	{	
 		OmniNet::OmniHeader header;
 		header.PacketType = OmniNet::PacketType::Command;
 		header.Target = Target;
 		header.Flags = Flags;
 
-		ActiveInstances[TargetDevice].InstanceSession->SessionSend(reinterpret_cast<char*>(&Command), sizeof(Command), header);
+		ActiveInstances[TargetDevice].InstanceSession->SessionSend(reinterpret_cast<char*>(&Command), sizeof(OmniCommand), header);
 	}
 
 
@@ -193,6 +193,8 @@ public:
 							std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
 							Payload->Args
 						);
+
+
 				}
 				break;
 			}
