@@ -10,180 +10,136 @@
 #include "OmniLogger.h"
 
 class ByteStream {
-private:
+protected:
 
-	static void ReadU16(const uint8_t* Source, uint16_t& Dest);
+    static inline void ReadU16(const uint8_t* Source, uint16_t& Dest) {
+        Dest = (static_cast<uint16_t>(Source[0]) << 8) |
+            static_cast<uint16_t>(Source[1]);
+    }
 
-	static void ReadU32(const uint8_t* Source, uint32_t& Dest);
+    static inline void ReadU32(const uint8_t* Source, uint32_t& Dest) {
+        Dest = (static_cast<uint32_t>(Source[0]) << 24) |
+            (static_cast<uint32_t>(Source[1]) << 16) |
+            (static_cast<uint32_t>(Source[2]) << 8) |
+            static_cast<uint32_t>(Source[3]);
+    }
 
-	static void ReadU64(const uint8_t* Source, uint64_t& Dest);
+    static inline void ReadU64(const uint8_t* Source, uint64_t& Dest) {
+        Dest = (static_cast<uint64_t>(Source[0]) << 56) |
+            (static_cast<uint64_t>(Source[1]) << 48) |
+            (static_cast<uint64_t>(Source[2]) << 40) |
+            (static_cast<uint64_t>(Source[3]) << 32) |
+            (static_cast<uint64_t>(Source[4]) << 24) |
+            (static_cast<uint64_t>(Source[5]) << 16) |
+            (static_cast<uint64_t>(Source[6]) << 8) |
+            static_cast<uint64_t>(Source[7]);
+    }
 
 
+    static inline void WriteU16(uint16_t Value, uint8_t* Dest) {
+        Dest[0] = static_cast<uint8_t>((Value >> 8) & 0xFF);
+        Dest[1] = static_cast<uint8_t>(Value & 0xFF);
+    }
+
+    static inline void WriteU32(uint32_t Value, uint8_t* Dest) {
+        Dest[0] = static_cast<uint8_t>((Value >> 24) & 0xFF);
+        Dest[1] = static_cast<uint8_t>((Value >> 16) & 0xFF);
+        Dest[2] = static_cast<uint8_t>((Value >> 8) & 0xFF);
+        Dest[3] = static_cast<uint8_t>(Value & 0xFF);
+    }
+
+    static inline void WriteU64(uint64_t Value, uint8_t* Dest) {
+        Dest[0] = static_cast<uint8_t>((Value >> 56) & 0xFF);
+        Dest[1] = static_cast<uint8_t>((Value >> 48) & 0xFF);
+        Dest[2] = static_cast<uint8_t>((Value >> 40) & 0xFF);
+        Dest[3] = static_cast<uint8_t>((Value >> 32) & 0xFF);
+        Dest[4] = static_cast<uint8_t>((Value >> 24) & 0xFF);
+        Dest[5] = static_cast<uint8_t>((Value >> 16) & 0xFF);
+        Dest[6] = static_cast<uint8_t>((Value >> 8) & 0xFF);
+        Dest[7] = static_cast<uint8_t>(Value & 0xFF);
+    }
+};
+
+
+
+
+class ByteStreamReader : private ByteStream {
 public:
-	uint32_t CurrentLength;
-	unsigned char* Data;
+    uint32_t CurrentLength;
+    unsigned char* Data;
 
-	ByteStream(uint32_t DataLen, unsigned char* DataPtr) : CurrentLength(DataLen), Data(DataPtr) {}
-
-	void WriteU16(uint16_t Value, std::vector<uint8_t>& Dest);
-
-	void WriteU32(uint32_t Value, std::vector<uint8_t>& Dest);
-
-	void WriteU64(uint64_t Value, std::vector<uint8_t>& Dest);
+    ByteStreamReader(uint32_t DataLen, unsigned char* DataPtr)
+        : CurrentLength(DataLen), Data(DataPtr) {
+    }
 
 
-	bool WriteU16(uint16_t Value, uint8_t* Dest);
+    void ReadU64(uint64_t& Dest);
 
-	bool WriteU32(uint32_t Value, uint8_t* Dest);
+    void ReadU32(uint32_t& Dest);
 
-	bool WriteU64(uint64_t Value, uint8_t* Dest);
-
-
-	bool WriteU16(uint16_t Value, unsigned char* Dest);
-
-	bool WriteU32(uint32_t Value, unsigned char* Dest);
-
-	bool WriteU64(uint64_t Value, unsigned char* Dest);
+    void ReadU16(uint16_t& Dest);
 
 
-	void WriteString(const std::string_view& String, std::vector<uint8_t>& Dest);
+    bool SafeReadU64(uint64_t& Dest);
 
-	bool WriteString(std::string_view& String, uint8_t* Dest, uint32_t WriteLen);
+    bool SafeReadU32(uint32_t& Dest);
 
-	void SafeWriteString(const std::string_view& String, std::vector<uint8_t>& Dest);
+    bool SafeReadU16(uint16_t& Dest);
 
-	inline void ReadU64(uint64_t& Dest) {
-		ReadU64(Data, Dest);
-		Data += 8;
-		CurrentLength -= 8;
-	}
 
-	inline void ReadU32(uint32_t& Dest) {
-		ReadU32(Data, Dest);
-		Data += 4;
-		CurrentLength -= 4;
-	}
+    void ReadString(std::string& Dest);
 
-	inline void ReadU16(uint16_t& Dest) {
-		ReadU16(Data, Dest);
-		Data += 2;
-		CurrentLength -= 2;
-	}
+    void SafeReadString(std::string& Dest);
 
-	inline bool SafeReadU64(uint64_t& Dest) {
-		if (CurrentLength < 8)
-		{
-		Logger::log("ByteStream U64 : Remaining bytestream length insufficient for decoding.");
-		return false;
-		};
+    void ReadString(std::vector<char>& Dest);
 
-		ReadU64(Data, Dest);
-		Data += 8;
-		CurrentLength -= 8;
-		return true;
-	}
+    void SafeReadString(std::vector<char>& Dest);
 
-	inline bool SafeReadU32(uint32_t& Dest) {
-		if (CurrentLength < 4)
-		{
-			Logger::log("ByteStream U32 : Remaining bytestream length insufficient for decoding.");
-			return false;
-		};
+    void ReadString(char* Dest);
 
-		ReadU32(Data, Dest);
-		Data += 4;
-		CurrentLength -= 4;
-		return true;
-	}
+    void ReadString(char* Dest, uint32_t MaxLen);
+};
 
-	inline bool SafeReadU16(uint16_t& Dest) {
-		if (CurrentLength < 2)
-		{
-			Logger::log("ByteStream U16 : Remaining bytestream length insufficient for decoding.");
-			return false;
-		};
 
-		ReadU16(Data, Dest);
-		Data += 2;
-		CurrentLength -= 2;
-		return true;
-	}
 
-	inline void ReadString(std::string& Dest) {
-		uint32_t StringLength;
-		ReadU32(StringLength);
 
-		Dest.assign(reinterpret_cast<char*>(Data), StringLength);
-		Data += StringLength;
-		CurrentLength -= StringLength;
-		
-	}
+class ByteStreamWriter : private ByteStream {
+public:
+    uint32_t CurrentLength;
 
-	inline void SafeReadString(std::string& Dest) {
-		uint32_t StringLength;
-		if (!SafeReadU32(StringLength)) {
-			return;
-		}
-		if (CurrentLength < StringLength)
-		{
-			Logger::log("ByteStream : String length exceeds maximum allowed length or remaining data length");
-			return;
-		};
+    ByteStreamWriter() : CurrentLength(0) {}
+    explicit ByteStreamWriter(uint32_t StartingLen) : CurrentLength(StartingLen) {}
 
-		Dest.assign(reinterpret_cast<char*>(Data), StringLength);
-		Data += StringLength;
-		CurrentLength -= StringLength;
 
-	}
+    void WriteU16(uint16_t Value, std::vector<uint8_t>& Dest);
 
-	inline void ReadString(std::vector<char>& Dest) {
-		uint32_t StringLength;
-		ReadU32(StringLength);
-		Dest.insert(Dest.end(), reinterpret_cast<char*>(Data), reinterpret_cast<char*>(Data) + StringLength);
-		Data += StringLength;
-		CurrentLength -= StringLength;
-	}
+    void WriteU32(uint32_t Value, std::vector<uint8_t>& Dest);
 
-	inline void SafeReadString(std::vector<char>& Dest) {
-		uint32_t StringLength;
-		if (!SafeReadU32(StringLength)) {
-			return;
-		}
-		
-		if (CurrentLength < StringLength)
-		{
-			Logger::log("ByteStream : String length exceeds maximum allowed length or remaining data length");
-			return;
-		};
-		
-		Dest.insert(Dest.end(), reinterpret_cast<char*>(Data), reinterpret_cast<char*>(Data) + StringLength);
-		Data += StringLength;
-		CurrentLength -= StringLength;
-	}
+    void WriteU64(uint64_t Value, std::vector<uint8_t>& Dest);
 
-	inline void ReadString(char* Dest) {
-		uint32_t StringLength;
-		ReadU32(StringLength);
 
-		std::memcpy(Dest, Data, StringLength);
-		Data += StringLength;
-		CurrentLength -= StringLength;
-	}
+    bool WriteU16(uint16_t Value, uint8_t* Dest);
 
-	inline void ReadString(char* Dest, uint32_t MaxLen) {		
-		uint32_t StringLength;
-		ReadU32(StringLength);
+    bool WriteU32(uint32_t Value, uint8_t* Dest);
 
-		if (StringLength > MaxLen || CurrentLength < StringLength)
-		{
-			Logger::log("ByteStream : String length exceeds maximum allowed length or remaining data length");
-			return;
-		};
+    bool WriteU64(uint64_t Value, uint8_t* Dest);
 
-		std::memcpy(Dest, Data, StringLength);
-		Data += StringLength;
-		CurrentLength -= StringLength;
-	}
+
+    bool WriteU16(uint16_t Value, unsigned char* Dest);
+
+    bool WriteU32(uint32_t Value, unsigned char* Dest);
+
+    bool WriteU64(uint64_t Value, unsigned char* Dest);
+
+
+    void WriteString(const std::string_view& String, std::vector<uint8_t>& Dest);
+
+    bool WriteString(const std::string_view& String, uint8_t* Dest);
+
+    void SafeWriteString(const std::string_view& String, std::vector<uint8_t>& Dest);
+
+    bool SafeWriteString(const std::string_view& String, uint8_t* Dest, uint32_t MaxLen);
+
 
 };
 
