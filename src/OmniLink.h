@@ -183,7 +183,7 @@ public:
 				{
 					OmniNetCommandType* Payload = reinterpret_cast<OmniNetCommandType*>(Buffer);
 
-					OmniCommand Command;
+					OmniCommand Command{};
 					Command.CommandType = Payload->CommandType;
 					Command.ArgTypeIndex = Payload->ArgTypeIndex;
 					Variance::VariantDeserializer<FuncArgTypes>
@@ -193,6 +193,8 @@ public:
 							std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
 							Payload->Args
 						);
+
+					OmniAPI::ExecuteNetCommandWArgs(Command);
 				}
 				break;
 			}

@@ -93,6 +93,7 @@ add_executable(main WIN32
     src/OmniAPI.cpp
     ${SourceDir}/system_probe.cpp
     src/AudioCap.cpp
+    src/NetEncoder.cpp
     resource.rc
 )
 
