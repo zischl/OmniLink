@@ -95,6 +95,7 @@ add_executable(main WIN32
     src/AudioCap.cpp
     src/NetEncoder.cpp
     resource.rc
+
 )
 
 target_compile_definitions(main PUBLIC 

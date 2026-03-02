@@ -46,7 +46,8 @@ enum FeatureFlags {
 enum FeatureTypes {
 	ScreenLink,
 	WindowLink,
-	InputLink
+	InputLink,
+	AudioLink
 };
 
 enum DeviceMap {

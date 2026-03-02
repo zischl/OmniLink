@@ -147,8 +147,39 @@ void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
 			InputFilter.ReleaseInputFilter();
 		}
 		break;
+	
+	case FeatureTypes::AudioLink:
+
+		ArraySwapLayout test;
+
+		FuncArgTypes payload{ test };
+
+		unsigned char* Arg = reinterpret_cast<unsigned char*>(&payload);
+
+		FuncArgTypes out;
+
+		Variance::VariantDeserializer<FuncArgTypes>
+			(
+				out,
+				0,
+				std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
+				Arg
+			);
+
+
+		ArraySwapLayout args = std::get<0>(out);
+
+		std::cout << args.index1 << " " << args.index2 << "\n";
+		/*OmniNetCommandType Command;
+		Command.CommandType = CoreCommandsWArgs::SwapLayout;
+		Command.ArgTypeIndex = 0;
+		Command.Args = reinterpret_cast<unsigned char*>(&payload);
+
+		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);*/
+		break;
 	}
 }
+
 
 
 
@@ -211,13 +242,12 @@ void OmniLink::ToggleDDAPI() {
 		return;
 	}
 	else {
-		WindowCreationData WCD("testing", 8, 1920, 1080);
+		FuncArgTypes WCD = WindowCreationData("testing", 8, 1920, 1080);
 
-		OmniNetCommand Command;
+		OmniNetCommandType Command;
 		Command.CommandType = CoreCommandsWArgs::CreateStreamLink;
 		Command.ArgTypeIndex = 2;
 		Command.Args = reinterpret_cast<unsigned char*>(&WCD);
-		Command.ArgArrayLength = sizeof(WindowCreationData);
 
 		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);
 

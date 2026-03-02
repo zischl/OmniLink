@@ -86,7 +86,7 @@ public:
 					ImGui::SameLine(0.0f, 0.0f);
 
 					if (IconizedButton("Audio Link", size)) {
-						//SetEvent(EventHandler[0]);
+						OmniAPI::ToggleFeature(FeatureTypes::AudioLink, DeviceMap::C0);
 					}
 					ImGui::SameLine(0.0f, 0.0f);
 
