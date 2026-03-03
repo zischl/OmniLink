@@ -21,6 +21,7 @@
 #include "OmniDiscovery.h"
 #include "OmniLogger.h"
 #include "OmniGUI.h"
+#include "ByteStream.h"
 #include <Windows.h>
 #include <dwmapi.h>
 #pragma comment (lib, "dwmapi.lib")
@@ -146,7 +147,7 @@ public:
 		CommandBurstQWArgs.push(CommandArgs);
 	}
 
-	inline void TransmitNetCommand(DeviceMap TargetDevice, OmniNetCommandType& Command, uint8_t Target = 0, uint8_t Flags = 0)
+	inline void TransmitNetCommand(DeviceMap TargetDevice, OmniNetCommand& Command, uint8_t Target = 0, uint8_t Flags = 0)
 	{	
 		OmniNet::OmniHeader header;
 		header.PacketType = OmniNet::PacketType::Command;
@@ -181,18 +182,19 @@ public:
 				}
 				else
 				{
-					OmniNetCommandType* Payload = reinterpret_cast<OmniNetCommandType*>(Buffer);
+
+					ByteStreamReader Reader{ static_cast<uint32_t>(BufferSize), reinterpret_cast<uint8_t*>(Buffer)};
 
 					OmniCommand Command{};
-					Command.CommandType = Payload->CommandType;
-					Command.ArgTypeIndex = Payload->ArgTypeIndex;
-					Variance::VariantDeserializer<FuncArgTypes>
-						(
-							Command.Args,
-							Payload->ArgTypeIndex,
-							std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
-							Payload->Args
-						);
+					Reader.ReadU8Ex(reinterpret_cast<uint8_t&>(Command.CommandType));
+					Reader.ReadU32Ex(reinterpret_cast<uint32_t&>(Command.ArgTypeIndex));
+
+					uint32_t ArgLength;
+					Reader.ReadU32Ex(ArgLength);
+					
+					
+
+					
 
 					OmniAPI::ExecuteNetCommandWArgs(Command);
 				}
@@ -290,7 +292,7 @@ protected:
 
 
 
-
+ 
 
 
 class OmniLink : public OmniCore {

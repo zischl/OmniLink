@@ -40,6 +40,7 @@ void OmniCore::QueryLocalIP(uint32_t& LocalIP, const int index)
 
 }
 
+
 std::unordered_map<DeviceMap, OmniInstance>* OmniCore::GetAvailableInstances() noexcept { return &AllInstances; }
 
 
@@ -61,6 +62,9 @@ void OmniCore::SwapInstanceLayout(int source, int dest) {
 		AllInstances[DeviceMap(dest)].Edit(temp.InstanceName, temp.IPv4_String, temp.InstanceIP);
 	}
 }
+
+
+void 
 
 
 //Check whether new scan results are available and get them if so
@@ -127,7 +131,7 @@ void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo) {
 }
 
 
-void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
+void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index = DeviceMap::C0)
 {
 	switch (FeatureIndex)
 	{
@@ -150,32 +154,15 @@ void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
 	
 	case FeatureTypes::AudioLink:
 
-		ArraySwapLayout test;
+		ByteStreamWriter payload;
+		
 
-		FuncArgTypes payload{ test };
-
-		unsigned char* Arg = reinterpret_cast<unsigned char*>(&payload);
-
-		FuncArgTypes out;
-
-		Variance::VariantDeserializer<FuncArgTypes>
-			(
-				out,
-				0,
-				std::make_index_sequence<std::variant_size_v<FuncArgTypes>>{},
-				Arg
-			);
-
-
-		ArraySwapLayout args = std::get<0>(out);
-
-		std::cout << args.index1 << " " << args.index2 << "\n";
-		/*OmniNetCommandType Command;
-		Command.CommandType = CoreCommandsWArgs::SwapLayout;
+		OmniNetCommand Command;
+		Command.CommandType = CoreCommandsWArgs::ConnectDevice;
 		Command.ArgTypeIndex = 0;
 		Command.Args = reinterpret_cast<unsigned char*>(&payload);
 
-		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);*/
+		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);
 		break;
 	}
 }
@@ -244,7 +231,7 @@ void OmniLink::ToggleDDAPI() {
 	else {
 		FuncArgTypes WCD = WindowCreationData("testing", 8, 1920, 1080);
 
-		OmniNetCommandType Command;
+		OmniNetCommand Command;
 		Command.CommandType = CoreCommandsWArgs::CreateStreamLink;
 		Command.ArgTypeIndex = 2;
 		Command.Args = reinterpret_cast<unsigned char*>(&WCD);
@@ -403,19 +390,15 @@ void OmniLink::OmniMainLoop() {
 			break;
 
 		case WAIT_OBJECT_0 + 1:
-			ToggleWGC();
 
 			break;
 
 		case WAIT_OBJECT_0 + 2:
-			ToggleDDAPI();
 
 			break;
 
 		case WAIT_OBJECT_0 + 3:
-			
-			/*(this->*ExecuteCommand)();
-			SetEvent(Events[3]);*/
+
 			break;
 
 		case WAIT_OBJECT_0 + 4:

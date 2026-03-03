@@ -12,6 +12,10 @@
 class ByteStream {
 protected:
 
+    static inline void ReadU8(const uint8_t* Source, uint8_t& Dest) {
+        Dest = static_cast<uint8_t>(Source[1]);
+    }
+
     static inline void ReadU16(const uint8_t* Source, uint16_t& Dest) {
         Dest = (static_cast<uint16_t>(Source[0]) << 8) |
             static_cast<uint16_t>(Source[1]);
@@ -35,6 +39,9 @@ protected:
             static_cast<uint64_t>(Source[7]);
     }
 
+    static inline void WriteU8(uint8_t Value, uint8_t* Dest) {
+        Dest[0] = Value;
+    }
 
     static inline void WriteU16(uint16_t Value, uint8_t* Dest) {
         Dest[0] = static_cast<uint8_t>((Value >> 8) & 0xFF);
@@ -66,10 +73,18 @@ protected:
 class ByteStreamReader : private ByteStream {
 public:
     uint32_t CurrentLength;
-    unsigned char* Data;
+    uint8_t* Data;
+
+    ByteStreamReader(uint32_t DataLen, uint8_t* DataPtr)
+        : CurrentLength(DataLen), Data(DataPtr) {
+    }
 
     ByteStreamReader(uint32_t DataLen, unsigned char* DataPtr)
         : CurrentLength(DataLen), Data(DataPtr) {
+    }
+
+    ByteStreamReader(uint32_t DataLen, char* DataPtr)
+        : CurrentLength(DataLen), Data(reinterpret_cast<uint8_t*>(DataPtr)) {
     }
 
 
@@ -78,6 +93,8 @@ public:
     void ReadU32Ex(uint32_t& Dest);
 
     void ReadU16Ex(uint16_t& Dest);
+
+    void ReadU8Ex(uint8_t& Dest);
 
 
     bool SafeReadU64(uint64_t& Dest);
@@ -110,6 +127,7 @@ public:
     ByteStreamWriter() : CurrentLength(0) {}
     explicit ByteStreamWriter(uint32_t StartingLen) : CurrentLength(StartingLen) {}
 
+    void WriteU8Ex(uint8_t Value, std::vector<uint8_t>& Dest);
 
     void WriteU16Ex(uint16_t Value, std::vector<uint8_t>& Dest);
 
@@ -117,6 +135,8 @@ public:
 
     void WriteU64Ex(uint64_t Value, std::vector<uint8_t>& Dest);
 
+
+    bool WriteU8Ex(uint8_t Value, uint8_t* Dest);
 
     bool WriteU16Ex(uint16_t Value, uint8_t* Dest);
 

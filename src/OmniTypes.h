@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include "ByteStream.h"
+
 #include <functional>
 #include <utility>
 #include <array>
@@ -67,7 +69,7 @@ enum CoreCommands {
 	ScanInstances
 };
 
-enum CoreCommandsWArgs {
+enum CoreCommandsWArgs : uint8_t {
 	TESTCOMMAND,
 	SwapLayout,
 	ConnectDevice,
@@ -76,18 +78,26 @@ enum CoreCommandsWArgs {
 
 
 struct ArraySwapLayout {
-	int index1 = 0;
-	int index2 = 1;
+	uint32_t index1 = 0;
+	uint32_t index2 = 1;
+
+	static ArraySwapLayout Deserialize(ByteStreamReader& reader)
+	{
+		ArraySwapLayout obj;
+		reader.ReadU32Ex(obj.index1);
+		reader.ReadU32Ex(obj.index2);
+		return obj;
+	}
 
 };
 
 
 struct WindowCreationData
 {
-	size_t NameLen = 0;
+	uint32_t NameLen = 0;
 	char WindowName[64]{};
-	size_t Width = 1920;
-	size_t Height = 1080;
+	uint32_t Width = 1920;
+	uint32_t Height = 1080;
 
 	WindowCreationData() {
 		SetTitle("Default Window", 15);
@@ -132,6 +142,18 @@ struct WindowCreationData
 		return WCharName;
 	}
 
+	static WindowCreationData Deserialize(ByteStreamReader& reader)
+	{
+		WindowCreationData obj;
+
+		reader.ReadU32Ex(obj.NameLen);
+		reader.ReadString(obj.WindowName, 64);
+		reader.ReadU32Ex(obj.Width);
+		reader.ReadU32Ex(obj.Height);
+
+		return obj;
+	}
+
 };
 
 
@@ -144,29 +166,15 @@ using FuncArgTypes = std::variant<ArraySwapLayout, DeviceMap, WindowCreationData
 using DataTypes = std::variant<int>;
 
 
-struct OmniNetCommandType {
-	CoreCommandsWArgs CommandType = TESTCOMMAND;
-	uint32_t ArgTypeIndex = 0;
-	unsigned char* Args = nullptr;
-};
-
-
 
 struct OmniNetCommand {
 	CoreCommandsWArgs CommandType = TESTCOMMAND;
 	uint32_t ArgTypeIndex = 0;
+	uint32_t ArgArrayLength = 0;
 	unsigned char* Args = nullptr;
-	size_t ArgArrayLength = 0;
+	
 
-	OmniNetCommand(){};
-
-	OmniNetCommand(OmniNetCommandType& Command, size_t ArgArrayLen)
-	{
-		CommandType = Command.CommandType;
-		ArgTypeIndex = Command.ArgTypeIndex;
-		Args = Command.Args;
-		ArgArrayLength = ArgArrayLen;
-	}
+	OmniNetCommand() {}
 
 };	
 

@@ -1,4 +1,4 @@
-#include "NetEncoder.h"
+#include "ByteStream.h"
 	
 
 
@@ -20,6 +20,14 @@ void ByteStreamReader::ReadU16Ex(uint16_t& Dest) {
     Data += 2;
     CurrentLength -= 2;
 }
+
+void ByteStreamReader::ReadU8Ex(uint8_t& Dest)
+{
+    ByteStream::ReadU8(reinterpret_cast<uint8_t*>(Data), Dest);
+    Data += 1;
+    CurrentLength -= 1;
+}
+
 
 bool ByteStreamReader::SafeReadU64(uint64_t& Dest) {
     if (CurrentLength < 8) {
@@ -126,14 +134,22 @@ void ByteStreamReader::ReadString(char* Dest, uint32_t MaxLen) {
 
 
 
+void ByteStreamWriter::WriteU8Ex(uint8_t Value, std::vector<uint8_t>& Dest)
+{
+    Dest.push_back(Value);
+    CurrentLength += 1;
+}
 
-void ByteStreamWriter::WriteU16Ex(uint16_t Value, std::vector<uint8_t>& Dest) {
+
+void ByteStreamWriter::WriteU16Ex(uint16_t Value, std::vector<uint8_t>& Dest) 
+{
     Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
     Dest.push_back(static_cast<uint8_t>(Value & 0xFF));
     CurrentLength += 2;
 }
 
-void ByteStreamWriter::WriteU32Ex(uint32_t Value, std::vector<uint8_t>& Dest) {
+void ByteStreamWriter::WriteU32Ex(uint32_t Value, std::vector<uint8_t>& Dest) 
+{
     Dest.push_back(static_cast<uint8_t>((Value >> 24) & 0xFF));
     Dest.push_back(static_cast<uint8_t>((Value >> 16) & 0xFF));
     Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
@@ -151,6 +167,16 @@ void ByteStreamWriter::WriteU64Ex(uint64_t Value, std::vector<uint8_t>& Dest) {
     Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
     Dest.push_back(static_cast<uint8_t>(Value & 0xFF));
     CurrentLength += 8;
+}
+
+
+
+bool ByteStreamWriter::WriteU8Ex(uint8_t Value, uint8_t* Dest)
+{
+    if (!Dest) return false;
+    Dest[CurrentLength] = Value;
+    CurrentLength += 1;
+    return true;
 }
 
 bool ByteStreamWriter::WriteU16Ex(uint16_t Value, uint8_t* Dest)
