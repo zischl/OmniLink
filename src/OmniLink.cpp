@@ -150,7 +150,15 @@ void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index = Device
 		break;
 	
 	case FeatureTypes::AudioLink:
+		WindowCreationData WGC{ };
+		OmniNetCommand command{};
+		command.CommandType = CoreCommandsWArgs::CreateStreamLink;
+		command.ArgTypeIndex = 2;
+		std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
+		command.Args = payload;
+		command.ArgArrayLength = payload.size();
 
+		TransmitNetCommand(DeviceMap::L1, command, DeviceMap::L1, OmniNet::Argonized);
 
 		break;
 	}
@@ -219,13 +227,13 @@ void OmniLink::ToggleDDAPI() {
 	}
 	else {
 
-		FuncArgTypes WCD = WindowCreationData("testing", 8, 1920, 1080);
+		WindowCreationData WCD{ "testing", 8, 1920, 1080 };
 
 		OmniNetCommand Command;
 		Command.CommandType = CoreCommandsWArgs::CreateStreamLink;
 		Command.ArgTypeIndex = 2;
 		Command.ArgArrayLength = 1;
-		Command.Args = reinterpret_cast<unsigned char*>(&WCD);
+		Command.Args = WindowCreationData::Serialize(WCD);
 
 		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);
 

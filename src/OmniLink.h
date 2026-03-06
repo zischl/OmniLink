@@ -153,7 +153,9 @@ public:
 		header.Target = Target;
 		header.Flags = Flags;
 
-		ActiveInstances[TargetDevice].InstanceSession->SessionSend(reinterpret_cast<char*>(&Command), sizeof(OmniCommand), header);
+		std::vector<uint8_t> payload = OmniNetCommand::Serialize(Command);
+
+		ActiveInstances[TargetDevice].InstanceSession->SessionSend(reinterpret_cast<char*>(payload.data()), payload.size(), header);
 	}
 
 	template<typename Variant, std::size_t... SequenceIndex>
@@ -195,7 +197,7 @@ public:
 				else
 				{
 
-					ByteStreamReader Reader{ static_cast<uint32_t>(BufferSize), reinterpret_cast<uint8_t*>(Buffer)};
+					ByteStreamReader Reader{ static_cast<uint32_t>(BufferSize - 3), reinterpret_cast<uint8_t*>(Buffer)};
 
 					OmniCommand Command{};
 					Reader.ReadU8Ex(reinterpret_cast<uint8_t&>(Command.CommandType));
