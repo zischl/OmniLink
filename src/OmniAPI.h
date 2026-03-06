@@ -17,7 +17,7 @@ public:
 
 	static void Scan();
 
-	static void Connect(DeviceMap DevMapIDx);
+	static void Connect(ConnectionRequest Rquest);
 
 	static void ExecuteNetCommand(CoreCommands Command);
 

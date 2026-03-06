@@ -91,7 +91,7 @@ public:
 
 	void Connect(char IP[16], char Auth[4]);
 
-	void ConnectInstance(DeviceMap index);
+	void ConnectInstance(ConnectionRequest request);
 
 	void SwapInstanceLayout(int index1, int index2);
 
@@ -132,7 +132,6 @@ public:
 	inline void PushCommand(CoreCommands CommandType)
 	{
 		CommandBurstQ.push(CommandType);
-
 	}
 
 	inline void PushCommands(std::vector<CoreCommands>& CommandTypeArray)
@@ -157,7 +156,20 @@ public:
 		ActiveInstances[TargetDevice].InstanceSession->SessionSend(reinterpret_cast<char*>(&Command), sizeof(OmniCommand), header);
 	}
 
+	template<typename Variant, std::size_t... SequenceIndex>
+	inline void static NetVariantDeserializer(Variant& Dest, size_t Index, std::index_sequence<SequenceIndex ...>, uint8_t* Buffer, const uint32_t BufferLen)
+	{
+		ByteStreamReader Reader{ BufferLen, Buffer };
+		((Index == SequenceIndex && (Dest = std::variant_alternative_t<SequenceIndex, Variant>::Deserialize(Reader), true)) || ...);
+	}
 
+
+	/*template<typename Variant, std::size_t... SequenceIndex>
+	inline void static NetVariantSerializer(Variant& Dest, size_t Index, std::index_sequence<SequenceIndex ...>, const uint8_t* Buffer, const uint32_t BufferLen)
+	{
+		ByteStreamReader Reader{ BufferLen, Buffer };
+		((Index == SequenceIndex && (Dest = std::variant_alternative_t<SequenceIndex, Variant>::Serialize(Reader), true)) || ...);
+	}*/
 
 	void (*NetworkPacketHandler)(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) = [](CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
 		{
@@ -193,7 +205,7 @@ public:
 					Reader.ReadU32Ex(ArgLength);
 					
 					
-
+					NetVariantDeserializer(Command.Args, Command.ArgTypeIndex, std::make_index_sequence<std::variant_size_v<FuncArgTypes>>(), Reader.Data, Reader.CurrentLength);
 					
 
 					OmniAPI::ExecuteNetCommandWArgs(Command);

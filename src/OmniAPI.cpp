@@ -20,9 +20,9 @@ void OmniAPI::Scan()
 	App->ExecuteCommandQueue();
 }
 
-void OmniAPI::Connect(DeviceMap DevMapIDx)
+void OmniAPI::Connect(ConnectionRequest Request)
 {
-	FuncArgTypes args = DeviceMap(DevMapIDx);
+	FuncArgTypes args = ConnectionRequest(Request);
 	App->PushCommandWArgs(args);
 	App->ExecuteCommandQueueWArgs();
 }

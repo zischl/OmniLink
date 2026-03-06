@@ -218,7 +218,9 @@ public:
 
 		if (ImGui::BeginPopupContextItem("MyItemContextMenu")) {
 			if (ImGui::MenuItem("Connect Instance")) {
-				OmniAPI::Connect(static_cast<DeviceMap>(DeviceData->DevMapIndex));
+				ConnectionRequest request;
+				request.DeviceID = static_cast<DeviceMap>(DeviceData->DevMapIndex);
+				OmniAPI::Connect(request);
 			}
 		
 			ImGui::EndPopup();

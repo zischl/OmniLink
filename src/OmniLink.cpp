@@ -64,9 +64,6 @@ void OmniCore::SwapInstanceLayout(int source, int dest) {
 }
 
 
-void 
-
-
 //Check whether new scan results are available and get them if so
 //Otherwise initiate a new scan
 void OmniCore::ScanInstances() {
@@ -111,14 +108,14 @@ void OmniCore::Connect(char IP[16], char Auth[4])
 
 }
 
-void OmniCore::ConnectInstance(DeviceMap index)
+void OmniCore::ConnectInstance(ConnectionRequest request)
 {
-	ActiveInstances[index] = OmniActiveInstance(AllInstances[index].InstanceName, AllInstances[index].IPv4_String, AllInstances[index].InstanceIP);
-	ActiveInstances[index].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[index].IPv4_String, OmniPort, MTU, &ActiveWindows);
-	Logger::log("Connecting to : ", ActiveInstances[index].InstanceName, "at ", ActiveInstances[index].IPv4_String);
-	ActiveInstances[index].InstanceSession->OnIOCompletion = NetworkPacketHandler;
+	ActiveInstances[request.DeviceID] = OmniActiveInstance(AllInstances[request.DeviceID].InstanceName, AllInstances[request.DeviceID].IPv4_String, AllInstances[request.DeviceID].InstanceIP);
+	ActiveInstances[request.DeviceID].InstanceSession = new session(sessions.IOCP, AllInstances[DeviceMap::C0].IPv4_String, AllInstances[request.DeviceID].IPv4_String, OmniPort, MTU, &ActiveWindows);
+	Logger::log("Connecting to : ", ActiveInstances[request.DeviceID].InstanceName, "at ", ActiveInstances[request.DeviceID].IPv4_String);
+	ActiveInstances[request.DeviceID].InstanceSession->OnIOCompletion = NetworkPacketHandler;
 
-	OmniCap.AddEdgeCondition(index);
+	OmniCap.AddEdgeCondition(request.DeviceID);
 }
 
 
@@ -154,15 +151,7 @@ void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index = Device
 	
 	case FeatureTypes::AudioLink:
 
-		ByteStreamWriter payload;
-		
 
-		OmniNetCommand Command;
-		Command.CommandType = CoreCommandsWArgs::ConnectDevice;
-		Command.ArgTypeIndex = 0;
-		Command.Args = reinterpret_cast<unsigned char*>(&payload);
-
-		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);
 		break;
 	}
 }
@@ -229,11 +218,13 @@ void OmniLink::ToggleDDAPI() {
 		return;
 	}
 	else {
+
 		FuncArgTypes WCD = WindowCreationData("testing", 8, 1920, 1080);
 
 		OmniNetCommand Command;
 		Command.CommandType = CoreCommandsWArgs::CreateStreamLink;
 		Command.ArgTypeIndex = 2;
+		Command.ArgArrayLength = 1;
 		Command.Args = reinterpret_cast<unsigned char*>(&WCD);
 
 		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);
@@ -422,7 +413,7 @@ void OmniLink::OmniMainLoop() {
 
 			case 1:
 			{
-				DeviceMap args = std::get<1>(CommandBurstQWArgs.Queue[Tail]);
+				ConnectionRequest args = std::get<1>(CommandBurstQWArgs.Queue[Tail]);
 				(this->ConnectInstance)(args);
 				CommandBurstQWArgs.pop();
 				break;

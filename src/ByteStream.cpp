@@ -134,74 +134,71 @@ void ByteStreamReader::ReadString(char* Dest, uint32_t MaxLen) {
 
 
 
-void ByteStreamWriter::WriteU8Ex(uint8_t Value, std::vector<uint8_t>& Dest)
+bool ByteStreamEx::WriteU8Ex(uint8_t Value)
 {
-    Dest.push_back(Value);
-    CurrentLength += 1;
-}
-
-
-void ByteStreamWriter::WriteU16Ex(uint16_t Value, std::vector<uint8_t>& Dest) 
-{
-    Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>(Value & 0xFF));
-    CurrentLength += 2;
-}
-
-void ByteStreamWriter::WriteU32Ex(uint32_t Value, std::vector<uint8_t>& Dest) 
-{
-    Dest.push_back(static_cast<uint8_t>((Value >> 24) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 16) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>(Value & 0xFF));
-    CurrentLength += 4;
-}
-
-void ByteStreamWriter::WriteU64Ex(uint64_t Value, std::vector<uint8_t>& Dest) {
-    Dest.push_back(static_cast<uint8_t>((Value >> 56) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 48) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 40) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 32) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 24) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 16) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
-    Dest.push_back(static_cast<uint8_t>(Value & 0xFF));
-    CurrentLength += 8;
-}
-
-
-
-bool ByteStreamWriter::WriteU8Ex(uint8_t Value, uint8_t* Dest)
-{
-    if (!Dest) return false;
-    Dest[CurrentLength] = Value;
+    if (!Data) return false;
+    Data[CurrentLength] = Value;
     CurrentLength += 1;
     return true;
 }
 
-bool ByteStreamWriter::WriteU16Ex(uint16_t Value, uint8_t* Dest)
+bool ByteStreamEx::WriteU16Ex(uint16_t Value)
 {
-    if (!Dest) return false;
-    ByteStream::WriteU16(Value, Dest);
+    if (!Data) return false;
+    ByteStream::WriteU16(Value, Data);
     CurrentLength += 2;
     return true;
 }
 
-bool ByteStreamWriter::WriteU32Ex(uint32_t Value, uint8_t* Dest)
+bool ByteStreamEx::WriteU32Ex(uint32_t Value)
 {
-    if (!Dest) return false;
-    ByteStream::WriteU32(Value, Dest);
+    if (!Data) return false;
+    ByteStream::WriteU32(Value, Data);
     CurrentLength += 4;
     return true;
 }
 
-bool ByteStreamWriter::WriteU64Ex(uint64_t Value, uint8_t* Dest)
+bool ByteStreamEx::WriteU64Ex(uint64_t Value)
 {
-    if (!Dest) return false;
-    ByteStream::WriteU64(Value, Dest);
+    if (!Data) return false;
+    ByteStream::WriteU64(Value, Data);
     CurrentLength += 8;
     return true;
 }
+
+
+bool ByteStreamEx::WriteString(const std::string_view& String)
+{
+    if (!Data) return false;
+    if (String.size() > UINT32_MAX) return false;
+
+    uint32_t StringLength = static_cast<uint32_t>(String.size());
+    WriteU32Ex(StringLength);
+
+    std::memcpy(Data + CurrentLength, String.data(), StringLength);
+    CurrentLength += StringLength;
+    return true;
+}
+
+
+
+bool ByteStreamEx::SafeWriteString(const std::string_view& String, uint32_t MaxLen)
+{
+    if (!Data) return false;
+    if (String.size() > UINT32_MAX) return false;
+
+    uint32_t StringLength = static_cast<uint32_t>(String.size());
+    WriteU32Ex(StringLength);
+
+    if (StringLength > MaxLen) {
+        Logger::log("ByteStreamWriter::SafeWriteString : String length exceeds maximum allowed length of the buffer for encoding.");
+    }
+
+    std::memcpy(Data + CurrentLength, String.data(), StringLength);
+    CurrentLength += StringLength;
+    return true;
+}
+
 
 //bool ByteStreamWriter::WriteU16Ex(uint16_t Value, unsigned char* Dest)
 //{
@@ -218,7 +215,50 @@ bool ByteStreamWriter::WriteU64Ex(uint64_t Value, uint8_t* Dest)
 //    return WriteU64Ex(Value, reinterpret_cast<uint8_t*>(Dest));
 //}
 
-void ByteStreamWriter::WriteString(const std::string_view& String, std::vector<uint8_t>& Dest) 
+
+
+
+
+void ByteVecStreamEx::WriteU8Ex(uint8_t Value)
+{
+    Data.push_back(Value);
+    CurrentLength += 1;
+}
+
+
+void ByteVecStreamEx::WriteU16Ex(uint16_t Value)
+{
+    Data.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
+    Data.push_back(static_cast<uint8_t>(Value & 0xFF));
+    CurrentLength += 2;
+}
+
+void ByteVecStreamEx::WriteU32Ex(uint32_t Value)
+{
+    Data.push_back(static_cast<uint8_t>((Value >> 24) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 16) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
+    Data.push_back(static_cast<uint8_t>(Value & 0xFF));
+    CurrentLength += 4;
+}
+
+void ByteVecStreamEx::WriteU64Ex(uint64_t Value) {
+    Data.push_back(static_cast<uint8_t>((Value >> 56) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 48) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 40) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 32) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 24) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 16) & 0xFF));
+    Data.push_back(static_cast<uint8_t>((Value >> 8) & 0xFF));
+    Data.push_back(static_cast<uint8_t>(Value & 0xFF));
+    CurrentLength += 8;
+}
+
+
+
+
+
+void ByteVecStreamEx::WriteString(const std::string_view& String)
 {
 
     if (String.size() > UINT32_MAX) {
@@ -227,48 +267,31 @@ void ByteStreamWriter::WriteString(const std::string_view& String, std::vector<u
     }
 
     uint32_t StringLength = static_cast<uint32_t>(String.size());
-    WriteU32Ex(StringLength, Dest);
+    WriteU32Ex(StringLength);
 
-    Dest.reserve(Dest.size() + StringLength);
-    Dest.insert(Dest.end(), String.begin(), String.end());
+    Data.reserve(Data.size() + StringLength);
+    Data.insert(Data.end(), String.begin(), String.end());
 
     CurrentLength += StringLength;
 }
 
-bool ByteStreamWriter::WriteString(const std::string_view& String, uint8_t* Dest)
+
+
+void ByteVecStreamEx::SafeWriteString(const std::string_view& String, const uint32_t MaxLen)
 {
-    if (!Dest) return false;
-    if (String.size() > UINT32_MAX) return false;
-
-    uint32_t StringLength = static_cast<uint32_t>(String.size());
-    WriteU32(StringLength, Dest);
-
-    ByteStream::WriteU32(StringLength, Dest);
-    std::memcpy(Dest + 4, String.data(), StringLength);
-    CurrentLength += StringLength;
-    return true;
-}
-
-void ByteStreamWriter::SafeWriteString(const std::string_view& String, std::vector<uint8_t>& Dest) 
-{
-    WriteString(String, Dest);
-}
-
-
-bool ByteStreamWriter::SafeWriteString(const std::string_view& String, uint8_t* Dest, uint32_t MaxLen)
-{
-    if (!Dest) return false;
-    if (String.size() > UINT32_MAX) return false;
-
-    uint32_t StringLength = static_cast<uint32_t>(String.size());
-    WriteU32(StringLength, Dest);
-
-    if (StringLength > MaxLen) {
-        Logger::log("ByteStreamWriter::SafeWriteString : String length exceeds maximum allowed length of the buffer for encoding.");
+    if (String.size() > UINT32_MAX) {
+        Logger::log("ByteStreamWriter::WriteString : String length exceeds maximum allowed length for encoding.");
+        return;
     }
 
-    ByteStream::WriteU32(StringLength, Dest);
-    std::memcpy(Dest + 4, String.data(), StringLength);
+    uint32_t StringLength = static_cast<uint32_t>(String.size());
+    if (StringLength > MaxLen) return;
+    WriteU32Ex(StringLength);
+
+    Data.reserve(Data.size() + StringLength);
+    Data.insert(Data.end(), String.begin(), String.end());
+
     CurrentLength += StringLength;
-    return true;
 }
+
+

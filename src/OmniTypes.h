@@ -7,7 +7,6 @@
 
 #pragma once
 
-#include "ByteStream.h"
 
 #include <functional>
 #include <utility>
@@ -20,6 +19,7 @@
 #include <variant>
 #include <WinSock2.h>
 
+#include "ByteStream.h"
 
 
 #if defined(_WIN32)
@@ -52,7 +52,7 @@ enum FeatureTypes {
 	AudioLink
 };
 
-enum DeviceMap {
+enum DeviceMap : uint8_t{
 	C0,
 	L1,
 	U1,
@@ -89,8 +89,44 @@ struct ArraySwapLayout {
 		return obj;
 	}
 
+	static std::vector<uint8_t> Serialize(const ArraySwapLayout& obj)
+	{
+		ByteVecStreamEx NetWriter{ sizeof(ArraySwapLayout) };
+		NetWriter.WriteU32Ex(obj.index1);
+		NetWriter.WriteU32Ex(obj.index2);
+		return NetWriter.Data;
+	}
+
+	
 };
 
+
+struct ConnectionRequest {
+	DeviceMap DeviceID;
+	char OmniReqKey[32];
+
+	static ConnectionRequest Deserialize(ByteStreamReader& reader)
+	{
+		ConnectionRequest obj;
+		
+		uint8_t DevId;
+		reader.ReadU8Ex(DevId);
+		obj.DeviceID = DeviceMap(DevId);
+
+		reader.ReadString(obj.OmniReqKey);
+
+		return obj;
+	}
+
+	static std::vector<uint8_t> Serialize(const ConnectionRequest& obj)
+	{
+		ByteVecStreamEx NetWriter{sizeof(ConnectionRequest)};
+		NetWriter.WriteU8Ex(obj.DeviceID);
+		NetWriter.SafeWriteString(obj.OmniReqKey, 32);
+
+		return NetWriter.Data;
+	}
+};
 
 struct WindowCreationData
 {
@@ -154,6 +190,16 @@ struct WindowCreationData
 		return obj;
 	}
 
+	static std::vector<uint8_t> Serialize(const WindowCreationData& obj)
+	{
+		ByteVecStreamEx NetWriter{ sizeof(WindowCreationData) };
+		NetWriter.WriteU32Ex(obj.NameLen);
+		NetWriter.WriteString(obj.WindowName);
+		NetWriter.WriteU32Ex(obj.Width);
+		NetWriter.WriteU32Ex(obj.Height);
+		return NetWriter.Data;
+	}
+
 };
 
 
@@ -161,7 +207,7 @@ struct TestArg {
 	int x = 0;
 };
 
-using FuncArgTypes = std::variant<ArraySwapLayout, DeviceMap, WindowCreationData, TestArg>;
+using FuncArgTypes = std::variant<ArraySwapLayout, ConnectionRequest, WindowCreationData>;
 
 using DataTypes = std::variant<int>;
 
@@ -181,7 +227,7 @@ struct OmniNetCommand {
 struct OmniCommand {
 	CoreCommandsWArgs CommandType = TESTCOMMAND;
 	uint32_t ArgTypeIndex = 0;
-	FuncArgTypes Args = TestArg{ 0 };
+	FuncArgTypes Args = ArraySwapLayout{0, 0};
 };
 
 
