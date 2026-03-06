@@ -131,6 +131,27 @@ void ByteStreamReader::ReadString(char* Dest, uint32_t MaxLen) {
     CurrentLength -= StringLength;
 }
 
+void ByteStreamReader::ReadBytes(uint8_t* Dest, uint32_t Len)
+{
+    std::memcpy(Dest, Data, Len);
+
+    Data += Len;
+    CurrentLength -= Len;
+}
+
+bool ByteStreamReader::SafeReadBytes(uint8_t* Dest, uint32_t Len)
+{
+    if (CurrentLength < Len)
+        return false;
+
+    std::memcpy(Dest, Data, Len);
+
+    Data += Len;
+    CurrentLength -= Len;
+
+    return true;
+}
+
 
 
 
@@ -292,6 +313,18 @@ void ByteVecStreamEx::SafeWriteString(const std::string_view& String, const uint
     Data.insert(Data.end(), String.begin(), String.end());
 
     CurrentLength += StringLength;
+}
+
+
+void ByteVecStreamEx::WriteBytes(const uint8_t* Src, uint32_t Len)
+{
+    const uint32_t OldSize = static_cast<uint32_t>(Data.size());
+
+    Data.resize(OldSize + Len);
+
+    std::memcpy(Data.data() + OldSize, Src, Len);
+
+    CurrentLength += Len;
 }
 
 

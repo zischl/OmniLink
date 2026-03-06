@@ -13,7 +13,7 @@ class ByteStream {
 protected:
 
     static inline void ReadU8(const uint8_t* Source, uint8_t& Dest) {
-        Dest = static_cast<uint8_t>(Source[1]);
+        Dest = static_cast<uint8_t>(Source[0]);
     }
 
     static inline void ReadU16(const uint8_t* Source, uint16_t& Dest) {
@@ -117,6 +117,7 @@ public:
         : CurrentLength(DataLen), Data(reinterpret_cast<uint8_t*>(DataPtr)) {
     }
 
+    void ReadU8Ex(uint8_t& Dest);
 
     void ReadU64Ex(uint64_t& Dest);
 
@@ -124,7 +125,6 @@ public:
 
     void ReadU16Ex(uint16_t& Dest);
 
-    void ReadU8Ex(uint8_t& Dest);
 
 
     bool SafeReadU64(uint64_t& Dest);
@@ -145,6 +145,10 @@ public:
     void ReadString(char* Dest);
 
     void ReadString(char* Dest, uint32_t MaxLen);
+
+    void ReadBytes(uint8_t* Dest, uint32_t Len);
+
+    bool SafeReadBytes(uint8_t* Dest, uint32_t Len);
 };
 
 
@@ -215,6 +219,10 @@ public:
     void WriteString(const std::string_view& String);
 
     void SafeWriteString(const std::string_view& String, const uint32_t MaxLen);
+
+
+    void WriteBytes(const uint8_t* Src, uint32_t Len);
+    
 
 };
 

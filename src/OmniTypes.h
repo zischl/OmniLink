@@ -70,7 +70,6 @@ enum CoreCommands {
 };
 
 enum CoreCommandsWArgs : uint8_t {
-	TESTCOMMAND,
 	SwapLayout,
 	ConnectDevice,
 	CreateStreamLink
@@ -214,7 +213,7 @@ using DataTypes = std::variant<int>;
 
 
 struct OmniNetCommand {
-	CoreCommandsWArgs CommandType = TESTCOMMAND;
+	CoreCommandsWArgs CommandType;
 	uint32_t ArgTypeIndex = 0;
 	uint32_t ArgArrayLength = 0;
 	std::vector<uint8_t> Args;
@@ -278,12 +277,46 @@ struct OmniNetCommand {
 		out = std::move(writer.Data);
 	}
 
+	static OmniNetCommand Deserialize(ByteStreamReader& Reader)
+	{
+		OmniNetCommand Cmd{};
+
+		uint8_t RawCommandType = 0;
+		Reader.ReadU8Ex(RawCommandType);
+		Cmd.CommandType = static_cast<CoreCommandsWArgs>(RawCommandType);
+
+		Reader.ReadU32Ex(Cmd.ArgTypeIndex);
+		Reader.ReadU32Ex(Cmd.ArgArrayLength);
+
+		Cmd.Args.resize(Cmd.ArgArrayLength);
+
+		Reader.ReadBytes(Cmd.Args.data(), Cmd.ArgArrayLength);
+
+		return Cmd;
+	}
+
 };
 
 struct OmniCommand {
-	CoreCommandsWArgs CommandType = TESTCOMMAND;
+	CoreCommandsWArgs CommandType = CoreCommandsWArgs::SwapLayout;
 	uint32_t ArgTypeIndex = 0;
-	FuncArgTypes Args = ArraySwapLayout{0, 0};
+	FuncArgTypes Args = ArraySwapLayout{ 0, 0 };
+
+	OmniCommand() = default;
+
+	OmniCommand(CoreCommandsWArgs InCommandType,
+		uint32_t InArgTypeIndex,
+		FuncArgTypes InArgs)
+		: CommandType(InCommandType),
+		ArgTypeIndex(InArgTypeIndex),
+		Args(std::move(InArgs))
+	{
+	}
+
+	explicit OmniCommand(const OmniNetCommand& NetCmd)
+		: CommandType(NetCmd.CommandType), ArgTypeIndex(NetCmd.ArgTypeIndex) {}
+
+
 };
 
 

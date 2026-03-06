@@ -154,7 +154,7 @@ public:
 		header.Flags = Flags;
 
 		std::vector<uint8_t> payload = OmniNetCommand::Serialize(Command);
-
+		
 		ActiveInstances[TargetDevice].InstanceSession->SessionSend(reinterpret_cast<char*>(payload.data()), payload.size(), header);
 	}
 
@@ -199,18 +199,13 @@ public:
 
 					ByteStreamReader Reader{ static_cast<uint32_t>(BufferSize - 3), reinterpret_cast<uint8_t*>(Buffer)};
 
-					OmniCommand Command{};
-					Reader.ReadU8Ex(reinterpret_cast<uint8_t&>(Command.CommandType));
-					Reader.ReadU32Ex(reinterpret_cast<uint32_t&>(Command.ArgTypeIndex));
+					OmniNetCommand Payload = OmniNetCommand::Deserialize(Reader);
 
-					uint32_t ArgLength;
-					Reader.ReadU32Ex(ArgLength);
-					
-					
-					NetVariantDeserializer(Command.Args, Command.ArgTypeIndex, std::make_index_sequence<std::variant_size_v<FuncArgTypes>>(), Reader.Data, Reader.CurrentLength);
-					
+					OmniCommand command{ Payload };
 
-					OmniAPI::ExecuteNetCommandWArgs(Command);
+					NetVariantDeserializer(command.Args, command.ArgTypeIndex, std::make_index_sequence<std::variant_size_v<FuncArgTypes>>(), Payload.Args.data(), Payload.Args.size());
+
+					OmniAPI::ExecuteNetCommandWArgs(command);
 				}
 				break;
 			}
