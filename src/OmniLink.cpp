@@ -150,15 +150,8 @@ void OmniLink::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index = Device
 		break;
 	
 	case FeatureTypes::AudioLink:
-		WindowCreationData WGC{ };
-		OmniNetCommand command{};
-		command.CommandType = CoreCommandsWArgs::CreateStreamLink;
-		command.ArgTypeIndex = 2;
-		std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
-		command.Args = payload;
-		command.ArgArrayLength = payload.size();
-
-		TransmitNetCommand(DeviceMap::L1, command, DeviceMap::L1, OmniNet::Argonized);
+		WindowCreationData WGC{ "Test Window" }; 
+		CreateStreamLink(WGC);
 
 		break;
 	}
@@ -189,6 +182,17 @@ void OmniLink::ToggleWGC() {
 
 	}
 	else {
+		WindowCreationData WGC{ "Test Window" };
+		OmniNetCommand command{};
+		command.CommandType = CoreCommandsWArgs::CreateStreamLink;
+		command.ArgTypeIndex = 2;
+		std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
+		command.Args = payload;
+		command.ArgArrayLength = payload.size();
+
+		TransmitNetCommand(DeviceMap::L1, command, DeviceMap::L1, OmniNet::Argonized);
+
+
 		WGSCapture = new WGScreenCapture(D3D11Device, D3D11Context);
 		WGSCapture->CreateWGCBuffer(D3D11Device, &WGSCapBuffer);
 		WGSCapture->CreateMonitorCapSession(WGSCapBuffer, 1920, 1080);
@@ -227,15 +231,15 @@ void OmniLink::ToggleDDAPI() {
 	}
 	else {
 
-		WindowCreationData WCD{ "testing", 8, 1920, 1080 };
+		WindowCreationData WGC{ "Test Window" };
+		OmniNetCommand command{};
+		command.CommandType = CoreCommandsWArgs::CreateStreamLink;
+		command.ArgTypeIndex = 2;
+		std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
+		command.Args = payload;
+		command.ArgArrayLength = payload.size();
 
-		OmniNetCommand Command;
-		Command.CommandType = CoreCommandsWArgs::CreateStreamLink;
-		Command.ArgTypeIndex = 2;
-		Command.ArgArrayLength = 1;
-		Command.Args = WindowCreationData::Serialize(WCD);
-
-		TransmitNetCommand(DeviceMap::L1, Command, 0, OmniNet::FlagTypes::Argonized);
+		TransmitNetCommand(DeviceMap::L1, command, DeviceMap::L1, OmniNet::Argonized);
 
 
 		DXGICap = new DXGICapture;
