@@ -40,10 +40,23 @@ public:
 
 	ID3D11Texture2D* GetBuffer() const;
 
-	inline int CaptureDXGI() {
-		if (CaptureState) { DXGIOutDuplication->ReleaseFrame(); }
-		CaptureState = true;
-		return (DXGIOutDuplication->AcquireNextFrame(11, &frameinfo, &framepixeldata) == DXGI_ERROR_WAIT_TIMEOUT);
+	inline HRESULT CaptureDXGI()
+	{
+		if (CaptureState)
+		{
+			DXGIOutDuplication->ReleaseFrame();
+			CaptureState = false;
+		}
+
+
+		hr = DXGIOutDuplication->AcquireNextFrame(0, &frameinfo, &framepixeldata);
+
+		if (SUCCEEDED(hr))
+		{
+			CaptureState = true;
+		}
+
+		return hr;
 	}
 };
 

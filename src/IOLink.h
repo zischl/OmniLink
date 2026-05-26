@@ -3,58 +3,48 @@
 
 #pragma once
 
-#include "OmniTypes.h"
 #include "Helper.h"
+#include "OmniTypes.h"
 
-#include "system_probe_impl.h"
-#include <unordered_map>
-#include <mutex>
-#include <functional>
-#include <thread>
-#include <string>
-#include <vector>
-#include <atomic>
-#include <Windows.h>
 #include <WinUser.h>
+#include <Windows.h>
+#include <atomic>
+#include <functional>
 #include <hidusage.h>
-
-
-
+#include <mutex>
+#include <unordered_map>
 
 struct MouseXY {
-	int32_t X;
-	int32_t Y;
+  int32_t X;
+  int32_t Y;
 
-	MouseXY(int x, int y)
-	{
-		X = x;
-		Y = y;
-	}
+  MouseXY(int x, int y) {
+    X = x;
+    Y = y;
+  }
 };
 
-struct KeyData
-{
-	USHORT MakeCode;
-	USHORT Flags;
+struct KeyData {
+  USHORT MakeCode;
+  USHORT Flags;
 };
-
 
 struct Point {
-	LONG x;
-	LONG y;
+  LONG x;
+  LONG y;
 };
 
-static constexpr std::array<Point, 9> PointCache = { {
-	{32767,32767},  // C0
-	{65535, 32767}, // L1 
-	{32767, 65535}, // U1 
-	{0, 32767},     // R1 
-	{32767, 0},     // D1
-	{65535, 65535}, // LU1
-	{0, 65535},     // RU1
-	{0, 0},         // RD1
-	{65535, 0}      // LD1
-} };
+static constexpr std::array<Point, 9> PointCache = {{
+    {32767, 32767}, // C0
+    {65535, 32767}, // L1
+    {32767, 65535}, // U1
+    {0, 32767},     // R1
+    {32767, 0},     // D1
+    {65535, 65535}, // LU1
+    {0, 65535},     // RU1
+    {0, 0},         // RD1
+    {65535, 0}      // LD1
+}};
 
 class session;
 
@@ -62,157 +52,146 @@ static std::atomic<bool> LockState = false;
 
 class OmniShield {
 public:
+  OmniShield();
 
-	OmniShield();
+  void InvokeInputFilter();
 
-	void InvokeInputFilter();
+  void ReleaseInputFilter();
 
-	void ReleaseInputFilter();
+  static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 
-	static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
-
-	static LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam);
-
+  static LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 private:
-	HHOOK KeyboardBlock = NULL;
-	HHOOK MouseBlock = NULL;
+  HHOOK KeyboardBlock = NULL;
+  HHOOK MouseBlock = NULL;
 };
-
 
 class OmniCap {
 public:
-	OmniCap(ActiveInstanceContainer& ctx);
-	
-	// Mouse cursor position used by both edge detection and high performance input capture
-	int MouseX = 0;
-	int MouseY = 0;
+  OmniCap(ActiveInstanceContainer &ctx);
 
-	
-	/// ########################################################################################## ///
-	///	Display Edge Detection For the Mouse							    					   ///
-	/// ########################################################################################## ///
-	
-	unsigned int ResWidth = 0;
-	unsigned int ResHeight = 0;
+  // Mouse cursor position used by both edge detection and high performance
+  // input capture
+  int MouseX = 0;
+  int MouseY = 0;
 
-	FlowMorph<int, int, DeviceMap> ConditionManager;
+  /// ##########################################################################################
+  /// ///
+  ///	Display Edge Detection For the Mouse
+  //////
+  /// ##########################################################################################
+  /// ///
 
-	void ToggleEdgeProbe(HWND hwnd);
+  unsigned int ResWidth = 0;
+  unsigned int ResHeight = 0;
 
-	bool GetEdgeProbeState();
+  FlowMorph<int, int, DeviceMap> ConditionManager;
 
-	void CreateEdgeProbe(HWND hwnd, bool state = true);
+  void ToggleEdgeProbe(HWND hwnd);
 
-	void AddEdgeCondition(DeviceMap Index);
+  bool GetEdgeProbeState();
 
-	/// ########################################################################################## ///
-	/// High Perofrmance Input Capture															   ///
-	/// ########################################################################################## ///
+  void CreateEdgeProbe(HWND hwnd, bool state = true);
 
-	void (OmniCap::* InputProc)(LPARAM& lParam) = nullptr;
-	void ToggleInputCapture(HWND hwnd, bool state = false);
+  void AddEdgeCondition(DeviceMap Index);
 
-	// Initial mouse input event proc used for calculating the size of the raw input struct
-	void InputProcInit(LPARAM& lParam);
+  /// ##########################################################################################
+  /// /// High Perofrmance Input Capture
+  /// ///
+  /// ##########################################################################################
+  /// ///
 
-	// Default mouse input event proc for high performance input capturing
-	void InputProcCallback(LPARAM& lParam);
+  void (OmniCap::*InputProc)(LPARAM &lParam) = nullptr;
+  void ToggleInputCapture(HWND hwnd, bool state = false);
 
-	// Termination sequence for input capturing process
-	void VoidExitCallback(LPARAM& lParam);
+  // Initial mouse input event proc used for calculating the size of the raw
+  // input struct
+  void InputProcInit(LPARAM &lParam);
 
+  // Default mouse input event proc for high performance input capturing
+  void InputProcCallback(LPARAM &lParam);
 
-	// for future usage if dynamic assignment of input capture handling is needed
-	/*void (*OnMouseCapture)(RAWINPUT& Input) = nullptr;
+  // Termination sequence for input capturing process
+  void VoidExitCallback(LPARAM &lParam);
 
-	void (*OnKeyboardCapture)(RAWINPUT& RawInput) = nullptr;
+  // for future usage if dynamic assignment of input capture handling is needed
+  /*void (*OnMouseCapture)(RAWINPUT& Input) = nullptr;
 
-	void (*OnInitialMouseCapture)(int MouseX, int MouseY) = nullptr;*/
+  void (*OnKeyboardCapture)(RAWINPUT& RawInput) = nullptr;
 
-	/// ########################################################################################## ///
-	/// Window Move Event Detection																   ///
-	/// ########################################################################################## ///
+  void (*OnInitialMouseCapture)(int MouseX, int MouseY) = nullptr;*/
 
-	void WindowMoveListener(bool state = false);
+  /// ##########################################################################################
+  /// /// Window Move Event Detection
+  /// ///
+  /// ##########################################################################################
+  /// ///
 
-	inline void SetActiveSession(session* target) {
-		ActiveSession = target;
-	}
+  void WindowMoveListener(bool state = false);
+
+  inline void SetActiveSession(session *target) { ActiveSession = target; }
 
 private:
-	std::atomic_bool InputLinkStatus = false;
+  std::atomic_bool InputLinkStatus = false;
 
-	DeviceMap ActiveEdgeCondition;
-	session* ActiveSession = nullptr;
-	ActiveInstanceContainer& ActiveSessions;
+  DeviceMap ActiveEdgeCondition;
+  session *ActiveSession = nullptr;
+  ActiveInstanceContainer &ActiveSessions;
 
-	std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions = ConditionManager.conditions;
+  std::unordered_map<DeviceMap, std::function<bool(int, int)>> &Conditions =
+      ConditionManager.conditions;
 
-	std::mutex ConditionMutex;
+  std::mutex ConditionMutex;
 
-	std::atomic_bool MouseEventCapStatus;
-	HWINEVENTHOOK WinCapHook = NULL;
-	UINT RawInputSize;
+  std::atomic_bool MouseEventCapStatus;
+  HWINEVENTHOOK WinCapHook = NULL;
+  UINT RawInputSize;
 
-	//Callback for window movement detection
-	static void CALLBACK WinMvEventProc(
-		HWINEVENTHOOK hWinEventHook,
-		DWORD event,
-		HWND hwnd,
-		LONG idObject,
-		LONG idChild,
-		DWORD idEventThread,
-		DWORD dwmsEventTime
-	);
-
-
-	
-
-
+  // Callback for window movement detection
+  static void CALLBACK WinMvEventProc(HWINEVENTHOOK hWinEventHook, DWORD event,
+                                      HWND hwnd, LONG idObject, LONG idChild,
+                                      DWORD idEventThread, DWORD dwmsEventTime);
 };
-
-
 
 class OmniSynth {
 public:
-	int MouseX = 0;
-	int MouseY = 0;
+  int MouseX = 0;
+  int MouseY = 0;
 
-	//Sets current cursor position using absolute pixel cordinates
-	void static ProcMouse(int x, int y);
+  // Sets current cursor position using absolute pixel cordinates
+  void static ProcMouse(int x, int y);
 
-	void static ProcInput(INPUT& input);
+  void static ProcInput(INPUT &input);
 
-	//Simulate keyboard button actions
-	void static ProcKey(INPUT& input);
+  // Simulate keyboard button actions
+  void static ProcKey(INPUT &input);
 
-	//Simulate keyboard button actions 
-	void static ProcKey(KeyData& input);
+  // Simulate keyboard button actions
+  void static ProcKey(KeyData &input);
 
-	void SetMouseCursor(int MouseX, int MouseY);
+  void SetMouseCursor(int MouseX, int MouseY);
 
-	//Move cursor by pixel count rather than set cursor to an exact position
-	//Set current cursor position before using this function in order to avoid incorrect starting points
-	void inline MvMouse(int toX, int toY)
-	{
-		MouseX += toX;
-		MouseY += toY;
+  // Move cursor by pixel count rather than set cursor to an exact position
+  // Set current cursor position before using this function in order to avoid
+  // incorrect starting points
+  void inline MvMouse(int toX, int toY) {
+    MouseX += toX;
+    MouseY += toY;
 
-		SetCursorPos(MouseX, MouseY);
-	}
+    SetCursorPos(MouseX, MouseY);
+  }
 
-	//Returns true if the current registered mouse position matches with the give positions
-	bool inline CheckMousePos(int MX, int MY)
-	{
-		if (MX != MouseX && MY != MouseY) 
-			{ return false; }
-		else return true;
-	}
+  // Returns true if the current registered mouse position matches with the give
+  // positions
+  bool inline CheckMousePos(int MX, int MY) {
+    if (MX != MouseX && MY != MouseY) {
+      return false;
+    } else
+      return true;
+  }
 
-	MouseXY inline GetCursorPos() {
-
-	}
+  MouseXY inline GetCursorPos() {}
 };
 
 #endif

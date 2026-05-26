@@ -6,26 +6,29 @@
 	}					   \
 }
 
-ComPtr<IDXGIOutputDuplication> DXGICapture::InitDXGI(ID3D11Device* D3D11Device_) {
+ComPtr<IDXGIOutputDuplication> DXGICapture::InitDXGI(ID3D11Device* D3D11Device) {
 
-	ComPtr<ID3D11Device> D3D11Device = D3D11Device_;
 
 	ComPtr<IDXGIDevice> DXGIDevice;
-	hr = D3D11Device.As(&DXGIDevice);
+	hr = D3D11Device->QueryInterface(IID_PPV_ARGS(&DXGIDevice));
+	HRCheck(hr);
 
 	ComPtr<IDXGIAdapter> DXGIAdapter;
 	hr = DXGIDevice->GetAdapter(&DXGIAdapter);
+	HRCheck(hr);
 
 	ComPtr<IDXGIOutput> DXGIOutput;
 	hr = DXGIAdapter->EnumOutputs(0, &DXGIOutput);
-
-	ComPtr<IDXGIOutput1> DXGIOutputEnhanced;
-	hr = DXGIOutput.As(&DXGIOutputEnhanced);
-
-	hr = DXGIOutputEnhanced->DuplicateOutput(D3D11Device.Get(), &DXGIOutDuplication);
 	HRCheck(hr);
 
-	DXGIOutDuplication->AcquireNextFrame(1000, &frameinfo, &framepixeldata);
+	ComPtr<IDXGIOutput1> DXGIOutputEnhanced;
+	hr = DXGIOutput->QueryInterface(IID_PPV_ARGS(&DXGIOutputEnhanced));
+	HRCheck(hr);
+
+	hr = DXGIOutputEnhanced->DuplicateOutput(D3D11Device, &DXGIOutDuplication);
+	HRCheck(hr);
+
+	DXGIOutDuplication->AcquireNextFrame(0, &frameinfo, &framepixeldata);
 	framepixeldata.As(&DXGIComBuffer);
 
 	DXGIOutDuplication->ReleaseFrame();

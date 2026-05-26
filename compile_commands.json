@@ -1,0 +1,158 @@
+[
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\main.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\main.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\main.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\main.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\RendererCore.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\RendererCore.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\RendererCore.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\RendererCore.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\SessionHandler.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\SessionHandler.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\SessionHandler.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\SessionHandler.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\nvenc.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\nvenc.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\nvenc.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\nvenc.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\nvdec.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\nvdec.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\nvdec.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\nvdec.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "\"E:\\Zector Zero\\Installed\\Cuda\\bin\\nvcc.exe\" -forward-unknown-to-host-compiler -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink -D_WINDOWS -Xcompiler=\" /GR /EHsc\" -Xcompiler=\" -Zi -Ob0 -Od /RTC1\" -std=c++14 \"--generate-code=arch=compute_75,code=[compute_75,sm_75]\" \"--generate-code=arch=compute_80,code=[compute_80,sm_80]\" \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" \"--generate-code=arch=compute_89,code=[compute_89,sm_89]\" \"--generate-code=arch=compute_90,code=[compute_90,sm_90]\" \"--generate-code=arch=compute_100,code=[compute_100,sm_100]\" \"--generate-code=arch=compute_120,code=[compute_120,sm_120]\" -Xcompiler=-MDd -x cu -rdc=true -c D:\\Workspace\\Repositories\\OmniLink\\src\\CuKernel.cu -o CMakeFiles\\main.dir\\src\\CuKernel.cu.obj -Xcompiler=-FdCMakeFiles\\main.dir\\,-FS",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\CuKernel.cu",
+  "output": "CMakeFiles\\main.dir\\src\\CuKernel.cu.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\WinForge.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\WinForge.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\WinForge.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\WinForge.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\WinCap.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\WinCap.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\WinCap.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\WinCap.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\OmniRenderer.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\OmniRenderer.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\OmniRenderer.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\OmniRenderer.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\external\\include\\imgui\\imgui.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui.cpp",
+  "output": "CMakeFiles\\main.dir\\external\\include\\imgui\\imgui.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\external\\include\\imgui\\imgui_draw.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_draw.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_draw.cpp",
+  "output": "CMakeFiles\\main.dir\\external\\include\\imgui\\imgui_draw.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\external\\include\\imgui\\imgui_tables.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_tables.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_tables.cpp",
+  "output": "CMakeFiles\\main.dir\\external\\include\\imgui\\imgui_tables.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\external\\include\\imgui\\imgui_widgets.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_widgets.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_widgets.cpp",
+  "output": "CMakeFiles\\main.dir\\external\\include\\imgui\\imgui_widgets.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\external\\include\\imgui\\imgui_demo.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_demo.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\imgui_demo.cpp",
+  "output": "CMakeFiles\\main.dir\\external\\include\\imgui\\imgui_demo.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\external\\include\\imgui\\backends\\imgui_impl_win32.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends\\imgui_impl_win32.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends\\imgui_impl_win32.cpp",
+  "output": "CMakeFiles\\main.dir\\external\\include\\imgui\\backends\\imgui_impl_win32.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\external\\include\\imgui\\backends\\imgui_impl_dx11.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends\\imgui_impl_dx11.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends\\imgui_impl_dx11.cpp",
+  "output": "CMakeFiles\\main.dir\\external\\include\\imgui\\backends\\imgui_impl_dx11.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\OmniLink.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\OmniLink.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\OmniLink.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\OmniLink.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\IOLink.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\IOLink.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\IOLink.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\IOLink.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\OmniLogger.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\OmniLogger.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\OmniLogger.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\OmniLogger.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\OmniGUI.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\OmniGUI.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\OmniGUI.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\OmniGUI.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\OmniDiscovery.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\OmniDiscovery.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\OmniDiscovery.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\OmniDiscovery.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\OmniAPI.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\OmniAPI.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\OmniAPI.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\OmniAPI.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\platform\\windows\\system_probe.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\platform\\windows\\system_probe.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\platform\\windows\\system_probe.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\platform\\windows\\system_probe.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\AudioCap.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\AudioCap.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\AudioCap.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\AudioCap.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "D:\\WORKSP~1\\VISUAL~1\\VC\\Tools\\MSVC\\1444~1.352\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -DOMNI_BUILD_DEBUG -ID:\\Workspace\\Repositories\\OmniLink\\external\\include -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -ID:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -ID:\\Workspace\\Repositories\\OmniLink\\src -ID:\\Workspace\\Repositories\\OmniLink /DWIN32 /D_WINDOWS /GR /EHsc -O2 /Zi /Ob0 /Od /RTC1 -std:c++20 -MDd /FoCMakeFiles\\main.dir\\src\\ByteStream.cpp.obj /FdCMakeFiles\\main.dir\\ /FS -c D:\\Workspace\\Repositories\\OmniLink\\src\\ByteStream.cpp",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\src\\ByteStream.cpp",
+  "output": "CMakeFiles\\main.dir\\src\\ByteStream.cpp.obj"
+},
+{
+  "directory": "D:/Workspace/Repositories/OmniLink/build/Default",
+  "command": "C:\\PROGRA~2\\WI3CF2~1\\10\\bin\\100261~1.0\\x64\\rc.exe -DOMNI_BUILD_DEBUG -I D:\\Workspace\\Repositories\\OmniLink\\external\\include -I D:\\Workspace\\Repositories\\OmniLink\\external\\include\\nvidia -I D:\\Workspace\\Repositories\\OmniLink\\external\\include\\lz4 -I D:\\Workspace\\Repositories\\OmniLink\\external\\include\\cuda -I D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui -I D:\\Workspace\\Repositories\\OmniLink\\external\\include\\imgui\\backends -I D:\\Workspace\\Repositories\\OmniLink\\src -I D:\\Workspace\\Repositories\\OmniLink -DWIN32 -D_DEBUG /fo CMakeFiles\\main.dir\\resource.rc.res D:\\Workspace\\Repositories\\OmniLink\\resource.rc",
+  "file": "D:\\Workspace\\Repositories\\OmniLink\\resource.rc",
+  "output": "CMakeFiles\\main.dir\\resource.rc.res"
+}
+]

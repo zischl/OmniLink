@@ -1,0 +1,26 @@
+{
+  "version":  3,
+   "configurePresets":  [
+    {
+      "toolset":  {
+        "strategy":  "external",
+         "value":  "host=x64"
+      },
+       "displayName":  "Default",
+       "binaryDir":  "${sourceDir}/build/Default",
+       "name":  "Default",
+       "architecture":  {
+        "strategy":  "external",
+         "value":  "x64"
+      },
+       "generator":  "Ninja"
+    }
+  ],
+   "buildPresets":  [
+    {
+      "displayName":  "Default",
+       "name":  "Default",
+       "configurePreset":  "Default"
+    }
+  ]
+}
