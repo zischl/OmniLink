@@ -161,11 +161,12 @@ void WinForge::MainLoop() {
 
     case WAIT_OBJECT_0 + 0:
       if (std::chrono::steady_clock::now() - LastFrameTime >= FrameTimeLimit) {
+        DecodeBuffer();
+        Render();
+
+        LastFrameTime = std::chrono::steady_clock::now();
         continue;
       }
-
-      DecodeBuffer();
-      Render();
 
       break;
 
