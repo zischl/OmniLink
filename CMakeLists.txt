@@ -89,12 +89,14 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/input
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
           ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc
           ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
           ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
           ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
           ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
           ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows)
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
 
 # Yup... Still about Targets
 target_compile_definitions(main PUBLIC $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>
