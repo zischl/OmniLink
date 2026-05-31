@@ -9,7 +9,7 @@
 
 #include <Windows.h>
 
-MonitorRes Device::GetMonitorResolution()
+Device::MonitorRes Device::GetMonitorResolution()
 {
     return MonitorRes{GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)};
 }
