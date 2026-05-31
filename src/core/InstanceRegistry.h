@@ -4,13 +4,18 @@
 #pragma once
 #include "NetUtils.h"
 #include "OmniDiscovery.h"
+#include "OmniEnums.h"
 #include "OmniInstances.h"
+#include "OmniLogger.h"
 #include "system_probe_impl.h"
+
+#include <cstdint>
 
 struct InstanceRegistry
 {
     std::mutex Mutex;
     Instances* InstanceProbe = nullptr;
+    uint32_t OpenSlotMask = 0x1FF;
 
     std::unordered_map<DeviceMap, OmniInstance> AllInstances = {{DeviceMap::LU1, OmniInstance(5)},
                                                                 {DeviceMap::U1, OmniInstance(2)},
@@ -36,44 +41,64 @@ struct InstanceRegistry
         }
     }
 
-    std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept;
+    std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept
+    {
+        return &AllInstances;
+    }
+
+    inline void ClearInstance(DeviceMap slot)
+    {
+        AllInstances[slot].Clear();
+        OpenSlotMask |= (1 << static_cast<uint8_t>(slot));
+    }
 
     // Check whether new scan results are available and get them if so
     // Otherwise initiate a new scan
-    template <typename DiscoveryCallback> void ScanInstances(DiscoveryCallback* Callback)
+    template <typename DiscoveryCallback> void RefreshInstanceList(DiscoveryCallback&& Callback)
     {
-        if (InstanceProbe->ScanState.load()) {
-            std::unordered_map<uint32_t, std::string> AvailableInstances = *InstanceProbe->get();
-
-            int DevIdx = 0;
-
-            // AllInstances.clear();
-
-            for (const auto& [IP, Name] : AvailableInstances) {
-                if (InstanceLookup.contains(IP))
-                    continue;
-
-                std::lock_guard<std::mutex> lock(Mutex);
-                AllInstances[static_cast<DeviceMap>(DevIdx)].InstanceIP = IP;
-                std::sprintf(AllInstances[static_cast<DeviceMap>(DevIdx)].IPv4_String,
-                             "%u.%u.%u.%u",
-                             (IP >> 24) & 0xFF,
-                             (IP >> 16) & 0xFF,
-                             (IP >> 8) & 0xFF,
-                             IP & 0xFF);
-                DevIdx++;
-            }
-
-            for (auto& [DevMapIDx, Instance] : AllInstances) {
-                if (AvailableInstances.find(Instance.InstanceIP) == AvailableInstances.end()) {
-                    Instance.Clear();
-                }
-            }
-
-            DiscoveryCallback();
-        } else {
+        if (!InstanceProbe->ScanState.load()) {
             InstanceProbe->Scan(15);
+            return;
         }
+
+        std::unordered_map<uint32_t, std::string> AvailableInstances = *InstanceProbe->get();
+
+        std::lock_guard<std::mutex> lock(Mutex);
+
+        for (auto& [DevMapIdx, Instance] : AllInstances) {
+            if (Instance.InstanceIP != 0 && !AvailableInstances.contains(Instance.InstanceIP)) {
+                ClearInstance(DevMapIdx);
+            }
+        }
+
+        for (const auto& [IP, Name] : AvailableInstances) {
+            if (InstanceLookup.contains(IP)) {
+                continue;
+            }
+
+            if (OpenSlotMask == 0) {
+                Logger::log("Why u trynna link 9 computers at home..");
+                break;
+            }
+
+            unsigned long BitIndex;
+            _BitScanForward(&BitIndex, OpenSlotMask);
+            DeviceMap OpenSlot = static_cast<DeviceMap>(BitIndex);
+
+            AllInstances[OpenSlot].InstanceIP = IP;
+            std::sprintf(AllInstances[OpenSlot].IPv4_String,
+                         "%u.%u.%u.%u",
+                         (IP >> 24) & 0xFF,
+                         (IP >> 16) & 0xFF,
+                         (IP >> 8) & 0xFF,
+                         IP & 0xFF);
+
+            InstanceLookup[IP] = OpenSlot;
+
+            OpenSlotMask &= ~(1 << BitIndex);
+        }
+
+        Callback();
     }
 };
 

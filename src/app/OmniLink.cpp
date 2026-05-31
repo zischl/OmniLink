@@ -1,38 +1,5 @@
 #include <OmniLink.h>
 
-void OmniCore::WinGetUserName(char (&CharArray)[UNLEN + 1]) {
-  TCHAR UserName[UNLEN + 1];
-  DWORD size = UNLEN + 1;
-
-  GetUserName((TCHAR *)UserName, &size);
-
-  TCharCpy(*UserName, *CharArray, size);
-}
-
-void OmniCore::WinGetComputerName(char (&CharArray)[OmniDevNameLen + 1]) {
-  TCHAR ComputerName[OmniDevNameLen + 1];
-  DWORD size = sizeof(ComputerName) / sizeof(ComputerName[0]);
-  GetComputerName(ComputerName, &size);
-
-  TCharCpy(*ComputerName, *CharArray, size);
-}
-
-void OmniCore::QueryLocalIP(uint32_t &LocalIP, const int index) {
-
-  std::vector<sockaddr_in> LocalIPs;
-  sessions::GetLocals(4, &LocalIPs);
-  if (!LocalIPs.empty()) {
-    LocalIP = htonl(LocalIPs[index].sin_addr.S_un.S_addr);
-    return;
-  }
-
-  Logger::log("Failed to Retrieve Local IP : Please Check Your Connection!\n");
-}
-
-std::unordered_map<DeviceMap, OmniInstance> *
-OmniCore::GetAvailableInstances() noexcept {
-  return &AllInstances;
-}
 
 void OmniCore::SwapInstanceLayout(int source, int dest) {
   if (AllInstances[DeviceMap(dest)].InstanceIP == NULL) {
