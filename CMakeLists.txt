@@ -57,6 +57,7 @@ set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc")
 
 # OmniLink C++ and CUDA source files GLOBS
 file(GLOB_RECURSE PROJECT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
      "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cu")
 
 # Targets.....
@@ -99,8 +100,11 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
 
 # Yup... Still about Targets
-target_compile_definitions(main PUBLIC $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>
-                                       $<$<CONFIG:Release>:OMNI_BUILD_RELEASE>)
+target_compile_definitions(
+  main
+  PUBLIC $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>
+         $<$<CONFIG:Release>:OMNI_BUILD_RELEASE>
+  PRIVATE WIN32_LEAN_AND_MEAN)
 
 # Build architecture
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)

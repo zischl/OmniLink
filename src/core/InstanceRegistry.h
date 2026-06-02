@@ -2,6 +2,11 @@
 #define OmniInstanceReg_H
 
 #pragma once
+
+#include <mutex>
+#include <string>
+#include <unordered_map>
+
 #include "NetUtils.h"
 #include "OmniDiscovery.h"
 #include "OmniEnums.h"
@@ -13,10 +18,12 @@
 
 struct InstanceRegistry
 {
+  protected:
     std::mutex Mutex;
     Instances* InstanceProbe = nullptr;
     uint32_t OpenSlotMask = 0x1FF;
 
+  public:
     std::unordered_map<DeviceMap, OmniInstance> AllInstances = {{DeviceMap::LU1, OmniInstance(5)},
                                                                 {DeviceMap::U1, OmniInstance(2)},
                                                                 {DeviceMap::RU1, OmniInstance(6)},
@@ -27,7 +34,7 @@ struct InstanceRegistry
                                                                 {DeviceMap::D1, OmniInstance(4)},
                                                                 {DeviceMap::RD1, OmniInstance(7)}};
 
-    std::unordered_map<DeviceMap, OmniActiveInstance> ActiveInstances;
+    ActiveInstanceContainer ActiveInstances;
 
     std::unordered_map<uint32_t, DeviceMap> InstanceLookup = {};
 
@@ -39,6 +46,9 @@ struct InstanceRegistry
         if (LocalIP != 0) {
             IP2Char(LocalIP, ActiveInstances[DeviceMap::C0].IPv4_String);
         }
+
+        // Getting user data and initializing user instance
+        Device::RetrieveUserName(ActiveInstances[DeviceMap::C0].InstanceName);
     }
 
     std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept
@@ -53,7 +63,7 @@ struct InstanceRegistry
     }
 
     // Check whether new scan results are available and get them if so
-    // Otherwise initiate a new scan
+    // Otherwise initiate a new scana, uses bit masking to store open slots
     template <typename DiscoveryCallback> void RefreshInstanceList(DiscoveryCallback&& Callback)
     {
         if (!InstanceProbe->ScanState.load()) {
@@ -100,6 +110,32 @@ struct InstanceRegistry
 
         Callback();
     }
+
+    void SwapInstances(int DeviceID1, int DeviceID2)
+    {
+        if (AllInstances[DeviceMap(DeviceID2)].InstanceIP == NULL) {
+            AllInstances[DeviceMap(DeviceID2)].InstanceIP =
+                AllInstances[DeviceMap(DeviceID1)].InstanceIP;
+            strncpy(AllInstances[DeviceMap(DeviceID2)].InstanceName,
+                    AllInstances[DeviceMap(DeviceID1)].InstanceName,
+                    OmniDevNameLen);
+            strncpy(AllInstances[DeviceMap(DeviceID2)].IPv4_String,
+                    AllInstances[DeviceMap(DeviceID1)].IPv4_String,
+                    16);
+
+            AllInstances[DeviceMap(DeviceID1)].Clear();
+
+        }
+
+        else {
+            OmniInstance temp = AllInstances[DeviceMap(DeviceID1)];
+            AllInstances[DeviceMap(DeviceID1)].Edit(AllInstances[DeviceMap(DeviceID2)].InstanceName,
+                                                    AllInstances[DeviceMap(DeviceID2)].IPv4_String,
+                                                    AllInstances[DeviceMap(DeviceID2)].InstanceIP);
+            AllInstances[DeviceMap(DeviceID2)].Edit(
+                temp.InstanceName, temp.IPv4_String, temp.InstanceIP);
+        }
+    }
 };
 
-#endif // !OmniInstanceReg_H
+#endif
