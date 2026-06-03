@@ -40,11 +40,12 @@ struct OmniInstance
         memset(IPv4_String, 0, sizeof(IPv4_String));
     }
 
-    void Edit(char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_)
+    void Edit(char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_, DeviceMap DeviceID)
     {
         InstanceIP = InstanceIP_;
         strncpy(IPv4_String, IPv4_String_, 16);
         strncpy(InstanceName, InstanceName_, (OmniDevNameLen + 1));
+        DevMapIndex = static_cast<uint8_t>(DevMapIndex);
     }
 };
 
@@ -56,11 +57,23 @@ struct OmniActiveInstance : OmniInstance
 
     OmniActiveInstance() {}
 
-    OmniActiveInstance(char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_)
+    OmniActiveInstance(char* InstanceName_,
+                       char* IPv4_String_,
+                       uint32_t InstanceIP_,
+                       uint8_t DeviceID)
     {
         InstanceIP = InstanceIP_;
         strncpy(IPv4_String, IPv4_String_, 16);
         strncpy(InstanceName, InstanceName_, (OmniDevNameLen + 1));
+        DevMapIndex = DeviceID;
+    }
+
+    OmniActiveInstance(OmniInstance& Instance)
+    {
+        InstanceIP = Instance.InstanceIP;
+        strncpy(IPv4_String, Instance.IPv4_String, 16);
+        strncpy(InstanceName, Instance.InstanceName, (OmniDevNameLen + 1));
+        DevMapIndex = Instance.DevMapIndex;
     }
 };
 
