@@ -1,6 +1,7 @@
 #ifndef OmniCapController_H
 #define OmniCapController_H
 
+#include <cstddef>
 #pragma once
 #include "AsyncWorker.h"
 #include "OmniEnums.h"
@@ -62,8 +63,6 @@ struct EncodeStream
             // OutputDebugStringA((std::to_string(Nvs->NVBitstreamLock.bitstreamSizeInBytes)
             // + "\n").c_str());
 
-            // NvencOutputTest(Nvs->NVBitstreamLock, index+"hellow there");
-
             NetSession->ChunkedSend(
                 reinterpret_cast<char*>(NvSession->NVBitstreamLock.bitstreamBufferPtr),
                 NvSession->NVBitstreamLock.bitstreamSizeInBytes);
@@ -75,13 +74,26 @@ struct EncodeStream
 
 struct CaptureController
 {
-    std::unordered_map<uint8_t, EncodeStream> Streams;
-    uint8_t StreamCount = 0;
+    using StreamID = size_t;
+
+  private:
+    std::unordered_map<size_t, EncodeStream> Streams;
+    size_t StreamCount = 0;
+
+  public:
     NVENCODER NvEncodeAPI;
 
-    EncodeStream* AddStream();
+    StreamID AddStream(ID3D11Device* D3D11Device,
+                       ID3D11DeviceContext* D3D11Context,
+                       session* NetSession,
+                       DeviceMap TargetID,
+                       CaptureMode Mode);
+
     void RemoveStream(size_t StreamID);
+
     void StopAll();
 };
 
 #endif
+
+// TODO.. maybe a release memory func

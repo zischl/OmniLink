@@ -1,4 +1,5 @@
 #include "CaptureController.h"
+#include "RendererCore.h"
 #include "nvenc.h"
 
 void EncodeStream::Start(ID3D11Device* D3D11Device,
@@ -13,16 +14,6 @@ void EncodeStream::Start(ID3D11Device* D3D11Device,
 
     Target = NetSession;
     TargetDevice = TargetID;
-
-    // WindowCreationData WGC{"Test Window"};
-    // OmniNetCommand command{};
-    // command.CommandType = CoreCommandsWArgs::CreateStreamLink;
-    // command.ArgTypeIndex = 2;
-    // std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
-    // command.Args = payload;
-    // command.ArgArrayLength = payload.size();
-
-    // TransmitNetCommand(TargetDevice, command, TargetDevice, OmniNet::Argonized);
 
     if (Mode == CaptureMode::WGC) {
         WGSCapture = new WGScreenCapture(D3D11Device, D3D11Context);
@@ -75,9 +66,17 @@ void EncodeStream::Stop()
     Status = false;
 }
 
-EncodeStream* CaptureController::AddStream()
+CaptureController::StreamID CaptureController::AddStream(ID3D11Device* D3D11Device,
+                                                         ID3D11DeviceContext* D3D11Context,
+                                                         session* NetSession,
+                                                         DeviceMap TargetID,
+                                                         CaptureMode Mode)
 {
-    return &Streams[StreamCount++];
+
+    StreamID id = StreamCount++;
+    Streams[StreamCount++].Start(
+        D3D11Device, D3D11Context, NetSession, TargetID, Mode, &NvEncodeAPI);
+    return id;
 }
 
 void CaptureController::RemoveStream(size_t StreamID)
