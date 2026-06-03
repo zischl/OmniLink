@@ -29,10 +29,13 @@ foreach(SHADER_PATH ${HLSL_SHADERS})
   get_filename_component(SHADER_NAME ${SHADER_PATH} NAME_WE)
 
   set(PROFILE "cs_5_0")
+  set(PROFILE_MAIN "CSMain")
   if(${SHADER_NAME} MATCHES "[Vv]ertex" OR ${SHADER_NAME} MATCHES "_vs")
     set(PROFILE "vs_5_0")
+    set(PROFILE_MAIN "VSMain")
   elseif(${SHADER_NAME} MATCHES "[Pp]ixel" OR ${SHADER_NAME} MATCHES "_ps")
     set(PROFILE "ps_5_0")
+    set(PROFILE_MAIN "PSMain")
   endif()
 
   set(OUTPUT_CSO "${CMAKE_CURRENT_BINARY_DIR}/${SHADER_NAME}.cso")
@@ -41,7 +44,7 @@ foreach(SHADER_PATH ${HLSL_SHADERS})
   add_custom_command(
     OUTPUT ${OUTPUT_CSO}
     COMMAND
-      fxc /T ${PROFILE} /E CSMain /Fo ${OUTPUT_CSO} /Fc
+      fxc /T ${PROFILE} /E ${PROFILE_MAIN} /Fo ${OUTPUT_CSO} /Fc
       ${CMAKE_CURRENT_BINARY_DIR}/${SHADER_NAME}Assembly.txt ${SHADER_PATH}
     DEPENDS ${SHADER_PATH}
     VERBATIM)
@@ -50,9 +53,20 @@ endforeach()
 add_custom_target(CompileShaders ALL DEPENDS ${SHADER_OUTPUTS})
 
 # ImGui and resource file GLOBS
-file(GLOB IMGUI_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/*.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/*.cpp")
+file(
+  GLOB
+  IMGUI_CORE_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/*.cpp")
+
+set(IMGUI_SOURCES
+    ${IMGUI_CORE_SOURCES}
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_win32.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_win32.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_dx11.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_dx11.cpp")
+
+
 set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc")
 
 # OmniLink C++ and CUDA source files GLOBS
@@ -114,10 +128,12 @@ else()
   # set(LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/x86/)
 endif()
 
-link_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/)
-link_directories(
+target_link_directories(
+  main
+  PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/
   ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architecture}/)
+
 
 # Post Build Shit... Copying DLLs
 set(DLL_PATH
