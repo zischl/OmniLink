@@ -1,200 +1,276 @@
 #include "SessionHandler.h"
-
+#include "OmniLogger.h"
 
 sessions::sessions()
 {
-	WinsockInit();
-
+    WinsockInit();
 }
 
 int sessions::WinsockInit()
 {
-	int wsResult;
-	wsResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (wsResult != 0) {
-		return 1;
-	}
-	return 0;
+    int wsResult;
+    wsResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (wsResult != 0) {
+        return 1;
+    }
+    return 0;
 }
 
 sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port)
 {
-	sockaddr_in address;
-	address.sin_family = AF_INET;
-	address.sin_port = htons(port);
-	inet_pton(AF_INET, IP, &address.sin_addr);
-	return address;
+    sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_port = htons(port);
+    inet_pton(AF_INET, IP, &address.sin_addr);
+    return address;
 }
 
-SOCKET sessions::CreateSocket() {
-	SOCKET socketR = INVALID_SOCKET;
+SOCKET sessions::CreateSocket()
+{
+    SOCKET socketR = INVALID_SOCKET;
 
-	socketR = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (socketR == INVALID_SOCKET) {
-		WSACleanup();
-		return 1;
-	}
-	return socketR;
-
-
+    socketR = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (socketR == INVALID_SOCKET) {
+        WSACleanup();
+        return 1;
+    }
+    return socketR;
 }
-
 
 void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 {
-	int WSResult;
+    int WSResult;
 
-	ULONG Flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_PREFIX;
+    ULONG Flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER |
+                  GAA_FLAG_INCLUDE_PREFIX;
 
-	ULONG Family = family == 4 ? AF_INET : family == 6 ? AF_INET6 : AF_UNSPEC;
+    ULONG Family = family == 4 ? AF_INET : family == 6 ? AF_INET6 : AF_UNSPEC;
 
-	ULONG locals_size = 15000;
+    ULONG locals_size = 15000;
 
-	uint8_t Retries = 2;
+    uint8_t Retries = 2;
 
-	PIP_ADAPTER_ADDRESSES locals = NULL;
+    PIP_ADAPTER_ADDRESSES locals = NULL;
 
-	unsigned int i = 0;
+    unsigned int i = 0;
 
-	PIP_ADAPTER_ADDRESSES IterAddress = NULL;
-	PIP_ADAPTER_UNICAST_ADDRESS Unicast = NULL;
+    PIP_ADAPTER_ADDRESSES IterAddress = NULL;
+    PIP_ADAPTER_UNICAST_ADDRESS Unicast = NULL;
 
-	do {
+    do {
 
-		locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(locals_size);
-		if (locals == NULL)
-		{
-			return;
-		}
+        locals = (IP_ADAPTER_ADDRESSES*)MEMALLOC(locals_size);
+        if (locals == NULL) {
+            return;
+        }
 
-		WSResult = GetAdaptersAddresses(Family, Flags, NULL, locals, &locals_size);
-		if (WSResult != ERROR_BUFFER_OVERFLOW && WSResult != ERROR_SUCCESS)
-		{
-			Logger::log("Error {}: Could Not Retrieve Local Addresses !\n", WSResult);
-			FREE(locals);
-		}
+        WSResult = GetAdaptersAddresses(Family, Flags, NULL, locals, &locals_size);
+        if (WSResult != ERROR_BUFFER_OVERFLOW && WSResult != ERROR_SUCCESS) {
+            Logger::log("Error {}: Could Not Retrieve Local Addresses !\n", WSResult);
+            FREE(locals);
+        }
 
-		Retries--;
+        Retries--;
 
-	} while (WSResult != ERROR_SUCCESS && Retries != 0);
+    } while (WSResult != ERROR_SUCCESS && Retries != 0);
 
-	if (WSResult == ERROR_SUCCESS && locals != NULL)
-	{
-		IterAddress = locals;
-		while (IterAddress)
-		{
+    if (WSResult == ERROR_SUCCESS && locals != NULL) {
+        IterAddress = locals;
+        while (IterAddress) {
 
-			Unicast = IterAddress->FirstUnicastAddress;
+            Unicast = IterAddress->FirstUnicastAddress;
 
-			if (Unicast != NULL &&
-				IterAddress->OperStatus == IfOperStatusUp &&
-				IterAddress->IfType != IF_TYPE_SOFTWARE_LOOPBACK
-				&& IterAddress->IfType != IF_TYPE_TUNNEL
-				&& (
-					(IterAddress->PhysicalAddress[0] != 0x00 && IterAddress->PhysicalAddress[1] != 0x00) ||
-					(IterAddress->PhysicalAddress[0] != 0x00 && IterAddress->PhysicalAddress[1] != 0xFF)
-					)
-				)
-			{
-				for (i = 0; Unicast != NULL; i++)
-				{
-					sockaddr_in* addr = (sockaddr_in*)Unicast->Address.lpSockaddr;
-					Buffer->push_back(*addr);
+            if (Unicast != NULL && IterAddress->OperStatus == IfOperStatusUp &&
+                IterAddress->IfType != IF_TYPE_SOFTWARE_LOOPBACK &&
+                IterAddress->IfType != IF_TYPE_TUNNEL &&
+                ((IterAddress->PhysicalAddress[0] != 0x00 &&
+                  IterAddress->PhysicalAddress[1] != 0x00) ||
+                 (IterAddress->PhysicalAddress[0] != 0x00 &&
+                  IterAddress->PhysicalAddress[1] != 0xFF))) {
+                for (i = 0; Unicast != NULL; i++) {
+                    sockaddr_in* addr = (sockaddr_in*)Unicast->Address.lpSockaddr;
+                    Buffer->push_back(*addr);
 
-					//inet_ntop(AF_INET, (in_addr*)(&addr->sin_addr), LocalIP.data(), 16);
-					//Logger::log("Local IP Found : {}", LocalIP.data());
+                    // inet_ntop(AF_INET, (in_addr*)(&addr->sin_addr), LocalIP.data(),
+                    // 16); Logger::log("Local IP Found : {}", LocalIP.data());
 
-					Unicast = Unicast->Next;
-				}
-				//IterAddress->TransmitLinkSpeed; for later use
-				//IterAddress->ReceiveLinkSpeed;
-			}
+                    Unicast = Unicast->Next;
+                }
+                // IterAddress->TransmitLinkSpeed; for later use
+                // IterAddress->ReceiveLinkSpeed;
+            }
 
-			IterAddress = IterAddress->Next;
-		}
-	}
-	else {
-		Logger::log("Call to GetAdaptersAddresses failed with error: {}\n", WSResult);
-		if (WSResult == ERROR_NO_DATA)
-			Logger::log("\tNo addresses were found for the requested parameters\n");
-	}
+            IterAddress = IterAddress->Next;
+        }
+    } else {
+        Logger::log("Call to GetAdaptersAddresses failed with error: {}\n", WSResult);
+        if (WSResult == ERROR_NO_DATA)
+            Logger::log("\tNo addresses were found for the requested parameters\n");
+    }
 
-	if (locals) {
-		FREE(locals);
-	}
+    if (locals) {
+        FREE(locals);
+    }
 
-	return;
+    return;
 }
 
+void sessions::RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey)
+{
+    if (IOCP == NULL) {
+        IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
+        if (IOCP == NULL) {
+            OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
+        }
 
-void sessions::RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey) {
-	if (IOCP == NULL) {
-		IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
-		if (IOCP == NULL) {
-			OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
-		}
-
-		return;
-	}
-	else {
-
-	}
-	IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
-	if (IOCP == NULL) {
-		OutputDebugStringA("IOCP Port Binding Failed Successfully\n");
-	}
-
+        return;
+    } else {
+    }
+    IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
+    if (IOCP == NULL) {
+        OutputDebugStringA("IOCP Port Binding Failed Successfully\n");
+    }
 }
 
+void sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
+{
+    int WSResult = 0;
 
-void sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket) {
-	int WSResult = 0;
+    sockaddr_in local;
+    local.sin_family = AF_INET;
+    local.sin_port = htons(port);
+    inet_pton(AF_INET, IP, &local.sin_addr);
 
-	sockaddr_in local;
-	local.sin_family = AF_INET;
-	local.sin_port = htons(port);
-	inet_pton(AF_INET, IP, &local.sin_addr);
-
-	WSResult = bind(socket, (sockaddr*)&local, sizeof(local));
-	if (WSResult != 0) {
-		WSResult = WSAGetLastError();
-		OutputDebugStringA((std::to_string(WSResult) + "\n").c_str());
-		OutputDebugStringA("Bind Failed Successfully\n");
-	}
-
+    WSResult = bind(socket, (sockaddr*)&local, sizeof(local));
+    if (WSResult != 0) {
+        WSResult = WSAGetLastError();
+        OutputDebugStringA((std::to_string(WSResult) + "\n").c_str());
+        OutputDebugStringA("Bind Failed Successfully\n");
+    }
 }
 
-
-void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR) {
-
-	int WSResult = 0;
-
-	WSResult = connect(socketR, (sockaddr*)&address, sizeof(address));
-	if (WSResult != 0) {
-		OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
-	}
-
-}
-
-
-session::session(HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, void* Context) :
-	MTU(MTU_Size)
+void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR)
 {
 
-	PreSetBufferMTU();
-	address = sessions::CreateAddress(IP, port);
-	socketR = sessions::CreateSocket();
-	sessions::BindReceiver(Local_IP, port, socketR);
-	sessions::ConnectSesssion(address, socketR);
-	sessions::RegIOCP(IOCP, socketR);
-	sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, OnIOCompletion, Context);
+    int WSResult = 0;
 
-	sessions::PostWSARecv(socketR, RecvPool);
-	
-
+    WSResult = connect(socketR, (sockaddr*)&address, sizeof(address));
+    if (WSResult != 0) {
+        OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
+    }
 }
 
+session::session(
+    HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, void* Context)
+    : MTU(MTU_Size)
+{
 
+    PreSetBufferMTU();
+    address = sessions::CreateAddress(IP, port);
+    socketR = sessions::CreateSocket();
+    sessions::BindReceiver(Local_IP, port, socketR);
+    sessions::ConnectSesssion(address, socketR);
+    sessions::RegIOCP(IOCP, socketR);
+    sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, OnIOCompletion, Context);
 
+    sessions::PostWSARecv(socketR, RecvPool);
+}
 
+void session::SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header)
+{
+    CHeaderPool[SPoolHead].PacketType = header.PacketType;
+    CHeaderPool[SPoolHead].Target = header.Target;
+    CHeaderPool[SPoolHead].Flags = header.Flags;
 
+    TransmitPool[SPoolHead].TransmitBuffer[1].buf =
+        reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
+    TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
+    TransmitPool[SPoolHead].TransmitBuffer[0].len = packet_size;
+
+    WSASend(socketR,
+            TransmitPool[SPoolHead].TransmitBuffer,
+            2,
+            NULL,
+            0,
+            &TransmitPool[SPoolHead].OVStruct,
+            NULL);
+
+    SPoolHead = (SPoolHead + 1) & 255;
+}
+
+void session::ChunkedSend(CHAR* data, int data_size)
+{
+    // start = Clock::now();
+
+    int MTU_slices = data_size - (data_size % MTU);
+    CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkStart;
+    CHeaderPool[SPoolHead].Target = 0;
+    TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
+    TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
+
+    WSASend(socketR,
+            TransmitPool[SPoolHead].TransmitBuffer,
+            2,
+            NULL,
+            0,
+            &TransmitPool[SPoolHead].OVStruct,
+            NULL);
+
+    SPoolHead = (SPoolHead + 1) & 255;
+
+    for (int offset = MTU; offset < MTU_slices - MTU; offset += MTU) {
+        CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkData;
+        CHeaderPool[SPoolHead].Target = 0;
+        TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
+        TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
+
+        WSASend(socketR,
+                TransmitPool[SPoolHead].TransmitBuffer,
+                2,
+                NULL,
+                0,
+                &TransmitPool[SPoolHead].OVStruct,
+                NULL);
+
+        SPoolHead = (SPoolHead + 1) & 255;
+    }
+
+    if (MTU_slices != data_size) {
+        CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkData;
+    } else {
+        CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkEnd;
+    }
+    CHeaderPool[SPoolHead].Target = 0;
+    TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices - MTU;
+    TransmitPool[SPoolHead].TransmitBuffer[0].len = MTU;
+
+    WSASend(socketR,
+            TransmitPool[SPoolHead].TransmitBuffer,
+            2,
+            NULL,
+            0,
+            &TransmitPool[SPoolHead].OVStruct,
+            NULL);
+
+    SPoolHead = (SPoolHead + 1) & 255;
+
+    if (MTU_slices != data_size) {
+        CHeaderPool[SPoolHead].PacketType = OmniNet::ChunkEnd;
+        CHeaderPool[SPoolHead].Target = 0;
+        TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + MTU_slices;
+        TransmitPool[SPoolHead].TransmitBuffer[0].len = data_size % MTU;
+
+        WSASend(socketR,
+                TransmitPool[SPoolHead].TransmitBuffer,
+                2,
+                NULL,
+                0,
+                &TransmitPool[SPoolHead].OVStruct,
+                NULL);
+
+        SPoolHead = (SPoolHead + 1) & 255;
+    }
+
+    // std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>
+    // (Clock::now() - start) << "\n";
+}
