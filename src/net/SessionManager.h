@@ -2,12 +2,10 @@
 #define OMNISESSIONMGR_H
 
 #pragma once
+#include "OmniConfig.h"
 #include "OmniInstances.h"
 #include "OmniPackets.h"
 #include "SessionHandler.h"
-
-#define OmniPort 62485
-#define MTU 1450
 
 struct SessionManager
 {
@@ -25,7 +23,7 @@ struct SessionManager
                                           UserInstance.IPv4_String,
                                           TargetInstance.IPv4_String,
                                           TargetInstance.port,
-                                          MTU,
+                                          OmniMTU,
                                           Context);
         Logger::log(
             "Connecting to : ", TargetInstance.InstanceName, "at ", TargetInstance.IPv4_String);

@@ -13,6 +13,7 @@
 #include "OmniEnums.h"
 #include "OmniInstances.h"
 #include "OmniLogger.h"
+#include "PlatformIntrinsics.h"
 #include "system_probe_impl.h"
 
 #include <cstdint>
@@ -68,8 +69,7 @@ struct InstanceRegistry
         DeviceMap OpenSlot;
 
         if (DeviceID == DeviceMap::END) {
-            unsigned long BitIndex;
-            _BitScanForward(&BitIndex, OpenSlotMask);
+            unsigned long BitIndex = BitScan(OpenSlotMask);
             OpenSlot = static_cast<DeviceMap>(BitIndex);
         } else {
             if ((OpenSlotMask & (1U << DeviceID))) {

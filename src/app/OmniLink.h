@@ -18,6 +18,7 @@
 #include "IOLink.h"
 #include "InstanceRegistry.h"
 #include "OmniAPI.h"
+#include "OmniConfig.h"
 #include "OmniEnums.h"
 #include "OmniGUI.h"
 #include "OmniLogger.h"
@@ -29,6 +30,7 @@
 #include "WinCap.h"
 #include "nvenc.h"
 #include "platform/CaptureController.h"
+
 #include <unordered_map>
 #include <vector>
 
@@ -66,9 +68,6 @@
 #pragma comment(lib, "nvencodeapi.lib")
 
 #define WM_TRAYICON (WM_USER + 1)
-
-#define OmniPort 62485
-#define MTU 1450
 
 class OmniCore
 {
@@ -158,32 +157,6 @@ class OmniCore
             reinterpret_cast<char*>(payload.data()), payload.size(), header);
     }
 };
-
-static void NvencOutputTest(NV_ENC_LOCK_BITSTREAM& NVBitstreamLock, const char* baseName)
-{
-    static uint64_t frameIndex = 0;
-
-    if (!NVBitstreamLock.bitstreamBufferPtr || NVBitstreamLock.bitstreamSizeInBytes == 0) {
-        Logger::log("NvencOutputTest: empty bitstream\n");
-        return;
-    }
-
-    char fileName[512];
-    std::snprintf(fileName,
-                  sizeof(fileName),
-                  "%s_%llu.h264",
-                  baseName,
-                  static_cast<unsigned long long>(frameIndex++));
-
-    FILE* outFile = std::fopen(fileName, "wb");
-    if (outFile) {
-        std::fwrite(
-            NVBitstreamLock.bitstreamBufferPtr, 1, NVBitstreamLock.bitstreamSizeInBytes, outFile);
-        std::fclose(outFile);
-    } else {
-        Logger::log("Failed to open output file\n");
-    }
-}
 
 class OmniLink : public OmniCore
 {

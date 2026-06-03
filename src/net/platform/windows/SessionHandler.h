@@ -3,12 +3,14 @@
 
 #pragma once
 #include "IOLink.h"
+#include "OmniConfig.h"
 #include "OmniTypes.h"
 
 #include <winsock2.h>
-#include <ws2tcpip.h>
+
 #include <iphlpapi.h>
 #include <stdio.h>
+#include <ws2tcpip.h>
 
 #include <chrono>
 #include <iostream>
@@ -20,9 +22,6 @@
 
 #define MEMALLOC(size) HeapAlloc(GetProcessHeap(), 0, size)
 #define FREE(size) HeapFree(GetProcessHeap(), 0, size)
-
-#define OmniMTU 1450
-#define OmniHeaderSize 3
 
 namespace OmniNet {
 
