@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <RendererCore.h>
+#include <D3D11RendererCore.h>
 
 struct HWNDxD3D11
 {
@@ -25,7 +25,7 @@ struct HWNDxShaders
     ComPtr<ID3D11SamplerState> sampler = nullptr;
 };
 
-class OmniRenderer : public Renderer
+class D3D11Renderer : public Renderer
 {
   public:
     void RendererInit(HWND hwnd, int width, int height, HWNDxD3D11& RendererPtrStruct);

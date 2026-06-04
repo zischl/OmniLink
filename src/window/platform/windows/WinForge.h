@@ -18,7 +18,7 @@
 #include <thread>
 
 #include "WinCap.h"
-#include <OmniRenderer.h>
+#include <D3D11Renderer.h>
 #include <nvdec.h>
 
 using Microsoft::WRL::ComPtr;

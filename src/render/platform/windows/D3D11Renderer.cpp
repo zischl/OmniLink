@@ -1,7 +1,7 @@
-#include <OmniRenderer.h>
+#include <D3D11Renderer.h>
 
 
-void OmniRenderer::RendererInit(HWND hwnd, int wdWidth, int wdHeight, HWNDxD3D11& RendererPtrStruct) {
+void D3D11Renderer::RendererInit(HWND hwnd, int wdWidth, int wdHeight, HWNDxD3D11& RendererPtrStruct) {
 
 	if (RendererPtrStruct.D3D11Device == nullptr) {
 		D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0 };
@@ -33,7 +33,7 @@ void OmniRenderer::RendererInit(HWND hwnd, int wdWidth, int wdHeight, HWNDxD3D11
 }
 
 
-HWNDxShaders OmniRenderer::ShadersInit(ID3D11Device* D3D11Device) {
+HWNDxShaders D3D11Renderer::ShadersInit(ID3D11Device* D3D11Device) {
 
 	HWNDxShaders Shaders;
 
@@ -95,7 +95,7 @@ HWNDxShaders OmniRenderer::ShadersInit(ID3D11Device* D3D11Device) {
 }
 
 
-void OmniRenderer::SetShaders(ID3D11DeviceContext* D3D11Context, HWNDxShaders* shaders) {
+void D3D11Renderer::SetShaders(ID3D11DeviceContext* D3D11Context, HWNDxShaders* shaders) {
 	D3D11Context->IASetInputLayout(shaders->inputLayout.Get());
 	D3D11Context->IASetVertexBuffers(0, 1, shaders->vertexBuffer.GetAddressOf(), &shaders->VertexBufferStride, &shaders->VertexBufferOffset);
 	D3D11Context->IASetIndexBuffer(shaders->IndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
