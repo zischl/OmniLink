@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <unordered_map>
+#include <memory>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -51,7 +52,7 @@ struct OmniInstance
 
 struct OmniActiveInstance : OmniInstance
 {
-    session* InstanceSession = nullptr;
+    std::unique_ptr<session> InstanceSession;
     uint16_t port = 62485;
     int ActiveFlags = FeatureFlags::fInactive;
 

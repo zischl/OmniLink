@@ -162,7 +162,7 @@ void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR
 
 session::session(
     HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, void* Context)
-    : MTU(MTU_Size)
+    : MTU(MTU_Size), IOCP_Handle(IOCP)
 {
 
     PreSetBufferMTU();
@@ -171,9 +171,22 @@ session::session(
     sessions::BindReceiver(Local_IP, port, socketR);
     sessions::ConnectSesssion(address, socketR);
     sessions::RegIOCP(IOCP, socketR);
-    sessions::StartCompletionPortHandlerThread(IOCP, socketR, RecvPool, OnIOCompletion, Context);
+
+    WorkerThread = sessions::StartCompletionPortHandlerThread(
+        IOCP, socketR, &RecvPool, &OnIOCompletion, Context);
 
     sessions::PostWSARecv(socketR, RecvPool);
+}
+
+session::~session()
+{
+    if (IOCP_Handle) {
+        PostQueuedCompletionStatus(IOCP_Handle, 0, 0, nullptr);
+    }
+    if (WorkerThread.joinable()) {
+        WorkerThread.join();
+    }
+    closesocket(socketR);
 }
 
 void session::SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header)

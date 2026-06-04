@@ -6,6 +6,7 @@
 #include "OmniInstances.h"
 #include "OmniPackets.h"
 #include "SessionHandler.h"
+#include <memory>
 
 struct SessionManager
 {
@@ -13,13 +14,13 @@ struct SessionManager
     uint8_t SessionCount = 0;
 
     template <typename PacketHandler, typename PacketContext>
-    session* Connect(const ConnectionRequest request,
+    std::unique_ptr<session> Connect(const ConnectionRequest request,
                      const OmniActiveInstance& UserInstance,
                      const OmniActiveInstance TargetInstance,
                      PacketHandler&& Handler,
                      PacketContext* Context)
     {
-        session* NetSession = new session(sessions.IOCP,
+        std::unique_ptr<session> NetSession = std::make_unique<session>(sessions.IOCP,
                                           UserInstance.IPv4_String,
                                           TargetInstance.IPv4_String,
                                           TargetInstance.port,
