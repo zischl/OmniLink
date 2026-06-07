@@ -1,6 +1,16 @@
 
 #ifdef _WIN32
 
+#include <lz4.h>
+
+#ifndef OMNI_BUILD_RELEASE
+#pragma comment(lib, "lz4d.lib")
+#endif
+
+#ifndef OMNI_BUILD_DEBUG
+#pragma comment(lib, "lz4.lib")
+#endif
+
 #include <d3d11.h>
 #include <debugapi.h>
 #include <lz4.h>

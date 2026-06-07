@@ -15,17 +15,17 @@ struct SessionManager
 
     template <typename PacketHandler, typename PacketContext>
     std::unique_ptr<session> Connect(const ConnectionRequest request,
-                     const OmniActiveInstance& UserInstance,
-                     const OmniActiveInstance TargetInstance,
-                     PacketHandler&& Handler,
-                     PacketContext* Context)
+                                     const OmniActiveInstance& UserInstance,
+                                     const OmniActiveInstance& TargetInstance,
+                                     PacketHandler&& Handler,
+                                     PacketContext* Context)
     {
         std::unique_ptr<session> NetSession = std::make_unique<session>(sessions.IOCP,
-                                          UserInstance.IPv4_String,
-                                          TargetInstance.IPv4_String,
-                                          TargetInstance.port,
-                                          OmniMTU,
-                                          Context);
+                                                                        UserInstance.IPv4_String,
+                                                                        TargetInstance.IPv4_String,
+                                                                        TargetInstance.port,
+                                                                        OmniMTU,
+                                                                        Context);
         Logger::log(
             "Connecting to : ", TargetInstance.InstanceName, "at ", TargetInstance.IPv4_String);
 

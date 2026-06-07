@@ -2,6 +2,8 @@
 #define OmniInstanceReg_H
 
 #include "SessionHandler.h"
+#include <memory>
+#include <utility>
 #pragma once
 
 #include <mutex>
@@ -97,10 +99,10 @@ struct InstanceRegistry
         OpenSlotMask |= (1 << static_cast<uint8_t>(slot));
     }
 
-    inline void ActiveInstance(DeviceMap DeviceID, session* NetSession)
+    inline void ActivateInstance(DeviceMap DeviceID, std::unique_ptr<session> NetSession)
     {
         ActiveInstances[DeviceID] = OmniActiveInstance(AllInstances[DeviceID]);
-        ActiveInstances[DeviceID].InstanceSession = NetSession;
+        ActiveInstances[DeviceID].InstanceSession = std::move(NetSession);
     }
 
     // Check whether new scan results are available and get them if so

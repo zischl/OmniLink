@@ -76,6 +76,31 @@ class OmniShield
 
 class OmniCap
 {
+  private:
+    std::atomic_bool InputLinkStatus = false;
+
+    DeviceMap ActiveEdgeCondition;
+    session* ActiveSession = nullptr;
+    ActiveInstanceContainer& ActiveSessions;
+
+    std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
+        ConditionManager.conditions;
+
+    std::mutex ConditionMutex;
+
+    std::atomic_bool MouseEventCapStatus;
+    HWINEVENTHOOK WinCapHook = NULL;
+    UINT RawInputSize;
+
+    // Callback for window movement detection
+    static void CALLBACK WinMvEventProc(HWINEVENTHOOK hWinEventHook,
+                                        DWORD event,
+                                        HWND hwnd,
+                                        LONG idObject,
+                                        LONG idChild,
+                                        DWORD idEventThread,
+                                        DWORD dwmsEventTime);
+
   public:
     OmniCap(ActiveInstanceContainer& ctx);
 
@@ -139,31 +164,6 @@ class OmniCap
     void WindowMoveListener(bool state = false);
 
     inline void SetActiveSession(session* target) { ActiveSession = target; }
-
-  private:
-    std::atomic_bool InputLinkStatus = false;
-
-    DeviceMap ActiveEdgeCondition;
-    session* ActiveSession = nullptr;
-    ActiveInstanceContainer& ActiveSessions;
-
-    std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
-        ConditionManager.conditions;
-
-    std::mutex ConditionMutex;
-
-    std::atomic_bool MouseEventCapStatus;
-    HWINEVENTHOOK WinCapHook = NULL;
-    UINT RawInputSize;
-
-    // Callback for window movement detection
-    static void CALLBACK WinMvEventProc(HWINEVENTHOOK hWinEventHook,
-                                        DWORD event,
-                                        HWND hwnd,
-                                        LONG idObject,
-                                        LONG idChild,
-                                        DWORD idEventThread,
-                                        DWORD dwmsEventTime);
 };
 
 class OmniSynth

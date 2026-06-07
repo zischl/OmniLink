@@ -11,13 +11,8 @@ OmniGUI::OmniGUI(OmniLink& OmniLinkInstance) : App(OmniLinkInstance)
     AvailableDevices = App.GetAvailableInstances();
 }
 
-void OmniGUI::SetupImGui(HWND hwnd,
-                         ID3D11Device* D3D11Device,
-                         ID3D11DeviceContext* D3D11Context,
-                         HANDLE* Events)
+void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context)
 {
-
-    EventHandler = Events;
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
