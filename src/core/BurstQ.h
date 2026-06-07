@@ -4,7 +4,6 @@
 #pragma once
 #include <array>
 #include <atomic>
-#include <new>
 
 template <typename Type, uint32_t Size> struct BurstQ
 {
@@ -20,6 +19,15 @@ template <typename Type, uint32_t Size> struct BurstQ
             return false;
         Queue[h] = item;
         Head.store((h + 1) & (Size - 1), std::memory_order_release);
+        return true;
+    }
+
+    [[nodiscard]] bool pop()
+    {
+        uint32_t t = Tail.load(std::memory_order_relaxed);
+        if (t == Head.load(std::memory_order_acquire))
+            return false;
+        Tail.store((t + 1) & (Size - 1), std::memory_order_release);
         return true;
     }
 
