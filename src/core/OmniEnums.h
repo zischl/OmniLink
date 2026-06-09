@@ -4,6 +4,10 @@
 #pragma once
 #include <cstdint>
 
+enum OmniAppState { RUNNING, STOPPING };
+
+enum OmniGUIState { RENDER, IDLE, MINIMIZED, TRAY };
+
 enum FeatureFlags {
     fInactive = 0,
     fScreenLink = 1 << 0,

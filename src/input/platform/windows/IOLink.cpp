@@ -1,10 +1,11 @@
 #include "IOLink.h"
+#include "OmniInstances.h"
 #include "SessionHandler.h"
 #include "system_probe_impl.h"
 
 std::atomic<bool> LockState = false;
 
-OmniCap::OmniCap(ActiveInstanceContainer& ActiveSessionList) : ActiveSessions(ActiveSessionList)
+OmniIOCap::OmniIOCap()
 {
     POINT pos = {};
     GetCursorPos(&pos);
@@ -18,7 +19,7 @@ OmniCap::OmniCap(ActiveInstanceContainer& ActiveSessionList) : ActiveSessions(Ac
     ResWidth = MonRes.Width;
 }
 
-void OmniCap::WindowMoveListener(bool state)
+void OmniIOCap::WindowMoveListener(bool state)
 {
     if (WinCapHook == NULL && state == true) {
         WinCapHook = SetWinEventHook(EVENT_SYSTEM_MOVESIZESTART,
@@ -33,13 +34,13 @@ void OmniCap::WindowMoveListener(bool state)
     }
 }
 
-void CALLBACK OmniCap::WinMvEventProc(HWINEVENTHOOK hWinEventHook,
-                                      DWORD event,
-                                      HWND hwnd,
-                                      LONG idObject,
-                                      LONG idChild,
-                                      DWORD idEventThread,
-                                      DWORD dwmsEventTime)
+void CALLBACK OmniIOCap::WinMvEventProc(HWINEVENTHOOK hWinEventHook,
+                                        DWORD event,
+                                        HWND hwnd,
+                                        LONG idObject,
+                                        LONG idChild,
+                                        DWORD idEventThread,
+                                        DWORD dwmsEventTime)
 {
     static std::atomic_bool EventStatus;
     EventStatus.store(true);
@@ -62,27 +63,27 @@ void CALLBACK OmniCap::WinMvEventProc(HWINEVENTHOOK hWinEventHook,
     }
 }
 
-void OmniCap::ToggleEdgeProbe(HWND hwnd)
+void OmniIOCap::ToggleEdgeProbe(HWND hwnd, ActiveInstanceContainer& ActiveInstances)
 {
     if (InputLinkStatus.load()) {
         InputLinkStatus.store(false);
         MouseEventCapStatus.store(false);
     } else {
-        CreateEdgeProbe(hwnd, true);
+        CreateEdgeProbe(hwnd, ActiveInstances);
     }
 }
 
-bool OmniCap::GetEdgeProbeState()
+bool OmniIOCap::GetEdgeProbeState()
 {
     return InputLinkStatus.load();
 }
 
-void OmniCap::CreateEdgeProbe(HWND hwnd, bool state)
+void OmniIOCap::CreateEdgeProbe(HWND hwnd, ActiveInstanceContainer& ActiveInstances)
 {
     InputLinkStatus.store(true);
     MouseEventCapStatus.store(true);
     std::atomic_bool* MouseEventStatus = &MouseEventCapStatus;
-    std::thread EventThread([hwnd, MouseEventStatus, this]() {
+    std::thread EventThread([hwnd, &ActiveInstances, MouseEventStatus, this]() {
         HWND hwnd_ = hwnd;
         POINT pos = {};
         while (true) {
@@ -94,10 +95,10 @@ void OmniCap::CreateEdgeProbe(HWND hwnd, bool state)
 
                 for (auto& [name, cond] : Conditions) {
                     if (cond(MouseX, MouseY)) {
-                        auto session = ActiveSessions.find(name);
+                        auto instance = ActiveInstances.find(name);
 
-                        if (session != ActiveSessions.end()) {
-                            ActiveSession = session->second.InstanceSession;
+                        if (instance != ActiveInstances.end()) {
+                            ActiveSession = instance->second.InstanceSession.get();
                             // OutputDebugStringA("Instance connected\n");
                         }
 
@@ -175,7 +176,7 @@ void OmniCap::CreateEdgeProbe(HWND hwnd, bool state)
     EventThread.detach();
 }
 
-void OmniCap::AddEdgeCondition(DeviceMap Index)
+void OmniIOCap::AddEdgeCondition(DeviceMap Index)
 {
     switch (Index) {
     case DeviceMap::L1:
@@ -219,7 +220,7 @@ void OmniCap::AddEdgeCondition(DeviceMap Index)
     }
 }
 
-void OmniCap::ToggleInputCapture(HWND hwnd, bool state)
+void OmniIOCap::ToggleInputCapture(HWND hwnd, bool state)
 {
     RAWINPUTDEVICE InputDevices[2];
     InputDevices[0].hwndTarget = hwnd;
@@ -235,10 +236,10 @@ void OmniCap::ToggleInputCapture(HWND hwnd, bool state)
         InputDevices[1].dwFlags = RIDEV_INPUTSINK;
         RegisterRawInputDevices(InputDevices, 2, sizeof(InputDevices[0]));
 
-        InputProc = &OmniCap::InputProcInit;
+        InputProc = &OmniIOCap::InputProcInit;
 
     } else {
-        InputProc = &OmniCap::VoidExitCallback;
+        InputProc = &OmniIOCap::VoidExitCallback;
 
         InputDevices[0].dwFlags = RIDEV_REMOVE;
         InputDevices[1].dwFlags = RIDEV_REMOVE;
@@ -246,11 +247,11 @@ void OmniCap::ToggleInputCapture(HWND hwnd, bool state)
     }
 }
 
-void OmniCap::InputProcInit(LPARAM& lParam)
+void OmniIOCap::InputProcInit(LPARAM& lParam)
 {
     GetRawInputData((HRAWINPUT)lParam, RID_INPUT, NULL, &RawInputSize, sizeof(RAWINPUTHEADER));
 
-    InputProc = &OmniCap::InputProcCallback;
+    InputProc = &OmniIOCap::InputProcCallback;
 
     OmniNet::OmniHeader IOHeader;
 
@@ -270,7 +271,7 @@ void OmniCap::InputProcInit(LPARAM& lParam)
     // OutputDebugStringA("We going in");
 }
 
-void OmniCap::InputProcCallback(LPARAM& lParam)
+void OmniIOCap::InputProcCallback(LPARAM& lParam)
 {
 
     std::vector<BYTE> Buffer(RawInputSize);
@@ -339,7 +340,7 @@ void OmniCap::InputProcCallback(LPARAM& lParam)
     }
 }
 
-void OmniCap::VoidExitCallback(LPARAM& lParam)
+void OmniIOCap::VoidExitCallback(LPARAM& lParam)
 {
     return;
 }
@@ -383,21 +384,21 @@ void OmniSynth::ProcKey(KeyData& input)
     SendInput(1, &InputStruct, sizeof(InputStruct));
 }
 
-OmniShield::OmniShield() {}
+OmniIOShield::OmniIOShield() {}
 
-LRESULT OmniShield::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT OmniIOShield::KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     return LockState.load() ? 1 : CallNextHookEx(nullptr, nCode, wParam, lParam);
     // return 1;
 }
 
-LRESULT OmniShield::MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT OmniIOShield::MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     return LockState.load() ? 1 : CallNextHookEx(nullptr, nCode, wParam, lParam);
     // return 1;
 }
 
-void OmniShield::InvokeInputFilter()
+void OmniIOShield::InvokeInputFilter()
 {
     KeyboardBlock = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
     MouseBlock = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
@@ -406,7 +407,7 @@ void OmniShield::InvokeInputFilter()
         std::cout << "Failed to install hooks." << std::endl;
 }
 
-void OmniShield::ReleaseInputFilter()
+void OmniIOShield::ReleaseInputFilter()
 {
     if (KeyboardBlock)
         UnhookWindowsHookEx(KeyboardBlock);

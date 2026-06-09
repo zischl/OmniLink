@@ -14,7 +14,6 @@
 #include <atomic>
 #include <hidusage.h>
 #include <mutex>
-#include <windows.h>
 
 struct MouseXY
 {
@@ -56,10 +55,10 @@ class session;
 
 extern std::atomic<bool> LockState;
 
-class OmniShield
+class OmniIOShield
 {
   public:
-    OmniShield();
+    OmniIOShield();
 
     void InvokeInputFilter();
 
@@ -74,10 +73,34 @@ class OmniShield
     HHOOK MouseBlock = NULL;
 };
 
-class OmniCap
+class OmniIOCap
 {
+  private:
+    std::atomic_bool InputLinkStatus = false;
+
+    DeviceMap ActiveEdgeCondition;
+    session* ActiveSession = nullptr;
+
+    std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
+        ConditionManager.conditions;
+
+    std::mutex ConditionMutex;
+
+    std::atomic_bool MouseEventCapStatus;
+    HWINEVENTHOOK WinCapHook = NULL;
+    UINT RawInputSize;
+
+    // Callback for window movement detection
+    static void CALLBACK WinMvEventProc(HWINEVENTHOOK hWinEventHook,
+                                        DWORD event,
+                                        HWND hwnd,
+                                        LONG idObject,
+                                        LONG idChild,
+                                        DWORD idEventThread,
+                                        DWORD dwmsEventTime);
+
   public:
-    OmniCap(ActiveInstanceContainer& ctx);
+    OmniIOCap();
 
     // Mouse cursor position used by both edge detection and high performance
     // input capture
@@ -96,11 +119,11 @@ class OmniCap
 
     FlowMorph<int, int, DeviceMap> ConditionManager;
 
-    void ToggleEdgeProbe(HWND hwnd);
+    void ToggleEdgeProbe(HWND hwnd, ActiveInstanceContainer& ActiveInstances);
 
     bool GetEdgeProbeState();
 
-    void CreateEdgeProbe(HWND hwnd, bool state = true);
+    void CreateEdgeProbe(HWND hwnd, ActiveInstanceContainer& ActiveInstances);
 
     void AddEdgeCondition(DeviceMap Index);
 
@@ -110,7 +133,7 @@ class OmniCap
     /// ##########################################################################################
     /// ///
 
-    void (OmniCap::*InputProc)(LPARAM& lParam) = nullptr;
+    void (OmniIOCap::*InputProc)(LPARAM& lParam) = nullptr;
     void ToggleInputCapture(HWND hwnd, bool state = false);
 
     // Initial mouse input event proc used for calculating the size of the raw
@@ -139,31 +162,6 @@ class OmniCap
     void WindowMoveListener(bool state = false);
 
     inline void SetActiveSession(session* target) { ActiveSession = target; }
-
-  private:
-    std::atomic_bool InputLinkStatus = false;
-
-    DeviceMap ActiveEdgeCondition;
-    session* ActiveSession = nullptr;
-    ActiveInstanceContainer& ActiveSessions;
-
-    std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
-        ConditionManager.conditions;
-
-    std::mutex ConditionMutex;
-
-    std::atomic_bool MouseEventCapStatus;
-    HWINEVENTHOOK WinCapHook = NULL;
-    UINT RawInputSize;
-
-    // Callback for window movement detection
-    static void CALLBACK WinMvEventProc(HWINEVENTHOOK hWinEventHook,
-                                        DWORD event,
-                                        HWND hwnd,
-                                        LONG idObject,
-                                        LONG idChild,
-                                        DWORD idEventThread,
-                                        DWORD dwmsEventTime);
 };
 
 class OmniSynth

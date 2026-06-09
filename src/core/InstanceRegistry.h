@@ -2,6 +2,8 @@
 #define OmniInstanceReg_H
 
 #include "SessionHandler.h"
+#include <memory>
+#include <utility>
 #pragma once
 
 #include <mutex>
@@ -13,11 +15,12 @@
 #include "OmniEnums.h"
 #include "OmniInstances.h"
 #include "OmniLogger.h"
+#include "PlatformIntrinsics.h"
 #include "system_probe_impl.h"
 
 #include <cstdint>
 
-struct InstanceRegistry
+struct OmniInstanceRegistry
 {
   protected:
     std::mutex Mutex;
@@ -41,7 +44,7 @@ struct InstanceRegistry
 
     const OmniActiveInstance& UserInstance = ActiveInstances[DeviceMap::C0];
 
-    InstanceRegistry()
+    OmniInstanceRegistry()
     {
         // Getting user data and initializing user instance
         uint32_t LocalIP;
@@ -68,8 +71,7 @@ struct InstanceRegistry
         DeviceMap OpenSlot;
 
         if (DeviceID == DeviceMap::END) {
-            unsigned long BitIndex;
-            _BitScanForward(&BitIndex, OpenSlotMask);
+            unsigned long BitIndex = BitScan(OpenSlotMask);
             OpenSlot = static_cast<DeviceMap>(BitIndex);
         } else {
             if ((OpenSlotMask & (1U << DeviceID))) {
@@ -97,10 +99,10 @@ struct InstanceRegistry
         OpenSlotMask |= (1 << static_cast<uint8_t>(slot));
     }
 
-    inline void ActiveInstance(DeviceMap DeviceID, session* NetSession)
+    inline void ActivateInstance(DeviceMap DeviceID, std::unique_ptr<session> NetSession)
     {
         ActiveInstances[DeviceID] = OmniActiveInstance(AllInstances[DeviceID]);
-        ActiveInstances[DeviceID].InstanceSession = NetSession;
+        ActiveInstances[DeviceID].InstanceSession = std::move(NetSession);
     }
 
     // Check whether new scan results are available and get them if so

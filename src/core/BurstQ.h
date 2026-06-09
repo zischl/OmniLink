@@ -3,21 +3,43 @@
 
 #pragma once
 #include <array>
+#include <atomic>
 
-template <typename Type, unsigned int size> struct BurstQ {
-  std::array<Type, size> Queue;
-  unsigned int Head = 0;
-  unsigned int Tail = 0;
-  unsigned int _mask = 2;
+template <typename Type, uint32_t Size> struct BurstQ
+{
+    static_assert((Size & (Size - 1)) == 0, "N must be a power of 2");
+    std::array<Type, Size> Queue{};
+    alignas(64) std::atomic<uint32_t> Head{0};
+    alignas(64) std::atomic<uint32_t> Tail{0};
 
-  BurstQ() { _mask = size; }
+    [[nodiscard]] bool push(const Type& item)
+    {
+        uint32_t h = Head.load(std::memory_order_relaxed);
+        if (((h + 1) & (Size - 1)) == Tail.load(std::memory_order_acquire))
+            return false;
+        Queue[h] = item;
+        Head.store((h + 1) & (Size - 1), std::memory_order_release);
+        return true;
+    }
 
-  inline void push(const Type &item) {
-    Queue[Head] = item;
-    Head = (Head + 1) % _mask;
-  }
+    [[nodiscard]] bool pop()
+    {
+        uint32_t t = Tail.load(std::memory_order_relaxed);
+        if (t == Head.load(std::memory_order_acquire))
+            return false;
+        Tail.store((t + 1) & (Size - 1), std::memory_order_release);
+        return true;
+    }
 
-  inline void pop() { Tail = (Tail + 1) % _mask; }
+    [[nodiscard]] bool pop(Type& out)
+    {
+        uint32_t t = Tail.load(std::memory_order_relaxed);
+        if (t == Head.load(std::memory_order_acquire))
+            return false;
+        out = std::move(Queue[t]);
+        Tail.store((t + 1) & (Size - 1), std::memory_order_release);
+        return true;
+    }
 };
 
 #endif // BURSTQ_H

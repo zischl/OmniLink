@@ -58,6 +58,18 @@ public:
 
 		return hr;
 	}
+
+	inline void AcquireFrame() {
+		CaptureDXGI();
+	}
+
+	inline void ReleaseFrame() {
+		// Released on next acquire or explicitly here if preferred
+		if (CaptureState) {
+			DXGIOutDuplication->ReleaseFrame();
+			CaptureState = false;
+		}
+	}
 };
 
 
@@ -149,6 +161,9 @@ public:
 	inline void WriteStateUnlock() {
 		WriteState.store(false);
 	}
+
+	inline void AcquireFrame() { WriteStateLock(); }
+	inline void ReleaseFrame() { WriteStateUnlock(); }
 
 	void StartSession();
 

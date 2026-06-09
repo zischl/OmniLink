@@ -50,7 +50,7 @@ HWND WinForge::CreateWindowAsync(const wchar_t *window_name,
 
     // ###############################################################################//
 
-    OmniRenderer Renderer;
+    D3D11Renderer Renderer;
 
     HWNDxD3D11 RendererPtrs;
     RendererPtrs.D3D11Device = D3DDevStruct.D3D11Device;

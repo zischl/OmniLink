@@ -5,6 +5,7 @@
 #include "OmniEnums.h"
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <unordered_map>
 
 #if defined(_WIN32)
@@ -14,7 +15,6 @@
 #define OmniDevNameLen 31
 
 class session;
-class WinForge;
 
 struct OmniIP
 {
@@ -51,7 +51,7 @@ struct OmniInstance
 
 struct OmniActiveInstance : OmniInstance
 {
-    session* InstanceSession = nullptr;
+    std::unique_ptr<session> InstanceSession;
     uint16_t port = 62485;
     int ActiveFlags = FeatureFlags::fInactive;
 

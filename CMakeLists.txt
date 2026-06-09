@@ -53,29 +53,83 @@ endforeach()
 add_custom_target(CompileShaders ALL DEPENDS ${SHADER_OUTPUTS})
 
 # ImGui and resource file GLOBS
-file(
-  GLOB
-  IMGUI_CORE_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/*.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/*.cpp")
+file(GLOB IMGUI_CORE_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/*.h"
+     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/*.cpp")
 
-set(IMGUI_SOURCES
-    ${IMGUI_CORE_SOURCES}
+set(IMGUI_SOURCES ${IMGUI_CORE_SOURCES})
+
+if(WIN32)
+  list(
+    APPEND
+    IMGUI_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_win32.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_win32.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_dx11.h"
-    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_dx11.cpp")
-
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_dx11.cpp"
+  )
+elseif(UNIX)
+  list(
+    APPEND
+    IMGUI_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_vulkan.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_vulkan.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_sdl3.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_sdl3.cpp"
+  )
+endif()
 
 set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc")
 
-# OmniLink C++ and CUDA source files GLOBS
-file(GLOB_RECURSE PROJECT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
-     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cu")
+# OmniLink C++ and CUDA source files
+set(COMMON_SOURCES
+    src/core/ByteStream.cpp
+    src/core/OmniLogger.cpp
+    src/core/Helper.cpp
+    src/net/OmniDiscovery.cpp
+    src/app/OmniCore.cpp
+    src/app/OmniAPI.cpp
+    src/gui/OmniGUI.cpp
+    src/codec/nvenc.cpp
+    src/codec/nvdec.cpp
+    src/codec/CuKernel.cu
+    src/capture/CaptureController.cpp)
+
+if(WIN32)
+  set(PLATFORM_SOURCES
+      src/net/platform/windows/SessionHandler.cpp
+      src/net/platform/windows/PacketHandler.cpp
+      src/capture/platform/windows/WinCap.cpp
+      src/capture/platform/windows/AudioCap.cpp
+      src/render/platform/windows/D3D11Renderer.cpp
+      src/render/platform/windows/D3D11RendererCore.cpp
+      src/input/platform/windows/IOLink.cpp
+      src/window/platform/windows/WinForge.cpp
+      src/app/platform/windows/SystemLink.cpp
+      src/misc/platform/windows/system_probe.cpp
+      src/app/platform/windows/OmniLink.cpp
+      src/app/platform/windows/main.cpp)
+elseif(UNIX)
+  set(PLATFORM_SOURCES
+      src/net/platform/linux/SessionHandler.cpp
+      src/capture/platform/linux/PipeWireCap.cpp
+      src/render/platform/linux/VkRenderer.cpp
+      src/input/platform/linux/IOLink.cpp
+      src/window/platform/linux/LinuxForge.cpp
+      src/app/platform/linux/SystemLink.cpp
+      src/misc/platform/unix/system_probe.cpp
+      src/app/platform/linux/OmniLink.cpp
+      src/app/platform/linux/main.cpp)
+endif()
 
 # Targets.....
-add_executable(main WIN32 ${IMGUI_SOURCES} ${RESOURCE_FILES} ${PROJECT_SOURCES})
+if(WIN32)
+  add_executable(main WIN32 ${IMGUI_SOURCES} ${RESOURCE_FILES}
+                            ${COMMON_SOURCES} ${PLATFORM_SOURCES})
+else()
+  add_executable(main ${IMGUI_SOURCES} ${RESOURCE_FILES} ${COMMON_SOURCES}
+                      ${PLATFORM_SOURCES})
+endif()
 
 set_target_properties(
   main
@@ -102,16 +156,32 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/codec
           ${CMAKE_CURRENT_SOURCE_DIR}/src/render
           ${CMAKE_CURRENT_SOURCE_DIR}/src/input
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/window
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
           ${CMAKE_CURRENT_SOURCE_DIR}/src/app
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc)
+
+if(WIN32)
+  target_include_directories(
+    main
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
+elseif(UNIX)
+  target_include_directories(
+    main
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/unix)
+endif()
 
 # Yup... Still about Targets
 target_compile_definitions(
@@ -129,11 +199,9 @@ else()
 endif()
 
 target_link_directories(
-  main
-  PRIVATE
+  main PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/
   ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architecture}/)
-
 
 # Post Build Shit... Copying DLLs
 set(DLL_PATH
