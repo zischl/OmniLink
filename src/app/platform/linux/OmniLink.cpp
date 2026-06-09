@@ -72,103 +72,6 @@ NetworkPacketHandler(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void*
 
 } // namespace
 
-void OmniCore::ScanInstances()
-{
-    InstanceReg.RefreshInstanceList([this]() -> void { OmniGUIState = GUIState::RENDER; });
-}
-
-void OmniCore::ConnectInstance(DeviceMap DeviceID)
-{
-    ConnectionRequest request{DeviceID, "OMNILINK"};
-    std::unique_ptr<session> NetSession = SessionMgr.Connect(request,
-                                                             InstanceReg.UserInstance,
-                                                             InstanceReg.ActiveInstances[DeviceID],
-                                                             NetworkPacketHandler,
-                                                             &ActiveWindows);
-
-    InstanceReg.ActivateInstance(DeviceID, std::move(NetSession));
-
-    OmniCap.AddEdgeCondition(DeviceID);
-}
-
-void OmniCore::SwapInstanceLayout(int DeviceID1, int DeviceID2)
-{
-    InstanceReg.SwapInstances(DeviceMap(DeviceID1), DeviceMap(DeviceID2));
-}
-
-void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo)
-{
-
-    WinForge* NewWindow = new WinForge();
-    ActiveWindows.push_back(NewWindow);
-
-    HWND hwnd_cap = NewWindow->CreateWindowAsync(L"Test Window", hInstance, nCmdShow);
-}
-
-void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index = DeviceMap::C0)
-{
-    switch (FeatureIndex) {
-    case FeatureTypes::ScreenLink: {
-        WindowCreationData WGC{"Test Window"};
-
-        OmniNetCommand command{};
-        command.CommandType = CoreCommandsWArgs::CreateStreamLink;
-        command.ArgTypeIndex = 2;
-
-        std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
-        command.Args = payload;
-        command.ArgArrayLength = payload.size();
-
-        TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
-
-        CaptureCtrl.AddStream(OmniRenderState.Device,
-                              OmniRenderState.Context,
-                              InstanceReg.ActiveInstances[Index].InstanceSession.get(),
-                              Index,
-                              CaptureMode::DXGI);
-
-        break;
-    }
-    case FeatureTypes::WindowLink: {
-        WindowCreationData WGC{"Test Window"};
-
-        OmniNetCommand command{};
-        command.CommandType = CoreCommandsWArgs::CreateStreamLink;
-        command.ArgTypeIndex = 2;
-
-        std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
-        command.Args = payload;
-        command.ArgArrayLength = payload.size();
-
-        TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
-
-        CaptureCtrl.AddStream(OmniRenderState.Device,
-                              OmniRenderState.Context,
-                              InstanceReg.ActiveInstances[Index].InstanceSession.get(),
-                              Index,
-                              CaptureMode::WGC);
-
-        break;
-    }
-
-    case FeatureTypes::InputLink:
-        OmniCap.ToggleEdgeProbe(hwnd);
-        if (OmniCap.GetEdgeProbeState()) {
-            InputFilter.InvokeInputFilter();
-        } else {
-            InputFilter.ReleaseInputFilter();
-        }
-        break;
-
-    case FeatureTypes::AudioLink: {
-        WindowCreationData WGC{"Test Window"};
-        CreateStreamLink(WGC);
-
-        break;
-    }
-    }
-}
-
 void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 {
     OmniAPI::Ignite(*this);
@@ -197,17 +100,17 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
     RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
     Renderer.RendererInit(hwnd, 1280, 810, RendererPtrs);
 
-    OmniRenderState.Device = RendererPtrs.D3D11Device.Get();
-    OmniRenderState.Context = RendererPtrs.D3D11Context.Get();
-    OmniRenderState.Swapchain = RendererPtrs.swapchain.Get();
-    OmniRenderState.RTV = RendererPtrs.renderTargetView.Get();
+    RenderState.Device = RendererPtrs.D3D11Device.Get();
+    RenderState.Context = RendererPtrs.D3D11Context.Get();
+    RenderState.Swapchain = RendererPtrs.swapchain.Get();
+    RenderState.RTV = RendererPtrs.renderTargetView.Get();
 
     Logger::log("Renderer Initialization Complete");
 
     GUI = new OmniGUI(*this);
-    GUI->SetupImGui(hwnd, OmniRenderState.Device, OmniRenderState.Context);
+    GUI->SetupImGui(hwnd, RenderState.Device, RenderState.Context);
 
-    InstanceReg.AwaitNewInstances([this]() -> void { OmniGUIState = GUIState::RENDER; });
+    InstanceRegistry.AwaitNewInstances([this]() -> void { UIState = OmniGUIState::RENDER; });
 
     /// Input Capture Test Cases ///
 
@@ -222,7 +125,7 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 void OmniLink::OmniMainLoop()
 {
     while (true) {
-        const DWORD Timeout = OmniGUIState == GUIState::RENDER ? FrameTimeLimitW : 200;
+        const DWORD Timeout = UIState == OmniGUIState::RENDER ? FrameTimeLimitW : 200;
 
         DWORD Event =
             MsgWaitForMultipleObjectsEx(0, nullptr, Timeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
@@ -233,7 +136,7 @@ void OmniLink::OmniMainLoop()
         case WAIT_OBJECT_0: {
             while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
                 if (msg.message == WM_QUIT) {
-                    OmniState = AppState::STOPPING;
+                    AppState = OmniAppState::STOPPING;
                     return;
                 }
 
@@ -254,23 +157,23 @@ void OmniLink::OmniMainLoop()
         }
         }
 
-        if (RenderEvent || OmniGUIState == GUIState::RENDER) {
+        if (RenderEvent || UIState == OmniGUIState::RENDER) {
             auto currentTime = std::chrono::steady_clock::now();
 
             if (currentTime - LastFrameTime >= FrameTimeLimit) {
                 GUI->FrameBegin();
 
-                OmniRenderState.Context->ClearRenderTargetView(OmniRenderState.RTV, clearColor);
-                OmniRenderState.Context->OMSetRenderTargets(1, &OmniRenderState.RTV, nullptr);
+                RenderState.Context->ClearRenderTargetView(RenderState.RTV, clearColor);
+                RenderState.Context->OMSetRenderTargets(1, &RenderState.RTV, nullptr);
 
                 GUI->Render();
 
-                OmniRenderState.Swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+                RenderState.Swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 
                 LastFrameTime = currentTime;
             }
 
-            OmniGUIState = GUIState::IDLE;
+            UIState = OmniGUIState::IDLE;
         }
     }
 }
@@ -315,7 +218,7 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         SetCursor(LoadCursor(NULL, IDC_ARROW));
         return true;
     case WM_INPUT:
-        (omni->OmniCap.*(omni->OmniCap.InputProc))(lParam);
+        (omni->SystemLink.IOCapture.*(omni->SystemLink.IOCapture.InputProc))(lParam);
         break;
     case WM_NCCREATE:
         omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);

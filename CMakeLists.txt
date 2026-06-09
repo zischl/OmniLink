@@ -87,7 +87,7 @@ set(COMMON_SOURCES
     src/core/OmniLogger.cpp
     src/core/Helper.cpp
     src/net/OmniDiscovery.cpp
-    src/app/OmniLink.cpp
+    src/app/OmniCore.cpp
     src/app/OmniAPI.cpp
     src/gui/OmniGUI.cpp
     src/codec/nvenc.cpp
@@ -102,10 +102,12 @@ if(WIN32)
       src/capture/platform/windows/WinCap.cpp
       src/capture/platform/windows/AudioCap.cpp
       src/render/platform/windows/D3D11Renderer.cpp
-      src/render/platform/windows/RendererCore.cpp
+      src/render/platform/windows/D3D11RendererCore.cpp
       src/input/platform/windows/IOLink.cpp
       src/window/platform/windows/WinForge.cpp
+      src/app/platform/windows/SystemLink.cpp
       src/misc/platform/windows/system_probe.cpp
+      src/app/platform/windows/OmniLink.cpp
       src/app/platform/windows/main.cpp)
 elseif(UNIX)
   set(PLATFORM_SOURCES
@@ -114,7 +116,9 @@ elseif(UNIX)
       src/render/platform/linux/VkRenderer.cpp
       src/input/platform/linux/IOLink.cpp
       src/window/platform/linux/LinuxForge.cpp
+      src/app/platform/linux/SystemLink.cpp
       src/misc/platform/unix/system_probe.cpp
+      src/app/platform/linux/OmniLink.cpp
       src/app/platform/linux/main.cpp)
 endif()
 

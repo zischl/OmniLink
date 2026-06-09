@@ -1,11 +1,11 @@
-#ifndef UNICODE
-#define UNICODE
-#endif
-
 #ifndef OMNILINK_H
 #define OMNILINK_H
 
 #pragma once
+
+#ifndef UNICODE
+#define UNICODE
+#endif
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -13,8 +13,12 @@
 
 #include "resource.h"
 
+#include "IOLink.h"
 #include "OmniCore.h"
 #include "OmniGUI.h"
+#include "SystemLink.h"
+
+#include <memory>
 
 #include <Windows.h>
 #include <dwmapi.h>
@@ -66,7 +70,7 @@ class OmniLink : public OmniCore
     static LRESULT CALLBACK WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
   public:
-    OmniLink(HINSTANCE hInst, int nCmdShow) : hInstance(hInst), nCmdShow(nCmdShow) {};
+    OmniLink(HINSTANCE hInst, int nCmdShow);
 
     void OmniMain(HINSTANCE hInstance, int nCmdShow);
 };
