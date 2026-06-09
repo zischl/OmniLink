@@ -35,12 +35,4 @@ class D3D11Renderer : public Renderer
     void SetShaders(ID3D11DeviceContext* D3D11Context, HWNDxShaders* shaders);
 };
 
-struct D3DState
-{
-    ID3D11Device* Device = nullptr;
-    ID3D11DeviceContext* Context = nullptr;
-    IDXGISwapChain3* Swapchain = nullptr;
-    ID3D11RenderTargetView* RTV = nullptr;
-};
-
 #endif

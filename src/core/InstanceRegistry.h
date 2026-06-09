@@ -20,7 +20,7 @@
 
 #include <cstdint>
 
-struct InstanceRegistry
+struct OmniInstanceRegistry
 {
   protected:
     std::mutex Mutex;
@@ -44,7 +44,7 @@ struct InstanceRegistry
 
     const OmniActiveInstance& UserInstance = ActiveInstances[DeviceMap::C0];
 
-    InstanceRegistry()
+    OmniInstanceRegistry()
     {
         // Getting user data and initializing user instance
         uint32_t LocalIP;

@@ -5,8 +5,8 @@
 #include "OmniEnums.h"
 #include <cstdint>
 #include <cstring>
-#include <unordered_map>
 #include <memory>
+#include <unordered_map>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -15,7 +15,6 @@
 #define OmniDevNameLen 31
 
 class session;
-class WinForge;
 
 struct OmniIP
 {

@@ -1,7 +1,8 @@
 #pragma once
 
-class IOLink {
-public:
+class IOLink
+{
+  public:
     IOLink();
     ~IOLink();
     void Update();

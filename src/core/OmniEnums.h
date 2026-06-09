@@ -4,9 +4,9 @@
 #pragma once
 #include <cstdint>
 
-enum AppState { RUNNING, STOPPING };
+enum OmniAppState { RUNNING, STOPPING };
 
-enum GUIState { RENDER, IDLE, MINIMIZED, TRAY };
+enum OmniGUIState { RENDER, IDLE, MINIMIZED, TRAY };
 
 enum FeatureFlags {
     fInactive = 0,

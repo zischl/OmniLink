@@ -4,11 +4,11 @@
 #include <utility>
 
 #if defined(_WIN32)
-CaptureController::StreamID CaptureController::AddStream(ID3D11Device* D3D11Device,
-                                                         ID3D11DeviceContext* D3D11Context,
-                                                         session* NetSession,
-                                                         DeviceMap TargetID,
-                                                         CaptureMode Mode)
+OmniStreamController::StreamID OmniStreamController::AddStream(ID3D11Device* D3D11Device,
+                                                               ID3D11DeviceContext* D3D11Context,
+                                                               session* NetSession,
+                                                               DeviceMap TargetID,
+                                                               CaptureMode Mode)
 {
     StreamID id = StreamCount++;
 
@@ -50,7 +50,7 @@ StreamID CaptureController::AddStream(session* NetSession, DeviceMap TargetID, C
 }
 #endif
 
-void CaptureController::RemoveStream(size_t StreamID)
+void OmniStreamController::RemoveStream(size_t StreamID)
 {
     auto iter = Streams.find(StreamID);
 
@@ -69,7 +69,7 @@ void CaptureController::RemoveStream(size_t StreamID)
     }
 }
 
-void CaptureController::StopAll()
+void OmniStreamController::StopAll()
 {
     for (auto& [id, variant_stream] : Streams) {
         std::visit(

@@ -8,7 +8,7 @@
 #include "SessionHandler.h"
 #include <memory>
 
-struct SessionManager
+struct OmniSessionManager
 {
     sessions sessions;
     uint8_t SessionCount = 0;

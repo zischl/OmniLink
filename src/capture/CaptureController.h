@@ -19,18 +19,7 @@ enum CaptureMode { PW, X11_SHM };
 using EncodeStreamTypes = std::variant<EncodeStream<ScreenCapturePW>>;
 #endif
 
-struct RendererCoreState
-{
-#if defined(_WIN32)
-    ID3D11Device* Device;
-    ID3D11DeviceContext* Context;
-#elif defined(__linux__)
-    VkDevice Device;
-    VkQueue Queue;
-#endif
-};
-
-struct CaptureController
+struct OmniStreamController
 {
     using StreamID = size_t;
 
