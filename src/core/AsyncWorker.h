@@ -19,6 +19,8 @@ template <typename ResultPoolType, size_t ResultPoolSize> class Cached
                   "ResultPoolSize must be a power of 2");
 
   public:
+    ~Cached() { EndLoopedThread(); }
+
     std::optional<std::thread> Thread;
     std::array<ResultPoolType, ResultPoolSize> ResultPool = {};
     std::atomic_bool status;

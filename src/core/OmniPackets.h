@@ -8,7 +8,6 @@
 #include <string>
 #include <variant>
 #include <vector>
-#include <windows.h>
 
 struct ArraySwapLayout
 {
