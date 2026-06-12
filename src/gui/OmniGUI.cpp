@@ -1,5 +1,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#include "OmniPackets.h"
+#include "imgui.h"
 #endif
 
 #include "OmniGUI.h"
@@ -192,6 +194,211 @@ void OmniGUI::ConnectionRing(const char* label)
     //}
 
     ImGui::PopFont();
+}
+
+bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
+{
+
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f); // Button & checkbox rounding
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f)); // Precise manual layouts
+
+    ImVec4 textMuted = ImVec4(0.45f, 0.47f, 0.57f, 1.0f);
+    ImVec4 purpleAccent = ImVec4(0.53f, 0.44f, 0.96f, 1.0f);
+    ImVec4 purpleHover = ImVec4(0.60f, 0.52f, 0.98f, 1.0f);
+    ImVec4 purpleActive = ImVec4(0.45f, 0.36f, 0.88f, 1.0f);
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    ImVec2 windowPos = ImGui::GetWindowPos();
+    float windowWidth = ImGui::GetWindowWidth();
+
+    drawList->AddRectFilled(ImVec2(windowPos.x + 10.0f, windowPos.y),
+                            ImVec2(windowPos.x - 10.0f + windowWidth, windowPos.y + 3.0f),
+                            IM_COL32(135, 112, 245, 255),
+                            16.0f,
+                            ImDrawFlags_RoundCornersTop);
+
+    float paddingTop = 21.0f;
+    ImVec2 circleCenter =
+        ImVec2(windowPos.x + (windowWidth / 2.0f), windowPos.y + 25.0f + paddingTop);
+    const float radius = 14.0f;
+
+    float boxSize = 48.0f;
+    float boxSpacing = 18.0f;
+    float rounding = 12.0f;
+    float boxTop = circleCenter.y - (boxSize / 2.0f);
+    float botBottom = boxTop + boxSize;
+
+    ImVec2 leftRectBegin = ImVec2(circleCenter.x - boxSpacing - boxSize, boxTop);
+    ImVec2 leftRectEnd = ImVec2(circleCenter.x - boxSpacing, botBottom);
+
+    ImVec2 rightRectBegin = ImVec2(circleCenter.x + boxSpacing, boxTop);
+    ImVec2 rightRectEnd = ImVec2(circleCenter.x + boxSpacing + boxSize, botBottom);
+
+    drawList->AddRectFilled(leftRectBegin, leftRectEnd, IM_COL32(40, 40, 55, 100), rounding);
+    drawList->AddRect(leftRectBegin, leftRectEnd, IM_COL32(75, 70, 105, 255), rounding, 0, 1.5f);
+
+    drawList->AddRectFilled(rightRectBegin, rightRectEnd, IM_COL32(40, 40, 55, 100), rounding);
+    drawList->AddRect(rightRectBegin, rightRectEnd, IM_COL32(75, 70, 105, 255), rounding, 0, 1.5f);
+
+    drawList->AddCircleFilled(circleCenter, radius, IM_COL32(23, 23, 30, 255));
+    drawList->AddCircle(circleCenter, radius, IM_COL32(50, 50, 65, 255), 0, 1.5f);
+
+    const char* arrowText = "⇄";
+    ImGui::SetWindowFontScale(11.0f / 18.0f);
+    ImVec2 arrowSize = ImGui::CalcTextSize(arrowText);
+    drawList->AddText(
+        ImVec2(circleCenter.x - (arrowSize.x / 2.0f), circleCenter.y - (arrowSize.y / 2.0f)),
+        IM_COL32_WHITE,
+        arrowText);
+    ImGui::SetWindowFontScale(1.0f);
+
+    ImGui::Dummy(ImVec2(windowWidth, boxSize + paddingTop + 14.0f));
+
+    const char* txtConnReq = "CONNECTION REQUEST";
+    ImGui::SetWindowFontScale(11.0f / 18.0f);
+
+    float txtConnReqWidth = ImGui::CalcTextSize(txtConnReq).x;
+    ImGui::SetCursorPosX((windowWidth - txtConnReqWidth) / 2.0f);
+
+    ImGui::TextColored(textMuted, "%s", txtConnReq);
+    ImGui::Dummy(ImVec2(0.0f, 6.0f));
+
+    const char* deviceName = "DESKTOP-7K3MX2";
+    ImGui::SetWindowFontScale(17.0f / 18.0f);
+
+    float deviceNameWidth = ImGui::CalcTextSize(deviceName).x;
+    ImGui::SetCursorPosX((windowWidth - deviceNameWidth) / 2.0f);
+
+    ImGui::TextUnformatted(deviceName);
+    ImGui::Dummy(ImVec2(0.0f, 6.0f));
+
+    const char* ipSub = "192.168.1.42  Local Network";
+    ImGui::SetWindowFontScale(12.0f / 18.0f);
+
+    float ipSubWidth = ImGui::CalcTextSize(ipSub).x;
+    ImGui::SetCursorPosX((windowWidth - ipSubWidth) / 2.0f);
+
+    ImGui::TextColored(textMuted, "%s", ipSub);
+    ImGui::SetWindowFontScale(1.0f);
+
+    ImGui::Dummy(ImVec2(0.0f, 14.0f));
+    ImGui::Separator();
+    ImGui::Dummy(ImVec2(0.0f, 14.0f));
+
+    if (ImGui::BeginTable("meta_info_row", 3, ImGuiTableFlags_NoBordersInBody)) {
+        ImGui::TableSetupColumn("C1", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("C2", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("C3", ImGuiTableColumnFlags_WidthStretch);
+
+        ImGui::TableNextRow();
+        ImGui::SetWindowFontScale(10.0f / 18.0f);
+
+        ImGui::TableSetColumnIndex(0);
+        ImGui::SetCursorPosX(
+            ImGui::GetCursorPosX() +
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PROTOCOL").x) * 0.5f);
+        ImGui::TextColored(textMuted, "PROTOCOL");
+
+        ImGui::TableSetColumnIndex(1);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PORT").x) *
+                                 0.5f);
+        ImGui::TextColored(textMuted, "PORT");
+
+        ImGui::TableSetColumnIndex(2);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("LATENCY").x) *
+                                 0.5f);
+        ImGui::TextColored(textMuted, "LATENCY");
+
+        ImGui::TableNextRow();
+        ImGui::SetWindowFontScale(13.0f / 18.0f);
+
+        ImGui::TableSetColumnIndex(0);
+        ImGui::SetCursorPosX(
+            ImGui::GetCursorPosX() +
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("[V] [M] [A]").x) * 0.5f);
+        ImGui::TextColored(purpleAccent, "[V] [M] [A]");
+
+        ImGui::TableSetColumnIndex(1);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("7474").x) *
+                                 0.5f);
+        ImGui::TextUnformatted("7474");
+
+        ImGui::TableSetColumnIndex(2);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("4 ms").x) *
+                                 0.5f);
+        ImGui::TextUnformatted("4 ms");
+
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::EndTable();
+    }
+
+    ImGui::Dummy(ImVec2(0.0f, 14.0f));
+    ImGui::Separator();
+
+    ImGui::Dummy(ImVec2(0.0f, 16.0f));
+
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.16f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.18f, 0.18f, 0.24f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_CheckMark, purpleAccent);
+
+    ImGui::SetWindowFontScale(12.5f / 18.0f);
+    ImGui::Checkbox("🛡 Trust this device permanently", &request.Verified);
+    ImGui::SetWindowFontScale(1.0f);
+
+    ImGui::PopStyleColor(3);
+    ImGui::Dummy(ImVec2(0.0f, 16.0f));
+
+    bool actionState = false;
+    float Spacing = 24.0f;
+    float availableWidth = ImGui::GetContentRegionAvail().x;
+    float individualButtonWidth = (availableWidth - Spacing) / 2.0f;
+    float actionHeight = 40.0f;
+
+    ImGui::SetWindowFontScale(13.0f / 18.0f);
+
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.14f, 0.14f, 0.17f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.10f, 0.10f, 0.13f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.32f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+
+    if (ImGui::Button("Decline", ImVec2(individualButtonWidth, actionHeight))) {
+        ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(4);
+
+    ImGui::SameLine(0.0f, Spacing);
+
+    ImGui::PushStyleColor(ImGuiCol_Button, purpleAccent);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, purpleHover);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, purpleActive);
+
+    if (ImGui::IsWindowAppearing()) {
+        ImGui::SetKeyboardFocusHere(-1);
+    }
+
+    if (ImGui::Button("Accept", ImVec2(individualButtonWidth, actionHeight))) {
+        ImGui::CloseCurrentPopup();
+        actionState = true;
+    }
+    ImGui::PopStyleColor(3);
+    ImGui::SetWindowFontScale(1.0f);
+
+    ImGui::Dummy(ImVec2(0.0f, 24.0f));
+    ImGui::PopStyleVar(2);
+
+    return actionState;
+}
+
+bool OmniGUI::HandleEvent(Alert& request, float timeout)
+{
+    return true;
 }
 
 void OmniGUI::CreateCurvedLine(const char* label, int curve)

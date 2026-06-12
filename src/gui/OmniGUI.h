@@ -1,6 +1,10 @@
 #ifndef OMNIGUI_H
 #define OMNIGUI_H
 
+#include "OmniEnums.h"
+#include "OmniPackets.h"
+#include <variant>
+#include <vector>
 #pragma once
 
 #include "OmniAPI.h"
@@ -17,13 +21,38 @@
 
 class OmniLink;
 
+struct Alert
+{
+    std::string Title;
+    std::string Desc;
+};
+
+using EventTypes = std::variant<ConnectionRequest, Alert>;
+
+struct Notification
+{
+    EventTypes Event;
+    const char* EventName;
+    bool Active = false;
+    float Timeout = 15.0f;
+};
+
+static constexpr ImGuiWindowFlags DefaultFlags =
+    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+
+static ConnectionRequest req{DeviceMap::L1, "192.168.1.15"};
+static Notification note{req, "Some Shit", true, 15.0f};
+
 class OmniGUI
 {
+
   private:
     OmniLink& App;
     std::unordered_map<DeviceMap, OmniInstance>* AvailableDevices = nullptr;
 
     bool ImGuiState = true;
+
     bool DeviceHoverState = false;
     ImVec2 SelectedDevicePos;
 
@@ -33,18 +62,59 @@ class OmniGUI
     ImDrawList* DrawList = nullptr;
 
     int ActiveMenu = 0;
-    // bool PopUp1 = false;
+    std::vector<Notification> Notifications = {note};
+
+    // Fonts
+    ImFont* JetBrainsReg20 = nullptr;
+    ImFont* JetBrainsReg18 = nullptr;
 
     bool IconizedButton(const char* label, ImVec2& ButtonSize);
     bool VerticalMenuItem(const char* label);
     void ConnectionRing(const char* label);
 
+    // Notification Event Handlers
+    static bool HandleEvent(ConnectionRequest& request, float timeout);
+    static bool HandleEvent(Alert& request, float timeout);
+
     void CenterItemX(const float ItemWidth);
     void CreateCurvedLine(const char* label, int curve);
 
-    // Fonts
-    ImFont* JetBrainsReg20 = nullptr;
-    ImFont* JetBrainsReg18 = nullptr;
+    bool NotificationWindow(const char* label, Notification& notification)
+    {
+        if (notification.Active) {
+            ImGui::OpenPopup(label);
+            notification.Active = false;
+        }
+
+        ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+        ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(360.0f, 364.0f));
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+
+        if (ImGui::BeginPopupModal(label, NULL, DefaultFlags)) {
+
+            notification.Timeout -= ImGui::GetIO().DeltaTime;
+
+            if (notification.Timeout <= 0.0f) {
+                ImGui::CloseCurrentPopup();
+                Notifications.erase(Notifications.begin());
+            } else {
+                bool result =
+                    std::visit([&](auto& args) { return HandleEvent(args, notification.Timeout); },
+                               notification.Event);
+                if (result) {
+                    ImGui::CloseCurrentPopup();
+                    Notifications.erase(Notifications.begin());
+                }
+            }
+            ImGui::EndPopup();
+            ImGui::PopStyleVar();
+            return true;
+        }
+
+        return false;
+    }
 
   public:
     OmniGUI(OmniLink& OmniLinkInstance);
@@ -132,6 +202,12 @@ class OmniGUI
 
                     if (ImGui::Button("Scan")) {
                         OmniAPI::Scan();
+                    }
+
+                    if (!Notifications.empty()) {
+                        for (Notification& notification : Notifications) {
+                            NotificationWindow(notification.EventName, notification);
+                        }
                     }
 
                     /*CreateCurvedLine("ln4", 20); ImGui::SameLine(40.0f, -1.0f);
