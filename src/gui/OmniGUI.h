@@ -47,9 +47,31 @@ static Notification note{req, "Some Shit", true, 15.0f};
 class OmniGUI
 {
 
+#define IC_SETTINGS "\xef\x80\x80"
+#define IC_SERVER "\xef\x80\x81"
+#define IC_KEYBOARD "\xef\x80\x82"
+#define IC_LINK "\xef\x80\x83"
+#define IC_WAYPOINTS "\xef\x80\x84"
+#define IC_SCREEN_SHARE "\xef\x80\x85"
+#define IC_APP_WINDOW "\xef\x80\x86"
+#define IC_VOLUME_2 "\xef\x80\x87"
+#define IC_CLIPBOARD "\xef\x80\x88"
+#define IC_MOUSE "\xef\x80\x89"
+#define IC_SHIELD "\xef\x80\x8a"
+#define IC_WIFI "\xef\x80\x8b"
+#define IC_TRASH_2 "\xef\x80\x8c"
+#define IC_ZAP "\xef\x80\x8d"
+#define IC_NETWORK "\xef\x80\xae"
+#define IC_BELL "\xef\x80\xaf"
+#define IC_INFO "\xef\x80\x90"
+#define IC_DIAMOND_PLUS "\xef\x80\x91"
+#define IC_AIRPLAY "\xef\x80\x92"
+
   private:
     OmniLink& App;
-    std::unordered_map<DeviceMap, OmniInstance>* AvailableDevices = nullptr;
+    std::unordered_map<DeviceMap, OmniInstance>* AvailableInstances = nullptr;
+    ActiveInstanceContainer* ActiveInstances = nullptr;
+    DeviceMap& SelectedDevice;
 
     bool ImGuiState = true;
 
@@ -67,9 +89,10 @@ class OmniGUI
     // Fonts
     ImFont* JetBrainsReg20 = nullptr;
     ImFont* JetBrainsReg18 = nullptr;
+    ImFont* OmniIcons = nullptr;
 
-    bool IconizedButton(const char* label, ImVec2& ButtonSize);
-    bool VerticalMenuItem(const char* label);
+    bool IconizedButton(const char* Label, const char* Icon, bool state, const ImVec2& ButtonSize);
+    bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
     void ConnectionRing(const char* label);
 
     // Notification Event Handlers
@@ -81,6 +104,8 @@ class OmniGUI
 
     bool NotificationWindow(const char* label, Notification& notification)
     {
+        bool end = false;
+
         if (notification.Active) {
             ImGui::OpenPopup(label);
             notification.Active = false;
@@ -92,28 +117,34 @@ class OmniGUI
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
 
+        bool clicked = false;
+
         if (ImGui::BeginPopupModal(label, NULL, DefaultFlags)) {
 
             notification.Timeout -= ImGui::GetIO().DeltaTime;
-
             if (notification.Timeout <= 0.0f) {
-                ImGui::CloseCurrentPopup();
-                Notifications.erase(Notifications.begin());
-            } else {
-                bool result =
-                    std::visit([&](auto& args) { return HandleEvent(args, notification.Timeout); },
-                               notification.Event);
-                if (result) {
-                    ImGui::CloseCurrentPopup();
-                    Notifications.erase(Notifications.begin());
-                }
+                end = true;
             }
+
+            clicked =
+                std::visit([&](auto& args) { return HandleEvent(args, notification.Timeout); },
+                           notification.Event);
+            if (clicked)
+                end = true;
+
+            if (end)
+                ImGui::CloseCurrentPopup();
+
             ImGui::EndPopup();
-            ImGui::PopStyleVar();
-            return true;
         }
 
-        return false;
+        ImGui::PopStyleVar();
+
+        if (end) {
+            Notifications.erase(Notifications.begin());
+        }
+
+        return clicked ? true : false;
     }
 
   public:
@@ -128,7 +159,10 @@ class OmniGUI
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::SetNextWindowSize(ImVec2(1280, 810));
+        DrawList = ImGui::GetWindowDrawList();
+
+        ImVec2 WindowSize = ImVec2(1280, 810);
+        ImGui::SetNextWindowSize(WindowSize);
         ImGui::SetNextWindowPos(ImVec2(0, 0));
 
         ImGuiStyle& style = ImGui::GetStyle();
@@ -136,65 +170,103 @@ class OmniGUI
 
         if (ImGui::Begin("OmniLink", &ImGuiState, ImGuiWindowFlags_NoTitleBar)) {
 
-            ImGui::BeginChild("SideMenu", ImVec2(200, 0), true);
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.074f, 0.082f, 0.121f, 1.0f));
+            DrawList = ImGui::GetWindowDrawList();
+
+            ImVec2 MenuItemSize = ImVec2(110, 100);
+            ImGui::BeginChild("SideMenu", ImVec2(110, 0), ImGuiChildFlags_None);
             {
+                ImGui::Dummy(ImVec2(0, 50));
+                ImGui::Dummy(ImVec2(0, 155));
 
-                DrawList = ImGui::GetWindowDrawList();
-
-                if (VerticalMenuItem("OmniLinks"))
+                if (VerticalMenuItem("Nexus", IC_LINK, ActiveMenu == 0, MenuItemSize))
                     ActiveMenu = 0;
-                if (VerticalMenuItem("ActiveLinks"))
+
+                if (VerticalMenuItem("Instances", IC_SERVER, ActiveMenu == 1, MenuItemSize))
                     ActiveMenu = 1;
-                if (VerticalMenuItem("Keybinds"))
+
+                if (VerticalMenuItem("Keybinds", IC_KEYBOARD, ActiveMenu == 2, MenuItemSize))
                     ActiveMenu = 2;
-                if (VerticalMenuItem("Settings"))
+
+                if (VerticalMenuItem("Settings", IC_SETTINGS, ActiveMenu == 3, MenuItemSize))
                     ActiveMenu = 3;
             }
             ImGui::EndChild();
+            ImGui::PopStyleColor();
 
             ImGui::SameLine();
 
             ImGui::BeginChild("menu-item");
             {
 
+                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "OmniLink || ");
+
+                ImGui::SameLine(0.0f, 10.0f);
+
                 switch (ActiveMenu) {
 
                 case 0:
 
                 {
-                    DrawList = ImGui::GetWindowDrawList();
+                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Nexus");
 
-                    ImGui::BeginChild("FeaturePanel", ImVec2(0, 150), true);
+                    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.074f, 0.082f, 0.121f, 1.0f));
 
-                    ImVec2 size = ImVec2(165, 135);
+                    ImGui::BeginChild("FeaturePanel", ImVec2(0, 120), ImGuiChildFlags_None);
 
-                    if (IconizedButton("Screen Link", size)) {
+                    ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f),
+                                       "\n  M  \n  O  \n  D  \n  E  ");
+
+                    ImGui::SameLine(0.0f, 0.0f);
+
+                    ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x / 5, 120);
+
+                    const uint32_t FeatureSates = (*ActiveInstances)[SelectedDevice].ActiveFlags;
+
+                    if (IconizedButton("Screen Link",
+                                       IC_SCREEN_SHARE,
+                                       (FeatureSates & FeatureFlags::fScreenLink) != 0,
+                                       size)) {
                         OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, DeviceMap::C0);
                     }
                     ImGui::SameLine(0.0f, 0.0f);
 
-                    if (IconizedButton("Window Link", size)) {
+                    if (IconizedButton("Window Link",
+                                       IC_APP_WINDOW,
+                                       (FeatureSates & FeatureFlags::fWindowLink) != 0,
+                                       size)) {
                         OmniAPI::ToggleFeature(FeatureTypes::WindowLink, DeviceMap::C0);
                     }
                     ImGui::SameLine(0.0f, 0.0f);
 
-                    if (IconizedButton("Input Link", size)) {
+                    if (IconizedButton("Input Link",
+                                       IC_MOUSE,
+                                       (FeatureSates & FeatureFlags::fInputLink) != 0,
+                                       size)) {
                         OmniAPI::ToggleFeature(FeatureTypes::InputLink, DeviceMap::C0);
                     }
                     ImGui::SameLine(0.0f, 0.0f);
 
-                    if (IconizedButton("Audio Link", size)) {
+                    if (IconizedButton("Audio Link",
+                                       IC_VOLUME_2,
+                                       (FeatureSates & FeatureFlags::fAudioLink) != 0,
+                                       size)) {
                         OmniAPI::ToggleFeature(FeatureTypes::AudioLink, DeviceMap::C0);
                     }
                     ImGui::SameLine(0.0f, 0.0f);
 
-                    if (IconizedButton("Clipboard Link", size)) {
+                    if (IconizedButton("Clipboard Link",
+                                       IC_CLIPBOARD,
+                                       (FeatureSates & FeatureFlags::fClipBoardLink) != 0,
+                                       size)) {
                         // SetEvent(EventHandler[0]);
                     }
 
                     ImGui::EndChild();
 
-                    ImGui::BeginChild("connections", ImVec2(0, 0), true);
+                    ImGui::PopStyleColor();
+
+                    ImGui::BeginChild("connections", ImVec2(0, 0), ImGuiChildFlags_None);
 
                     DrawList = ImGui::GetWindowDrawList();
 

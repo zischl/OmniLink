@@ -35,6 +35,7 @@ struct ConnectionRequest
 {
     DeviceMap DeviceID;
     char OmniReqKey[32];
+    bool Verified;
 
     static ConnectionRequest Deserialize(ByteStreamReader& reader)
     {

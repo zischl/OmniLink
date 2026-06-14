@@ -8,9 +8,13 @@
 #include "OmniLink.h"
 #include "fonts.h"
 
-OmniGUI::OmniGUI(OmniLink& OmniLinkInstance) : App(OmniLinkInstance)
+#include "OmniIcons.h"
+
+OmniGUI::OmniGUI(OmniLink& OmniLinkInstance)
+    : App(OmniLinkInstance), SelectedDevice(OmniLink::SelectedTargetDevice)
 {
-    AvailableDevices = App.GetAvailableInstances();
+    AvailableInstances = App.GetAvailableInstances();
+    ActiveInstances = App.GetActiveInstances();
 }
 
 void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context)
@@ -29,6 +33,11 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(D3D11Device, D3D11Context);
 
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.05f, 0.05f, 0.05f, 0.65f);
+    style.Colors[ImGuiCol_ChildBg] = ImVec4(0.031f, 0.031f, 0.059f, 1.0f);
+
     ImFontConfig FontCFG;
     FontCFG.FontDataOwnedByAtlas = false;
 
@@ -36,63 +45,141 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
         JetBrainsMonoRegular, JetBrainsMonoRegular_Size, 20.0f, &FontCFG);
     JetBrainsReg18 = io.Fonts->AddFontFromMemoryTTF(
         JetBrainsMonoRegular, JetBrainsMonoRegular_Size, 18.0f, &FontCFG);
+
+    OmniIcons = io.Fonts->AddFontFromMemoryTTF(OmniIcons_ttf, OmniIcons_ttf_len, 20.0f, &FontCFG);
 }
 
-bool OmniGUI::VerticalMenuItem(const char* label)
+bool OmniGUI::VerticalMenuItem(const char* Label,
+                               const char* Icon,
+                               bool State,
+                               ImVec2& MenuItemSize)
 {
-    ImGui::PushID(label);
+    ImGui::PushID(Label);
 
-    ImVec2 MenuItemSize = ImVec2(180, 100);
+    const ImVec2 IconSize = ImVec2(55, 55);
+    const float IconBgRounding = 16.0f;
+
+    ImVec2 Pos = ImGui::GetCursorScreenPos();
+    bool Clicked = ImGui::InvisibleButton(Label, MenuItemSize);
+    bool Hovered = ImGui::IsItemHovered();
+
+    ImU32 BgColor = IM_COL32(30, 30, 40, 0);
+    ImU32 IconBgColor = IM_COL32(30, 30, 40, 255);
+
+    ImVec2 IconBoxMin = ImVec2(Pos.x + (MenuItemSize.x - IconSize.x) * 0.5f, Pos.y + 10);
+    ImVec2 IconBoxMax = ImVec2(IconBoxMin.x + IconSize.x, IconBoxMin.y + IconSize.y);
+
+    if (State) {
+        ImVec2 IndicatorTop = ImVec2(Pos.x, Pos.y + (MenuItemSize.y * 0.30f));
+        ImVec2 IndicatorBottom = ImVec2(Pos.x + 5, Pos.y + (MenuItemSize.y * 0.70f));
+
+        BgColor = IM_COL32(168, 85, 247, 40);
+        IconBgColor = IM_COL32(168, 85, 247, 20);
+
+        // Active Item Strip
+        DrawList->AddRectFilled(IndicatorTop, IndicatorBottom, IM_COL32(168, 85, 247, 255), 10.0f);
+    } else if (Hovered) {
+        BgColor = IM_COL32(255, 255, 255, 15);
+    }
+
+    ImVec2 TotalBoxMax = ImVec2(Pos.x + MenuItemSize.x, Pos.y + MenuItemSize.y);
+    // Item BG
+    DrawList->AddRectFilled(Pos, TotalBoxMax, BgColor, 4.0f);
+    // Item Icon BG
+    DrawList->AddRectFilled(IconBoxMin, IconBoxMax, IconBgColor, IconBgRounding);
+
+    // Item Icon
+    ImU32 IconTint = State ? IM_COL32(168, 85, 247, 255) : IM_COL32(140, 140, 160, 255);
+    ImGui::PushFont(OmniIcons);
+    ImVec2 GlyphSize = ImGui::CalcTextSize(Icon);
+    ImVec2 GlyphPos = ImVec2(IconBoxMin.x + (IconSize.x - GlyphSize.x) * 0.5f,
+                             IconBoxMin.y + (IconSize.y - GlyphSize.y) * 0.5f);
+
+    DrawList->AddText(GlyphPos, IconTint, Icon);
+    ImGui::PopFont();
+
+    ImVec2 LabelSize = ImGui::CalcTextSize(Label);
+    ImVec2 LabelPos = ImVec2(Pos.x + (MenuItemSize.x - LabelSize.x) * 0.5f, IconBoxMax.y + 10);
+    ImU32 TextColor = State ? IM_COL32(168, 85, 247, 255) : IM_COL32(100, 105, 125, 255);
+
+    // Item Tex
+    DrawList->AddText(LabelPos, TextColor, Label);
+
+    ImGui::PopID();
+    return Clicked;
+}
+
+bool OmniGUI::IconizedButton(const char* Label,
+                             const char* Icon,
+                             bool State,
+                             const ImVec2& ButtonSize)
+{
+    ImGui::PushID(Label);
 
     ImVec2 pos = ImGui::GetCursorScreenPos();
-    bool clicked = ImGui::InvisibleButton(label, MenuItemSize);
+    ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
-    if (!ImGui::IsItemHovered()) {
-        ImU32 MenuItemColor = ImGui::GetColorU32(ImVec4(0.09f, 0.09f, 0.09f, 1.0f));
+    bool clicked = ImGui::InvisibleButton(Label, ButtonSize);
+    bool hovered = ImGui::IsItemHovered();
 
+    // Button BG
+    if (State) {
         DrawList->AddRectFilled(
-            pos, ImVec2(pos.x + MenuItemSize.x, pos.y + MenuItemSize.y), MenuItemColor);
-    } else {
-        ImU32 MenuItemColor_Hovered = ImGui::GetColorU32(ImVec4(0.13f, 0.13f, 0.13f, 1.0f));
-
+            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), IM_COL32(157, 78, 221, 30));
+    } else if (hovered) {
         DrawList->AddRectFilled(
-            pos, ImVec2(pos.x + MenuItemSize.x, pos.y + MenuItemSize.y), MenuItemColor_Hovered);
+            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), IM_COL32(255, 255, 255, 10));
+    }
+
+    const ImVec2 IconSize = ImVec2(44.0f, 44.0f);
+    ImVec2 IconBoxPos = ImVec2(pos.x + (ButtonSize.x - IconSize.x) * 0.5f, pos.y + 14.0f);
+
+    ImU32 IconBgColor = State ? IM_COL32(157, 78, 221, 35) : IM_COL32(255, 255, 255, 10);
+    // Icon BG
+    DrawList->AddRectFilled(IconBoxPos,
+                            ImVec2(IconBoxPos.x + IconSize.x, IconBoxPos.y + IconSize.y),
+                            IconBgColor,
+                            12.0f);
+
+    // Da Icon
+    ImGui::PushFont(OmniIcons);
+    ImVec2 IconTextSize = ImGui::CalcTextSize(Icon);
+    ImVec2 IconTextPos = ImVec2(IconBoxPos.x + (IconSize.x - IconTextSize.x) * 0.5f,
+                                IconBoxPos.y + (IconSize.y - IconTextSize.y) * 0.5f);
+    ImU32 IconColor = State ? IM_COL32(157, 78, 221, 255) : IM_COL32(160, 160, 170, 255);
+
+    DrawList->AddText(IconTextPos, IconColor, Icon);
+    ImGui::PopFont();
+
+    ImVec2 LabelSize = ImGui::CalcTextSize(Label);
+    ImVec2 LabelPos =
+        ImVec2(pos.x + (ButtonSize.x - LabelSize.x) * 0.5f, IconBoxPos.y + IconSize.y + 12.0f);
+    ImU32 LabelColor = State ? IM_COL32(230, 230, 255, 255) : IM_COL32(150, 150, 160, 255);
+    // Button Label
+    DrawList->AddText(LabelPos, LabelColor, Label);
+
+    if (State) {
+        const float StripWidth = 40.0f;
+        const float StripHeight = 3.0f;
+        ImVec2 StripPosLeft =
+            ImVec2(pos.x + (ButtonSize.x - StripWidth) * 0.5f, pos.y + ButtonSize.y - StripHeight);
+        ImVec2 stripPosRight = ImVec2(StripPosLeft.x + StripWidth, pos.y + ButtonSize.y);
+
+        DrawList->AddRectFilled(StripPosLeft,
+                                stripPosRight,
+                                IM_COL32(157, 78, 221, 255),
+                                1.5f,
+                                ImDrawFlags_RoundCornersTop);
+
+        DrawList->AddRectFilledMultiColor(ImVec2(StripPosLeft.x, StripPosLeft.y - 8),
+                                          stripPosRight,
+                                          IM_COL32(157, 78, 221, 0),
+                                          IM_COL32(157, 78, 221, 0),
+                                          IM_COL32(157, 78, 221, 45),
+                                          IM_COL32(157, 78, 221, 45));
     }
 
     ImGui::PopID();
-
-    return clicked;
-}
-
-bool OmniGUI::IconizedButton(const char* label, ImVec2& ButtonSize)
-{
-    ImGui::PushID(label);
-
-    ImVec2 pos = ImGui::GetCursorScreenPos();
-    bool clicked = ImGui::InvisibleButton(label, ButtonSize);
-
-    ImVec2 TextSize = ImGui::CalcTextSize(label);
-    ImVec2 TextPos = ImVec2(pos.x + (ButtonSize.x - TextSize.x) * 0.5f,
-                            pos.y + (ButtonSize.y - TextSize.y) * 0.5f);
-
-    if (!ImGui::IsItemHovered()) {
-        ImU32 ButtonColor = ImGui::GetColorU32(ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
-        ImU32 TextColor = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-
-        DrawList->AddRectFilled(
-            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), ButtonColor);
-        DrawList->AddText(TextPos, TextColor, label);
-    } else {
-        ImU32 ButtonColor_Hovered = ImGui::GetColorU32(ImVec4(0.2f, 0.0f, 0.2f, 1.0f));
-        ImU32 TextColor_Hovered = ImGui::GetColorU32(ImVec4(0.2f, 0.0f, 0.2f, 1.0f));
-
-        DrawList->AddRectFilled(
-            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), ButtonColor_Hovered);
-        DrawList->AddText(TextPos, TextColor_Hovered, label);
-    }
-
-    ImGui::PopID();
-
     return clicked;
 }
 
@@ -123,54 +210,44 @@ void OmniGUI::ConnectionRing(const char* label)
 
     ImGui::PushFont(JetBrainsReg18);
 
-    DeviceIcon("C0", pos, text_size, &(*AvailableDevices)[DeviceMap::C0]);
+    auto& devices = *AvailableInstances;
 
-    if ((*AvailableDevices)[DeviceMap::L1].InstanceIP) {
+    DeviceIcon("C0", pos, text_size, &devices[DeviceMap::C0]);
+
+    if (devices[DeviceMap::L1].InstanceIP) {
+        DeviceIcon("L1", ImVec2(pos.x - radius, pos.y), text_size, &devices[DeviceMap::L1]);
+    }
+
+    if (devices[DeviceMap::LU1].InstanceIP) {
         DeviceIcon(
-            "L1", ImVec2(pos.x - radius, pos.y), text_size, &(*AvailableDevices)[DeviceMap::L1]);
+            "LU1", ImVec2(pos.x - radius, pos.y - radius), text_size, &devices[DeviceMap::LU1]);
     }
 
-    if ((*AvailableDevices)[DeviceMap::LU1].InstanceIP) {
-        DeviceIcon("LU1",
-                   ImVec2(pos.x - radius, pos.y - radius),
-                   text_size,
-                   &(*AvailableDevices)[DeviceMap::LU1]);
+    if (devices[DeviceMap::U1].InstanceIP) {
+        DeviceIcon("U1", ImVec2(pos.x, pos.y - radius), text_size, &devices[DeviceMap::U1]);
     }
 
-    if ((*AvailableDevices)[DeviceMap::U1].InstanceIP) {
+    if (devices[DeviceMap::RU1].InstanceIP) {
         DeviceIcon(
-            "U1", ImVec2(pos.x, pos.y - radius), text_size, &(*AvailableDevices)[DeviceMap::U1]);
+            "RU1", ImVec2(pos.x + radius, pos.y - radius), text_size, &devices[DeviceMap::RU1]);
     }
 
-    if ((*AvailableDevices)[DeviceMap::RU1].InstanceIP) {
-        DeviceIcon("RU1",
-                   ImVec2(pos.x + radius, pos.y - radius),
-                   text_size,
-                   &(*AvailableDevices)[DeviceMap::RU1]);
+    if (devices[DeviceMap::R1].InstanceIP) {
+        DeviceIcon("R1", ImVec2(pos.x + radius, pos.y), text_size, &devices[DeviceMap::R1]);
     }
 
-    if ((*AvailableDevices)[DeviceMap::R1].InstanceIP) {
+    if (devices[DeviceMap::RD1].InstanceIP) {
         DeviceIcon(
-            "R1", ImVec2(pos.x + radius, pos.y), text_size, &(*AvailableDevices)[DeviceMap::R1]);
+            "RD1", ImVec2(pos.x + radius, pos.y + radius), text_size, &devices[DeviceMap::RD1]);
     }
 
-    if ((*AvailableDevices)[DeviceMap::RD1].InstanceIP) {
-        DeviceIcon("RD1",
-                   ImVec2(pos.x + radius, pos.y + radius),
-                   text_size,
-                   &(*AvailableDevices)[DeviceMap::RD1]);
+    if (devices[DeviceMap::D1].InstanceIP) {
+        DeviceIcon("D1", ImVec2(pos.x, pos.y + radius), text_size, &devices[DeviceMap::D1]);
     }
 
-    if ((*AvailableDevices)[DeviceMap::D1].InstanceIP) {
+    if (devices[DeviceMap::LD1].InstanceIP) {
         DeviceIcon(
-            "D1", ImVec2(pos.x, pos.y + radius), text_size, &(*AvailableDevices)[DeviceMap::D1]);
-    }
-
-    if ((*AvailableDevices)[DeviceMap::LD1].InstanceIP) {
-        DeviceIcon("LD1",
-                   ImVec2(pos.x - radius, pos.y + radius),
-                   text_size,
-                   &(*AvailableDevices)[DeviceMap::LD1]);
+            "LD1", ImVec2(pos.x - radius, pos.y + radius), text_size, &devices[DeviceMap::LD1]);
     }
 
     // if (DeviceHoverState) {

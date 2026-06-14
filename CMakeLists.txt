@@ -79,7 +79,8 @@ elseif(UNIX)
   )
 endif()
 
-set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc")
+set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc"
+                   "${CMAKE_CURRENT_SOURCE_DIR}/OmniIcons.h")
 
 # OmniLink C++ and CUDA source files
 set(COMMON_SOURCES
