@@ -16,14 +16,14 @@ inline std::unordered_map<DeviceMap, OmniInstance> GenerateAvailableInstances()
         const char* ipStr;
     };
 
-    DummyConfig configs[8] = {{C0, "Dev_Center_0", 0x1400A8C0, "192.168.0.20"},
-                              {L1, "Dev_Left_1", 0x1500A8C0, "192.168.0.21"},
-                              {U1, "Dev_Up_1", 0x1600A8C0, "192.168.0.22"},
-                              {R1, "Dev_Right_1", 0x1700A8C0, "192.168.0.23"},
-                              {D1, "Dev_Down_1", 0x1800A8C0, "192.168.0.24"},
-                              {LU1, "Dev_LeftUp_1", 0x1900A8C0, "192.168.0.25"},
-                              {RU1, "Dev_RightUp_1", 0x1A00A8C0, "192.168.0.26"},
-                              {RD1, "Dev_RightDn_1", 0x1B00A8C0, "192.168.0.27"}};
+    DummyConfig configs[6] = {
+        {C0, "Dev_Center_0", 0x1400A8C0, "192.168.0.20"},
+        {L1, "Dev_Left_1", 0x1500A8C0, "192.168.0.21"},
+        {R1, "Dev_Right_1", 0x1700A8C0, "192.168.0.23"},
+        {D1, "Dev_Down_1", 0x1800A8C0, "192.168.0.24"},
+        {RU1, "Dev_RightUp_1", 0x1A00A8C0, "192.168.0.26"},
+        {LD1, "Dev_RightDn_1", 0x1B00A8C0, "192.168.0.28"},
+    };
     std::unordered_map<DeviceMap, OmniInstance> dummyMap;
 
     for (const auto& config : configs) {

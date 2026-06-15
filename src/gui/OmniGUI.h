@@ -1,11 +1,11 @@
 #ifndef OMNIGUI_H
 #define OMNIGUI_H
 
+#pragma once
 #include "OmniEnums.h"
 #include "OmniPackets.h"
 #include <variant>
 #include <vector>
-#pragma once
 
 #include "OmniAPI.h"
 #include "OmniInstances.h"
@@ -73,6 +73,81 @@ class OmniGUI
 #define IC_X "\xEF\x80\x93"
 #define IC_MINUS "\xEF\x80\x94"
 
+    // Trust me, this was hell
+    static constexpr ImU32 COL_DEV_EMPTY = IM_COL32(0x29, 0x19, 0x3F, 255);
+    static constexpr ImVec4 BG_CHILD_1 = ImVec4(0.074f, 0.082f, 0.121f, 1.0f);
+    static constexpr ImVec4 TEXT_MUTED = ImVec4(0.239f, 0.220f, 0.333f, 1.0f);
+    static constexpr ImVec4 TEXT_ACTIVE = ImVec4(0.753f, 0.722f, 0.831f, 1.0f);
+    static constexpr ImVec4 BTN_HOVER_DARK = ImVec4(0.25f, 0.25f, 0.35f, 0.5f);
+    static constexpr ImVec4 BTN_HOVER_RED = ImVec4(0.70f, 0.15f, 0.15f, 0.8f);
+
+    // ImVec4 Style Colors
+    static constexpr ImVec4 STYLE_MODAL_DIM = ImVec4(0.05f, 0.05f, 0.05f, 0.65f);
+    static constexpr ImVec4 STYLE_CHILD_BG = ImVec4(0.031f, 0.031f, 0.059f, 1.0f);
+    static constexpr ImVec4 STYLE_SEPARATOR = ImVec4(0.12f, 0.13f, 0.16f, 1.00f);
+
+    // Dashboard & Metrics Theme
+    static constexpr ImVec4 DASH_BG = ImVec4(0.07f, 0.05f, 0.10f, 1.00f);
+    static constexpr ImVec4 DASH_BORDER = ImVec4(0.18f, 0.12f, 0.25f, 1.00f);
+    static constexpr ImVec4 DASH_TEXT_MUTED = ImVec4(0.45f, 0.42f, 0.55f, 1.00f);
+    static constexpr ImVec4 DASH_TEXT_VALUE = ImVec4(0.70f, 0.45f, 1.00f, 1.00f);
+
+    // Notification & Event Handling Theme
+    static constexpr ImVec4 EV_TEXT_MUTED = ImVec4(0.45f, 0.47f, 0.57f, 1.0f);
+    static constexpr ImVec4 EV_ACCENT = ImVec4(0.53f, 0.44f, 0.96f, 1.0f);
+    static constexpr ImVec4 EV_ACCENT_HOVER = ImVec4(0.60f, 0.52f, 0.98f, 1.0f);
+    static constexpr ImVec4 EV_ACCENT_ACTIVE = ImVec4(0.45f, 0.36f, 0.88f, 1.0f);
+    static constexpr ImVec4 EV_FRAME_BG = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
+    static constexpr ImVec4 EV_FRAME_BG_HOVER = ImVec4(0.18f, 0.18f, 0.24f, 1.0f);
+    static constexpr ImVec4 EV_BTN_DECLINE = ImVec4(0.14f, 0.14f, 0.17f, 1.0f);
+    static constexpr ImVec4 EV_BTN_DEC_HOVER = ImVec4(0.18f, 0.18f, 0.22f, 1.0f);
+    static constexpr ImVec4 EV_BTN_DEC_ACTIVE = ImVec4(0.10f, 0.10f, 0.13f, 1.0f);
+    static constexpr ImVec4 EV_BTN_DEC_BORDER = ImVec4(0.25f, 0.25f, 0.32f, 1.0f);
+
+    // Bezier Curve / Glow Base Vectors
+    static constexpr ImVec4 GLOW_OPAQUE = ImVec4(0.5f, 0.0f, 1.0f, 1.0f);
+    static constexpr ImVec4 GLOW_HIGH = ImVec4(0.5f, 0.0f, 1.0f, 0.6f);
+    static constexpr ImVec4 GLOW_MED = ImVec4(0.5f, 0.0f, 1.0f, 0.3f);
+    static constexpr ImVec4 GLOW_LOW = ImVec4(0.5f, 0.0f, 1.0f, 0.1f);
+
+    // ImU32 Packed Drawing Colors
+    static constexpr ImU32 COL_DEV_HOVER = IM_COL32(128, 0, 255, 255);
+    static constexpr ImU32 COL_DEV_DEFAULT = IM_COL32(255, 255, 255, 255);
+
+    // Sidebar & Menus
+    static constexpr ImU32 COL_MENU_BG_IDLE = IM_COL32(30, 30, 40, 0);
+    static constexpr ImU32 COL_MENU_ICON_IDLE = IM_COL32(30, 30, 40, 255);
+    static constexpr ImU32 COL_MENU_BG_ACTIVE = IM_COL32(168, 85, 247, 40);
+    static constexpr ImU32 COL_MENU_ICON_ACT = IM_COL32(168, 85, 247, 20);
+    static constexpr ImU32 COL_MENU_STRIP = IM_COL32(168, 85, 247, 255);
+    static constexpr ImU32 COL_MENU_BG_HOVER = IM_COL32(255, 255, 255, 15);
+    static constexpr ImU32 COL_MENU_TINT_ACT = IM_COL32(168, 85, 247, 255);
+    static constexpr ImU32 COL_MENU_TINT_IDLE = IM_COL32(140, 140, 160, 255);
+    static constexpr ImU32 COL_MENU_TXT_ACT = IM_COL32(168, 85, 247, 255);
+    static constexpr ImU32 COL_MENU_TXT_IDLE = IM_COL32(100, 105, 125, 255);
+
+    // Feature Grid Buttons
+    static constexpr ImU32 COL_FEAT_BG_ACTIVE = IM_COL32(157, 78, 221, 30);
+    static constexpr ImU32 COL_FEAT_BG_HOVER = IM_COL32(255, 255, 255, 10);
+    static constexpr ImU32 COL_FEAT_IC_ACTIVE = IM_COL32(157, 78, 221, 35);
+    static constexpr ImU32 COL_FEAT_IC_HOVER = IM_COL32(255, 255, 255, 10);
+    static constexpr ImU32 COL_FEAT_TINT_ACT = IM_COL32(157, 78, 221, 255);
+    static constexpr ImU32 COL_FEAT_TINT_IDLE = IM_COL32(160, 160, 170, 255);
+    static constexpr ImU32 COL_FEAT_TXT_ACT = IM_COL32(230, 230, 255, 255);
+    static constexpr ImU32 COL_FEAT_TXT_IDLE = IM_COL32(150, 150, 160, 255);
+    static constexpr ImU32 COL_FEAT_STRIP = IM_COL32(157, 78, 221, 255);
+    static constexpr ImU32 COL_FEAT_GLOW = IM_COL32(157, 78, 221, 45);
+
+    // Connection Ring Radar Layout
+    static constexpr ImU32 COL_RING_BG = IM_COL32(0x11, 0x0C, 0x1A, 255);
+
+    // Modal Hardware Connection Layouts
+    static constexpr ImU32 COL_MODAL_STRIP = IM_COL32(135, 112, 245, 255);
+    static constexpr ImU32 COL_MODAL_BOX_BG = IM_COL32(40, 40, 55, 100);
+    static constexpr ImU32 COL_MODAL_BOX_BRD = IM_COL32(75, 70, 105, 255);
+    static constexpr ImU32 COL_MODAL_CIRC_BG = IM_COL32(23, 23, 30, 255);
+    static constexpr ImU32 COL_MODAL_CIRC_BRD = IM_COL32(50, 50, 65, 255);
+
   private:
     OmniLink& App;
     std::unordered_map<DeviceMap, OmniInstance>* AvailableInstances = nullptr;
@@ -95,12 +170,21 @@ class OmniGUI
     // Fonts
     ImFont* JetBrainsReg20 = nullptr;
     ImFont* JetBrainsReg18 = nullptr;
-    ImFont* OmniIcons = nullptr;
+    ImFont* OmniIconsLarge = nullptr;
+    ImFont* OmniIconsMedium = nullptr;
     ImFont* OmniIconsSmall = nullptr;
 
+    void DeviceIconPreview(const ImVec2& pos,
+                           const ImU32& col,
+                           const ImVec2& text_size = ImVec2{0, 0},
+                           const char* text = "");
+
+    void DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstance* DeviceData);
+
     bool IconizedButton(const char* Label, const char* Icon, bool state, const ImVec2& ButtonSize);
+    void DeviceAddButton(const ImVec2& CenterPos, ImU32 Color);
     bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
-    void ConnectionRing(const char* label);
+    void ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
     void DrawMetricDashboard(const char* ContainerId,
                              const MetricItem* Items,
                              int ItemCount,
@@ -185,13 +269,18 @@ class OmniGUI
         if (ImGui::Begin("OmniLink", &ImGuiState, ImGuiWindowFlags_NoTitleBar)) {
 
             ImGui::PopStyleVar();
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.074f, 0.082f, 0.121f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, BG_CHILD_1);
             DrawList = ImGui::GetWindowDrawList();
 
             ImVec2 MenuItemSize = ImVec2(110, 100);
             ImGui::BeginChild("SideMenu", ImVec2(110, 0), ImGuiChildFlags_None);
             {
                 ImGui::Dummy(ImVec2(0, 50));
+
+                ImGui::SameLine(0.0f, 0.0f);
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
+                ImGui::SameLine(0.0f, 0.0f);
+
                 ImGui::Dummy(ImVec2(0, 155));
 
                 if (VerticalMenuItem("Nexus", IC_LINK, ActiveMenu == 0, MenuItemSize))
@@ -210,9 +299,11 @@ class OmniGUI
             ImGui::PopStyleColor();
 
             ImGui::SameLine(0.0f, 0.0f);
+            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+            ImGui::SameLine(0.0f, 0.0f);
 
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-            ImGui::BeginChild("menu-item");
+            ImGui::BeginChild("menu-item", ImVec2(0.0f, 0.0f));
             {
                 // Title barrrr
                 const float VerticalSpacing = 6.0f;
@@ -279,12 +370,20 @@ class OmniGUI
                 {
 
                     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-                    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.074f, 0.082f, 0.121f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_ChildBg, BG_CHILD_1);
 
-                    ImGui::BeginChild("FeaturePanel", ImVec2(0, 120), ImGuiChildFlags_None);
+                    ImGui::BeginChild("FeaturePanel", ImVec2(0, 120));
+
+                    ImGui::SameLine(0.0f, 0.0f);
+                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
+                    ImGui::SameLine(0.0f, 0.0f);
 
                     ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f),
-                                       "\n  M  \n  O  \n  D  \n  E  ");
+                                       "\n  M  \n  O  \n  D  \n  E  \n");
+
+                    ImGui::SameLine(0.0f, 0.0f);
+                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+                    ImGui::SameLine(0.0f, 0.0f);
 
                     ImGui::SameLine(0.0f, 0.0f);
 
@@ -332,15 +431,18 @@ class OmniGUI
                         // SetEvent(EventHandler[0]);
                     }
 
+                    ImGui::SameLine(0.0f, 0.0f);
+                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
+                    ImGui::SameLine(0.0f, 0.0f);
+
                     ImGui::EndChild();
                     ImGui::PopStyleVar(2);
                     ImGui::PopStyleColor();
 
-                    ImGui::BeginChild("connections", ImVec2(0, 0), ImGuiChildFlags_None);
-
                     DrawList = ImGui::GetWindowDrawList();
 
-                    ConnectionRing("ConRing");
+                    ConnectionRing(
+                        "ConRing", ImVec2(ImGui::GetContentRegionAvail().x, 510.0f), 205);
 
                     if (ImGui::Button("Scan")) {
                         OmniAPI::Scan();
@@ -391,7 +493,6 @@ class OmniGUI
 
                     CreateCurvedLine("ln4", 20);*/
 
-                    ImGui::EndChild();
                 }
 
                 break;
@@ -418,96 +519,6 @@ class OmniGUI
         // Rendering
         ImGui::Render();
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-    }
-
-    inline void DeviceIconPreview(const ImVec2& pos,
-                                  const ImU32& col,
-                                  const ImVec2& text_size = ImVec2{0, 0},
-                                  const char* text = "")
-    {
-        DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40),
-                          ImVec2(pos.x + 50, pos.y + 40),
-                          col,
-                          5.0f,
-                          0,
-                          2.0f); // monitor
-        DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), col, text);
-        DrawList->AddRect(
-            ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), col, 5.0f, 0, 2.0f); // handle
-        DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55),
-                          ImVec2(pos.x + 15, pos.y + 55),
-                          col,
-                          10.0f,
-                          0,
-                          1.0f); // stand
-    }
-
-    inline void DeviceIcon(const char* label,
-                           const ImVec2& pos,
-                           const ImVec2& text_size,
-                           const OmniInstance* DeviceData)
-    {
-        ImGui::PushID(label);
-
-        const ImGuiID id = ImGui::GetID(label);
-        ImRect bb(ImVec2(pos.x - 50, pos.y - 40), ImVec2(pos.x + 50, pos.y + 55));
-        ImGui::ItemAdd(bb, id, NULL, ImGuiItemFlags_None);
-
-        bool hovered, held;
-        bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, 0);
-        ImGui::RenderNavCursor(bb, id);
-
-        ImU32 col = hovered || held ? IM_COL32(128, 0, 255, 255) : IM_COL32(255, 255, 255, 255);
-
-        if (ImGui::BeginDragDropSource()) {
-            ImGui::SetDragDropPayload(
-                "DeviceInfo", &(DeviceData->DevMapIndex), sizeof(DeviceData->DevMapIndex));
-            DeviceIconPreview(ImGui::GetCursorScreenPos(), col, text_size, DeviceData->IPv4_String);
-            ImGui::EndDragDropSource();
-        } else if (ImGui::BeginDragDropTarget()) {
-            const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DeviceInfo");
-            if (payload != nullptr) {
-                const uint8_t data = *static_cast<uint8_t*>(payload->Data);
-                OmniAPI::SwapDeviceLayout(data, DeviceData->DevMapIndex);
-            }
-            // test animation : device order swap (failed -_- )
-            /*else {
-                    ImVec2 cpos = ImGui::GetCursorScreenPos();
-                    pos.y += cpos.y < pos.x ? -(pos.y - cpos.y) : pos.y - cpos.y;
-                    pos.x += cpos.x < pos.x ? pos.x - cpos.x : -(pos.x - cpos.x);
-
-            }*/
-            ImGui::EndDragDropTarget();
-        }
-
-        DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40),
-                          ImVec2(pos.x + 50, pos.y + 40),
-                          col,
-                          5.0f,
-                          0,
-                          2.0f); // monitor
-        DrawList->AddText(
-            ImVec2(pos.x - (text_size.x * 0.5f), pos.y), col, DeviceData->IPv4_String);
-        DrawList->AddRect(
-            ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), col, 5.0f, 0, 2.0f); // handle
-        DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55),
-                          ImVec2(pos.x + 15, pos.y + 55),
-                          col,
-                          10.0f,
-                          0,
-                          1.0f); // stand
-
-        if (ImGui::BeginPopupContextItem("MyItemContextMenu")) {
-            if (ImGui::MenuItem("Connect Instance")) {
-                ConnectionRequest request;
-                request.DeviceID = static_cast<DeviceMap>(DeviceData->DevMapIndex);
-                OmniAPI::Connect(request);
-            }
-
-            ImGui::EndPopup();
-        }
-
-        ImGui::PopID();
     }
 };
 
