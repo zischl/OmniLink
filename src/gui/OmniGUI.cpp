@@ -1,5 +1,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#include "OmniEnums.h"
+#include "OmniInstances.h"
 #include "OmniPackets.h"
 #include "imgui.h"
 #endif
@@ -8,12 +10,13 @@
 #include "OmniLink.h"
 #include "fonts.h"
 
+#include "DummyInstances.h"
 #include "OmniIcons.h"
 
 OmniGUI::OmniGUI(OmniLink& OmniLinkInstance)
     : App(OmniLinkInstance), SelectedDevice(OmniLink::SelectedTargetDevice)
 {
-    AvailableInstances = App.GetAvailableInstances();
+    AvailableInstances = &DummyAvailableInstances;
     ActiveInstances = App.GetActiveInstances();
 }
 
@@ -46,7 +49,18 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     JetBrainsReg18 = io.Fonts->AddFontFromMemoryTTF(
         JetBrainsMonoRegular, JetBrainsMonoRegular_Size, 18.0f, &FontCFG);
 
+    // Range for OmniIconsSmall: Contains only 'x' and 'minus'
+    static const ImWchar OmniSmallIconRange[] = {61459, 61460, 0};
+
+    // Range for OmniIcons: Contains everything else
+    static const ImWchar OmniLargeIconRange[] = {61440, 61458, 0};
+
+    FontCFG.GlyphRanges = OmniLargeIconRange;
     OmniIcons = io.Fonts->AddFontFromMemoryTTF(OmniIcons_ttf, OmniIcons_ttf_len, 20.0f, &FontCFG);
+
+    FontCFG.GlyphRanges = OmniSmallIconRange;
+    OmniIconsSmall =
+        io.Fonts->AddFontFromMemoryTTF(OmniIcons_ttf, OmniIcons_ttf_len, 14.0f, &FontCFG);
 }
 
 bool OmniGUI::VerticalMenuItem(const char* Label,
@@ -185,99 +199,168 @@ bool OmniGUI::IconizedButton(const char* Label,
 
 void OmniGUI::CenterItemX(const float ItemWidth)
 {
-    float space = ImGui::GetContentRegionAvail().x;
-    ImGui::SetCursorPosX((space - ItemWidth) * 0.5f);
+    float Space = ImGui::GetContentRegionAvail().x;
+    ImGui::SetCursorPosX((Space - ItemWidth) * 0.5f);
 }
 
-void OmniGUI::ConnectionRing(const char* label)
+void OmniGUI::ConnectionRing(const char* Label)
 {
-    ImVec2 space = ImGui::GetContentRegionAvail();
-    ImVec2 cpos = ImGui::GetCursorScreenPos();
+    int Radius = 205;
 
-    ImGui::PushID(label);
-    ImVec2 pos = ImVec2(cpos.x + (space.x * 0.5f), cpos.y + (space.y * 0.5f));
+    ImVec2 WidgetSize = ImVec2((Radius * 2.0f) + 80.0f, (Radius * 2.0f) + 80.0f);
+    ImGui::Dummy(WidgetSize);
 
-    ImU32 col = IM_COL32(128, 0, 255, 255);
+    ImGui::PushID(Label);
 
-    // DrawList->AddCircle(pos, 200, col, 20, 3.0f);
+    ImVec2 ItemPos = ImGui::GetItemRectMin();
+    ImVec2 ItemSize = ImGui::GetItemRectSize();
+    ImVec2 Pos = ImVec2(ItemPos.x + (ItemSize.x * 0.5f), ItemPos.y + (ItemSize.y * 0.5f));
 
-    // DrawList->AddCircle(pos, 210, col, 20, 3.0f);
+    ImU32 Col = IM_COL32(128, 0, 255, 255);
+
+    ImVec2 Space = ImGui::GetContentRegionAvail();
+    ImVec2 CPos = ImGui::GetCursorScreenPos();
+
+    // ImGui::GetWindowDrawList()->AddCircle(Pos, 205.0f, Col, 64, 3.0f);
 
     ImGui::PopID();
 
-    int radius = 205;
-    ImVec2 text_size = ImGui::CalcTextSize("192.168.1.255");
+    // uh.. the math if i forget , 205 * sin(45 degrees) = 144.95
+    int DiagonalAxe = static_cast<int>(Radius * 0.707106f);
+
+    ImVec2 TextSize = ImGui::CalcTextSize("192.168.1.255");
 
     ImGui::PushFont(JetBrainsReg18);
 
-    auto& devices = *AvailableInstances;
+    auto& Devices = *AvailableInstances;
 
-    DeviceIcon("C0", pos, text_size, &devices[DeviceMap::C0]);
+    // Center Device
+    DeviceIcon("C0", Pos, TextSize, &Devices[DeviceMap::C0]);
 
-    if (devices[DeviceMap::L1].InstanceIP) {
-        DeviceIcon("L1", ImVec2(pos.x - radius, pos.y), text_size, &devices[DeviceMap::L1]);
+    // Left
+    if (Devices[DeviceMap::L1].InstanceIP) {
+        DeviceIcon("L1", ImVec2(Pos.x - Radius, Pos.y), TextSize, &Devices[DeviceMap::L1]);
     }
 
-    if (devices[DeviceMap::LU1].InstanceIP) {
-        DeviceIcon(
-            "LU1", ImVec2(pos.x - radius, pos.y - radius), text_size, &devices[DeviceMap::LU1]);
+    // Left-Up
+    if (Devices[DeviceMap::LU1].InstanceIP) {
+        DeviceIcon("LU1",
+                   ImVec2(Pos.x - DiagonalAxe, Pos.y - DiagonalAxe),
+                   TextSize,
+                   &Devices[DeviceMap::LU1]);
     }
 
-    if (devices[DeviceMap::U1].InstanceIP) {
-        DeviceIcon("U1", ImVec2(pos.x, pos.y - radius), text_size, &devices[DeviceMap::U1]);
+    // Up
+    if (Devices[DeviceMap::U1].InstanceIP) {
+        DeviceIcon("U1", ImVec2(Pos.x, Pos.y - Radius), TextSize, &Devices[DeviceMap::U1]);
     }
 
-    if (devices[DeviceMap::RU1].InstanceIP) {
-        DeviceIcon(
-            "RU1", ImVec2(pos.x + radius, pos.y - radius), text_size, &devices[DeviceMap::RU1]);
+    // Right-Up
+    if (Devices[DeviceMap::RU1].InstanceIP) {
+        DeviceIcon("RU1",
+                   ImVec2(Pos.x + DiagonalAxe, Pos.y - DiagonalAxe),
+                   TextSize,
+                   &Devices[DeviceMap::RU1]);
     }
 
-    if (devices[DeviceMap::R1].InstanceIP) {
-        DeviceIcon("R1", ImVec2(pos.x + radius, pos.y), text_size, &devices[DeviceMap::R1]);
+    // Right
+    if (Devices[DeviceMap::R1].InstanceIP) {
+        DeviceIcon("R1", ImVec2(Pos.x + Radius, Pos.y), TextSize, &Devices[DeviceMap::R1]);
     }
 
-    if (devices[DeviceMap::RD1].InstanceIP) {
-        DeviceIcon(
-            "RD1", ImVec2(pos.x + radius, pos.y + radius), text_size, &devices[DeviceMap::RD1]);
+    // Right-Down
+    if (Devices[DeviceMap::RD1].InstanceIP) {
+        DeviceIcon("RD1",
+                   ImVec2(Pos.x + DiagonalAxe, Pos.y + DiagonalAxe),
+                   TextSize,
+                   &Devices[DeviceMap::RD1]);
     }
 
-    if (devices[DeviceMap::D1].InstanceIP) {
-        DeviceIcon("D1", ImVec2(pos.x, pos.y + radius), text_size, &devices[DeviceMap::D1]);
+    // Down
+    if (Devices[DeviceMap::D1].InstanceIP) {
+        DeviceIcon("D1", ImVec2(Pos.x, Pos.y + Radius), TextSize, &Devices[DeviceMap::D1]);
     }
 
-    if (devices[DeviceMap::LD1].InstanceIP) {
-        DeviceIcon(
-            "LD1", ImVec2(pos.x - radius, pos.y + radius), text_size, &devices[DeviceMap::LD1]);
+    // Left-Down
+    if (Devices[DeviceMap::LD1].InstanceIP) {
+        DeviceIcon("LD1",
+                   ImVec2(Pos.x - DiagonalAxe, Pos.y + DiagonalAxe),
+                   TextSize,
+                   &Devices[DeviceMap::LD1]);
     }
-
-    // if (DeviceHoverState) {
-    //	ImGui::PushID("Connect");
-
-    //	const ImGuiID id = ImGui::GetID("Connect");
-    //	ImRect bb(ImVec2(SelectedDevicePos.x - 35, SelectedDevicePos.y - 15),
-    // ImVec2(SelectedDevicePos.x + 35, SelectedDevicePos.y + 15));
-    //	ImGui::ItemAdd(bb, id, NULL, ImGuiItemFlags_None);
-
-    //	bool hovered, held;
-    //	bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, 0);
-    //	ImGui::RenderNavCursor(bb, id);
-    //
-    //	//DrawList->AddRectFilled(ImVec2(SelectedDevicePos.x - 35,
-    // SelectedDevicePos.y - 15), ImVec2(SelectedDevicePos.x + 35,
-    // SelectedDevicePos.y + 15), col, 5.0f, 0);
-    //
-
-    //	ImGui::PopID();
-    //}
 
     ImGui::PopFont();
 }
 
+void OmniGUI::DrawMetricDashboard(
+    const char* ContainerId, const MetricItem* Items, int ItemCount, float TotalWidth, float Height)
+{
+    if (ItemCount <= 0 || !Items)
+        return;
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+    if (ImGui::BeginChild(ContainerId, ImVec2(TotalWidth, Height), ImGuiChildFlags_None)) {
+
+        float Spacing = 12.0f;
+        float CardWidth = (TotalWidth - (Spacing * (ItemCount - 1))) / ItemCount;
+
+        ImU32 ContainerBgColor = ImGui::ColorConvertFloat4ToU32(ImVec4(0.07f, 0.05f, 0.10f, 1.00f));
+        ImU32 ContainerBorderColor =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(0.18f, 0.12f, 0.25f, 1.00f));
+        ImVec4 TitleColor = ImVec4(0.45f, 0.42f, 0.55f, 1.00f);
+        ImVec4 ValueColor = ImVec4(0.70f, 0.45f, 1.00f, 1.00f);
+
+        for (int i = 0; i < ItemCount; ++i) {
+            ImVec2 PMin = ImGui::GetCursorScreenPos();
+            ImVec2 PMax = ImVec2(PMin.x + CardWidth, PMin.y + Height);
+
+            DrawList->AddRectFilled(PMin, PMax, ContainerBgColor, 8.0f);
+            DrawList->AddRect(PMin, PMax, ContainerBorderColor, 8.0f, 0, 1.0f);
+
+            char ChildLabel[64];
+            ImFormatString(ChildLabel, IM_ARRAYSIZE(ChildLabel), "card_inner_%d", i);
+
+            ImGui::SetCursorScreenPos(PMin);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 12.0f));
+
+            if (ImGui::BeginChild(ChildLabel,
+                                  ImVec2(CardWidth, Height),
+                                  ImGuiChildFlags_None,
+                                  ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar)) {
+                // Title
+                ImGui::PushStyleColor(ImGuiCol_Text, TitleColor);
+                ImGui::TextUnformatted(Items[i].title);
+                ImGui::PopStyleColor();
+
+                ImGui::Spacing();
+
+                // Value
+                ImGui::PushStyleColor(ImGuiCol_Text, ValueColor);
+                ImGui::TextUnformatted(Items[i].value);
+                ImGui::PopStyleColor();
+            }
+            ImGui::EndChild();
+            ImGui::PopStyleVar();
+
+            if (i < ItemCount - 1) {
+                ImGui::SetCursorScreenPos(ImVec2(PMin.x + CardWidth + Spacing, PMin.y));
+            }
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(1);
+}
+
 bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
 {
-
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f); // Button & checkbox rounding
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f)); // Precise manual layouts
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 
     ImVec4 textMuted = ImVec4(0.45f, 0.47f, 0.57f, 1.0f);
     ImVec4 purpleAccent = ImVec4(0.53f, 0.44f, 0.96f, 1.0f);

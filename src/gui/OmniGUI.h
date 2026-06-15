@@ -17,6 +17,7 @@
 #include "imgui_impl_win32.h"
 #include "imgui_internal.h"
 
+#include <charconv>
 #include <unordered_map>
 
 class OmniLink;
@@ -25,6 +26,12 @@ struct Alert
 {
     std::string Title;
     std::string Desc;
+};
+
+struct MetricItem
+{
+    const char* title;
+    const char* value;
 };
 
 using EventTypes = std::variant<ConnectionRequest, Alert>;
@@ -40,9 +47,6 @@ struct Notification
 static constexpr ImGuiWindowFlags DefaultFlags =
     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-
-static ConnectionRequest req{DeviceMap::L1, "192.168.1.15"};
-static Notification note{req, "Some Shit", true, 15.0f};
 
 class OmniGUI
 {
@@ -66,6 +70,8 @@ class OmniGUI
 #define IC_INFO "\xef\x80\x90"
 #define IC_DIAMOND_PLUS "\xef\x80\x91"
 #define IC_AIRPLAY "\xef\x80\x92"
+#define IC_X "\xEF\x80\x93"
+#define IC_MINUS "\xEF\x80\x94"
 
   private:
     OmniLink& App;
@@ -84,16 +90,22 @@ class OmniGUI
     ImDrawList* DrawList = nullptr;
 
     int ActiveMenu = 0;
-    std::vector<Notification> Notifications = {note};
+    std::vector<Notification> Notifications = {};
 
     // Fonts
     ImFont* JetBrainsReg20 = nullptr;
     ImFont* JetBrainsReg18 = nullptr;
     ImFont* OmniIcons = nullptr;
+    ImFont* OmniIconsSmall = nullptr;
 
     bool IconizedButton(const char* Label, const char* Icon, bool state, const ImVec2& ButtonSize);
     bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
     void ConnectionRing(const char* label);
+    void DrawMetricDashboard(const char* ContainerId,
+                             const MetricItem* Items,
+                             int ItemCount,
+                             float TotalWidth,
+                             float Height);
 
     // Notification Event Handlers
     static bool HandleEvent(ConnectionRequest& request, float timeout);
@@ -168,8 +180,11 @@ class OmniGUI
         ImGuiStyle& style = ImGui::GetStyle();
         style.WindowRounding = 15.0f;
 
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
         if (ImGui::Begin("OmniLink", &ImGuiState, ImGuiWindowFlags_NoTitleBar)) {
 
+            ImGui::PopStyleVar();
             ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.074f, 0.082f, 0.121f, 1.0f));
             DrawList = ImGui::GetWindowDrawList();
 
@@ -194,22 +209,76 @@ class OmniGUI
             ImGui::EndChild();
             ImGui::PopStyleColor();
 
-            ImGui::SameLine();
+            ImGui::SameLine(0.0f, 0.0f);
 
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
             ImGui::BeginChild("menu-item");
             {
+                // Title barrrr
+                const float VerticalSpacing = 6.0f;
+                const float textHeight = ImGui::GetTextLineHeight();
+                const float buttonSize = textHeight + (VerticalSpacing * 2.0f);
 
-                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "OmniLink || ");
+                const float startY = ImGui::GetCursorPosY();
 
-                ImGui::SameLine(0.0f, 10.0f);
+                ImGui::SetCursorPosY(startY + VerticalSpacing);
+                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 10.0f);
+                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "OmniLink > ");
+                ImGui::SameLine(0.0f, 0.0f);
+
+                switch (ActiveMenu) {
+                case 0:
+                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Nexus");
+                    break;
+                case 1:
+                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Instances");
+                    break;
+                case 2:
+                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Keybinds");
+                    break;
+                case 3:
+                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Settings");
+                    break;
+                }
+
+                // Title Bar Buttons
+                float totalControlsWidth = buttonSize * 2;
+                float availableX = ImGui::GetContentRegionAvail().x;
+
+                ImGui::SameLine(availableX - totalControlsWidth, 0.0f);
+
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.25f, 0.35f, 0.5f));
+
+                ImGui::SetCursorPosY(startY);
+
+                ImGui::PushFont(OmniIconsSmall);
+
+                if (ImGui::Button(IC_MINUS, ImVec2(buttonSize, buttonSize))) {
+                }
+
+                ImGui::SameLine(0.0f, 0.0f);
+                ImGui::SetCursorPosY(startY);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f, 0.15f, 0.15f, 0.8f));
+                if (ImGui::Button(IC_X, ImVec2(buttonSize, buttonSize))) {
+                    ImGuiState = false;
+                }
+
+                ImGui::PopFont();
+
+                ImGui::PopStyleColor(3);
+                ImGui::PopStyleVar();
+
+                ImGui::SetCursorPosY(startY + buttonSize);
 
                 switch (ActiveMenu) {
 
                 case 0:
 
                 {
-                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Nexus");
 
+                    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
                     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.074f, 0.082f, 0.121f, 1.0f));
 
                     ImGui::BeginChild("FeaturePanel", ImVec2(0, 120), ImGuiChildFlags_None);
@@ -219,7 +288,8 @@ class OmniGUI
 
                     ImGui::SameLine(0.0f, 0.0f);
 
-                    ImVec2 size = ImVec2(ImGui::GetContentRegionAvail().x / 5, 120);
+                    const ImVec2 AvailabelSpace = ImGui::GetContentRegionAvail();
+                    ImVec2 size = ImVec2(AvailabelSpace.x / 5, 120);
 
                     const uint32_t FeatureSates = (*ActiveInstances)[SelectedDevice].ActiveFlags;
 
@@ -263,7 +333,7 @@ class OmniGUI
                     }
 
                     ImGui::EndChild();
-
+                    ImGui::PopStyleVar(2);
                     ImGui::PopStyleColor();
 
                     ImGui::BeginChild("connections", ImVec2(0, 0), ImGuiChildFlags_None);
@@ -275,6 +345,29 @@ class OmniGUI
                     if (ImGui::Button("Scan")) {
                         OmniAPI::Scan();
                     }
+
+                    static char availableBuf[16];
+                    static char activeBuf[32];
+
+                    std::to_chars(availableBuf,
+                                  availableBuf + sizeof(availableBuf),
+                                  AvailableInstances->size());
+
+                    auto [ptr, ec] = std::to_chars(
+                        activeBuf, activeBuf + sizeof(activeBuf), ActiveInstances->size());
+
+                    *ptr = '/';
+                    *(ptr + 1) = '8';
+                    *(ptr + 2) = '\0';
+
+                    static MetricItem staticMetrics[] = {{"Available", availableBuf},
+                                                         {"Active", activeBuf},
+                                                         {"Latency", "7.6ms"},
+                                                         {"Bandwith", "1.2 MB/s"}};
+
+                    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetContentRegionAvail().y -
+                                         70.0f);
+                    DrawMetricDashboard("NetContainer", staticMetrics, 4, AvailabelSpace.x, 70.0f);
 
                     if (!Notifications.empty()) {
                         for (Notification& notification : Notifications) {
