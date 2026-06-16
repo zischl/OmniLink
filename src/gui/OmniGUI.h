@@ -75,7 +75,7 @@ class OmniGUI
 
     // Trust me, this was hell
     static constexpr ImU32 COL_DEV_EMPTY = IM_COL32(0x29, 0x19, 0x3F, 255);
-    static constexpr ImVec4 BG_CHILD_1 = ImVec4(0.074f, 0.082f, 0.121f, 1.0f);
+    static constexpr ImU32 BG_CHILD_1 = IM_COL32(19, 21, 31, 255);
     static constexpr ImVec4 TEXT_MUTED = ImVec4(0.239f, 0.220f, 0.333f, 1.0f);
     static constexpr ImVec4 TEXT_ACTIVE = ImVec4(0.753f, 0.722f, 0.831f, 1.0f);
     static constexpr ImVec4 BTN_HOVER_DARK = ImVec4(0.25f, 0.25f, 0.35f, 0.5f);
@@ -275,13 +275,11 @@ class OmniGUI
             ImVec2 MenuItemSize = ImVec2(110, 100);
             ImGui::BeginChild("SideMenu", ImVec2(110, 0), ImGuiChildFlags_None);
             {
-                ImGui::Dummy(ImVec2(0, 50));
+                ImGui::Dummy(ImVec2(0, 100));
 
-                ImGui::SameLine(0.0f, 0.0f);
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
-                ImGui::SameLine(0.0f, 0.0f);
 
-                ImGui::Dummy(ImVec2(0, 155));
+                ImGui::Dummy(ImVec2(0, 105));
 
                 if (VerticalMenuItem("Nexus", IC_LINK, ActiveMenu == 0, MenuItemSize))
                     ActiveMenu = 0;
@@ -302,57 +300,71 @@ class OmniGUI
             ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
             ImGui::SameLine(0.0f, 0.0f);
 
+            ImGui::BeginGroup();
+
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-            ImGui::BeginChild("menu-item", ImVec2(0.0f, 0.0f));
+
+            // Content Space Begins The Journey To Defeat The Demon King Down Here.
+
+            const ImVec2 ContentSpaceSize = ImGui::GetContentRegionAvail();
+            const ImVec2 ContentSpaceStart = ImGui::GetCursorScreenPos();
+            const float MaxContentPosX = ContentSpaceStart.x + ContentSpaceSize.x;
+
+            const float VerticalSpacing = 6.0f;
+            const float textHeight = ImGui::GetTextLineHeight();
+            const float TitleBarHeight = textHeight + (VerticalSpacing * 2.0f);
+
+            // Title barrrr
+            ImGui::BeginGroup();
             {
-                // Title barrrr
-                const float VerticalSpacing = 6.0f;
-                const float textHeight = ImGui::GetTextLineHeight();
-                const float buttonSize = textHeight + (VerticalSpacing * 2.0f);
+                DrawList->AddRectFilled(
+                    ContentSpaceStart,
+                    ImVec2(MaxContentPosX, ContentSpaceStart.y + TitleBarHeight),
+                    IM_COL32(8, 9, 14, 255),
+                    16.0f,
+                    ImDrawFlags_RoundCornersTopRight);
 
-                const float startY = ImGui::GetCursorPosY();
-
-                ImGui::SetCursorPosY(startY + VerticalSpacing);
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 10.0f);
+                ImGui::SetCursorPosY(ContentSpaceStart.y + VerticalSpacing);
+                ImGui::SetCursorPosX(ContentSpaceStart.x + 10.0f);
+                // Title Bar Text
                 ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "OmniLink > ");
                 ImGui::SameLine(0.0f, 0.0f);
 
+                ImGui::SetCursorPosY(ContentSpaceStart.y + VerticalSpacing);
+
                 switch (ActiveMenu) {
                 case 0:
-                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Nexus");
+                    ImGui::TextColored(TEXT_ACTIVE, "Nexus");
                     break;
                 case 1:
-                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Instances");
+                    ImGui::TextColored(TEXT_ACTIVE, "Instances");
                     break;
                 case 2:
-                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Keybinds");
+                    ImGui::TextColored(TEXT_ACTIVE, "Keybinds");
                     break;
                 case 3:
-                    ImGui::TextColored(ImVec4(0.753f, 0.722f, 0.831f, 1.0f), "Settings");
+                    ImGui::TextColored(TEXT_ACTIVE, "Settings");
                     break;
                 }
 
                 // Title Bar Buttons
-                float totalControlsWidth = buttonSize * 2;
-                float availableX = ImGui::GetContentRegionAvail().x;
+                float TotalControlsWidth = TitleBarHeight * 2;
 
-                ImGui::SameLine(availableX - totalControlsWidth, 0.0f);
+                ImGui::SameLine(ContentSpaceSize.x - TotalControlsWidth, 0.0f);
 
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.25f, 0.35f, 0.5f));
 
-                ImGui::SetCursorPosY(startY);
-
+                ImGui::SetCursorPosY(ContentSpaceStart.y);
                 ImGui::PushFont(OmniIconsSmall);
-
-                if (ImGui::Button(IC_MINUS, ImVec2(buttonSize, buttonSize))) {
+                if (ImGui::Button(IC_MINUS, ImVec2(TitleBarHeight, TitleBarHeight))) {
                 }
 
                 ImGui::SameLine(0.0f, 0.0f);
-                ImGui::SetCursorPosY(startY);
+
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f, 0.15f, 0.15f, 0.8f));
-                if (ImGui::Button(IC_X, ImVec2(buttonSize, buttonSize))) {
+                if (ImGui::Button(IC_X, ImVec2(TitleBarHeight, TitleBarHeight))) {
                     ImGuiState = false;
                 }
 
@@ -360,155 +372,169 @@ class OmniGUI
 
                 ImGui::PopStyleColor(3);
                 ImGui::PopStyleVar();
+            }
+            ImGui::EndGroup();
 
-                ImGui::SetCursorPosY(startY + buttonSize);
+            // Content Space SubSpace Begins It's Journey To Suicide
 
-                switch (ActiveMenu) {
+            switch (ActiveMenu) {
 
-                case 0:
+            case 0:
 
-                {
+            {
+                // Feature Panel
+                ImGui::BeginGroup();
 
-                    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
-                    ImGui::PushStyleColor(ImGuiCol_ChildBg, BG_CHILD_1);
+                const float FeaturePanelHeight = 88.0f;
 
-                    ImGui::BeginChild("FeaturePanel", ImVec2(0, 120));
+                ImVec2 PanelP1 = ImGui::GetCursorScreenPos();
+                DrawList->AddRectFilled(
+                    PanelP1, ImVec2(MaxContentPosX, PanelP1.y + FeaturePanelHeight), BG_CHILD_1);
 
-                    ImGui::SameLine(0.0f, 0.0f);
-                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
-                    ImGui::SameLine(0.0f, 0.0f);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
+                ImGui::PopStyleVar();
 
-                    ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f),
-                                       "\n  M  \n  O  \n  D  \n  E  \n");
+                // Feature Mode Text
+                const char* ModeText = "  M  \n  O  \n  D  \n  E  ";
+                const ImVec2 ModeTextSize = ImGui::CalcTextSize(ModeText);
+                float ModeTextPadding = FeaturePanelHeight - ModeTextSize.y;
 
-                    ImGui::SameLine(0.0f, 0.0f);
-                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-                    ImGui::SameLine(0.0f, 0.0f);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, ModeTextPadding));
+                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "%s", ModeText);
+                ImGui::PopStyleVar();
 
-                    ImGui::SameLine(0.0f, 0.0f);
+                ImGui::SameLine(0.0f, 0.0f);
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+                ImGui::SameLine(0.0f, 0.0f);
 
-                    const ImVec2 AvailabelSpace = ImGui::GetContentRegionAvail();
-                    ImVec2 size = ImVec2(AvailabelSpace.x / 5, 120);
+                ImVec2 size =
+                    ImVec2(1 + ((ContentSpaceSize.x - ModeTextSize.x) / 5), FeaturePanelHeight);
 
-                    const uint32_t FeatureSates = (*ActiveInstances)[SelectedDevice].ActiveFlags;
+                const uint32_t FeatureSates = (*ActiveInstances)[SelectedDevice].ActiveFlags;
 
-                    if (IconizedButton("Screen Link",
-                                       IC_SCREEN_SHARE,
-                                       (FeatureSates & FeatureFlags::fScreenLink) != 0,
-                                       size)) {
-                        OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, DeviceMap::C0);
-                    }
-                    ImGui::SameLine(0.0f, 0.0f);
-
-                    if (IconizedButton("Window Link",
-                                       IC_APP_WINDOW,
-                                       (FeatureSates & FeatureFlags::fWindowLink) != 0,
-                                       size)) {
-                        OmniAPI::ToggleFeature(FeatureTypes::WindowLink, DeviceMap::C0);
-                    }
-                    ImGui::SameLine(0.0f, 0.0f);
-
-                    if (IconizedButton("Input Link",
-                                       IC_MOUSE,
-                                       (FeatureSates & FeatureFlags::fInputLink) != 0,
-                                       size)) {
-                        OmniAPI::ToggleFeature(FeatureTypes::InputLink, DeviceMap::C0);
-                    }
-                    ImGui::SameLine(0.0f, 0.0f);
-
-                    if (IconizedButton("Audio Link",
-                                       IC_VOLUME_2,
-                                       (FeatureSates & FeatureFlags::fAudioLink) != 0,
-                                       size)) {
-                        OmniAPI::ToggleFeature(FeatureTypes::AudioLink, DeviceMap::C0);
-                    }
-                    ImGui::SameLine(0.0f, 0.0f);
-
-                    if (IconizedButton("Clipboard Link",
-                                       IC_CLIPBOARD,
-                                       (FeatureSates & FeatureFlags::fClipBoardLink) != 0,
-                                       size)) {
-                        // SetEvent(EventHandler[0]);
-                    }
-
-                    ImGui::SameLine(0.0f, 0.0f);
-                    ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
-                    ImGui::SameLine(0.0f, 0.0f);
-
-                    ImGui::EndChild();
-                    ImGui::PopStyleVar(2);
-                    ImGui::PopStyleColor();
-
-                    DrawList = ImGui::GetWindowDrawList();
-
-                    ConnectionRing(
-                        "ConRing", ImVec2(ImGui::GetContentRegionAvail().x, 510.0f), 205);
-
-                    if (ImGui::Button("Scan")) {
-                        OmniAPI::Scan();
-                    }
-
-                    static char availableBuf[16];
-                    static char activeBuf[32];
-
-                    std::to_chars(availableBuf,
-                                  availableBuf + sizeof(availableBuf),
-                                  AvailableInstances->size());
-
-                    auto [ptr, ec] = std::to_chars(
-                        activeBuf, activeBuf + sizeof(activeBuf), ActiveInstances->size());
-
-                    *ptr = '/';
-                    *(ptr + 1) = '8';
-                    *(ptr + 2) = '\0';
-
-                    static MetricItem staticMetrics[] = {{"Available", availableBuf},
-                                                         {"Active", activeBuf},
-                                                         {"Latency", "7.6ms"},
-                                                         {"Bandwith", "1.2 MB/s"}};
-
-                    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetContentRegionAvail().y -
-                                         70.0f);
-                    DrawMetricDashboard("NetContainer", staticMetrics, 4, AvailabelSpace.x, 70.0f);
-
-                    if (!Notifications.empty()) {
-                        for (Notification& notification : Notifications) {
-                            NotificationWindow(notification.EventName, notification);
-                        }
-                    }
-
-                    /*CreateCurvedLine("ln4", 20); ImGui::SameLine(40.0f, -1.0f);
-
-                    CreateCurvedLine("ln3", 25); ImGui::SameLine(70.0f, -1.0f);
-
-                    CreateCurvedLine("ln2", 30); ImGui::SameLine(100.0f, -1.0f);
-
-                    CreateCurvedLine("ln1", 40); ImGui::SameLine(100.0f, -1.0f);*/
-
-                    /*CreateCurvedLine("ln1", 40); ImGui::SameLine(40.0f, -1.0f);
-
-                    CreateCurvedLine("ln2", 30); ImGui::SameLine(70.0f, -1.0f);
-
-                    CreateCurvedLine("ln3", 25); ImGui::SameLine(100.0f, -1.0f);
-
-                    CreateCurvedLine("ln4", 20);*/
-
+                if (IconizedButton("Screen Link",
+                                   IC_SCREEN_SHARE,
+                                   (FeatureSates & FeatureFlags::fScreenLink) != 1,
+                                   size)) {
+                    OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, DeviceMap::C0);
                 }
+                ImGui::SameLine(0.0f, 0.0f);
+
+                if (IconizedButton("Window Link",
+                                   IC_APP_WINDOW,
+                                   (FeatureSates & FeatureFlags::fWindowLink) != 0,
+                                   size)) {
+                    OmniAPI::ToggleFeature(FeatureTypes::WindowLink, DeviceMap::C0);
+                }
+                ImGui::SameLine(0.0f, 0.0f);
+
+                if (IconizedButton("Input Link",
+                                   IC_MOUSE,
+                                   (FeatureSates & FeatureFlags::fInputLink) != 1,
+                                   size)) {
+                    OmniAPI::ToggleFeature(FeatureTypes::InputLink, DeviceMap::C0);
+                }
+                ImGui::SameLine(0.0f, 0.0f);
+
+                if (IconizedButton("Audio Link",
+                                   IC_VOLUME_2,
+                                   (FeatureSates & FeatureFlags::fAudioLink) != 0,
+                                   size)) {
+                    OmniAPI::ToggleFeature(FeatureTypes::AudioLink, DeviceMap::C0);
+                }
+                ImGui::SameLine(0.0f, 0.0f);
+
+                if (IconizedButton("Clipboard Link",
+                                   IC_CLIPBOARD,
+                                   (FeatureSates & FeatureFlags::fClipBoardLink) != 0,
+                                   size)) {
+                    // SetEvent(EventHandler[0]);
+                }
+
+                ImGui::PopStyleVar();
+                ImGui::EndGroup();
+                // Feature Panel End
+
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
+                ImGui::PopStyleVar();
+
+                DrawList = ImGui::GetWindowDrawList();
+
+                // Da Connection Ring
+                const ImVec2 AvailableSpace = ImGui::GetContentRegionAvail();
+                ConnectionRing(
+                    "DiscoveryRing", ImVec2(AvailableSpace.x, AvailableSpace.y - 56), 205);
+
+                /* if (ImGui::Button("Scan")) {
+                    static bool scanning = false;
+                    OmniAPI::Scan();
+                } */
+
+                ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
+
+                // Metrics Dashboard
+                static char availableBuf[16];
+                static char activeBuf[32];
+
+                std::to_chars(
+                    availableBuf, availableBuf + sizeof(availableBuf), AvailableInstances->size());
+
+                auto [ptr, ec] = std::to_chars(
+                    activeBuf, activeBuf + sizeof(activeBuf), ActiveInstances->size());
+
+                *ptr = '/';
+                *(ptr + 1) = '8';
+                *(ptr + 2) = '\0';
+
+                static MetricItem staticMetrics[] = {{"Available", availableBuf},
+                                                     {"Active", activeBuf},
+                                                     {"Latency", "7.6ms"},
+                                                     {"Bandwith", "1.2 MB/s"}};
+
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetContentRegionAvail().y -
+                                     70.0f);
+                DrawMetricDashboard("NetContainer", staticMetrics, 4, AvailableSpace.x, 55.0f);
+
+                if (!Notifications.empty()) {
+                    for (Notification& notification : Notifications) {
+                        NotificationWindow(notification.EventName, notification);
+                    }
+                }
+
+                /*CreateCurvedLine("ln4", 20); ImGui::SameLine(40.0f, -1.0f);
+
+                CreateCurvedLine("ln3", 25); ImGui::SameLine(70.0f, -1.0f);
+
+                CreateCurvedLine("ln2", 30); ImGui::SameLine(100.0f, -1.0f);
+
+                CreateCurvedLine("ln1", 40); ImGui::SameLine(100.0f, -1.0f);*/
+
+                /*CreateCurvedLine("ln1", 40); ImGui::SameLine(40.0f, -1.0f);
+
+                CreateCurvedLine("ln2", 30); ImGui::SameLine(70.0f, -1.0f);
+
+                CreateCurvedLine("ln3", 25); ImGui::SameLine(100.0f, -1.0f);
+
+                CreateCurvedLine("ln4", 20);*/
+
+                ImGui::EndGroup();
+
+            }
+
+            break;
+
+            case 1:
 
                 break;
 
-                case 1:
+            case 2:
+                break;
 
-                    break;
-
-                case 2:
-                    break;
-
-                case 3:
-                    break;
-                }
+            case 3:
+                break;
             }
-            ImGui::EndChild();
         }
 
         ImGui::End();

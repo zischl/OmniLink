@@ -405,49 +405,61 @@ void OmniGUI::DrawMetricDashboard(
 
     if (ImGui::BeginChild(ContainerId,
                           ImVec2(TotalWidth, Height),
+                          ImGuiChildFlags_None,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
 
-        float Spacing = 12.0f;
-        float CardWidth = (TotalWidth - (Spacing * (ItemCount - 1))) / ItemCount;
+        ImVec2 BarMin = ImGui::GetCursorScreenPos();
+        ImVec2 BarMax = ImVec2(BarMin.x + TotalWidth, BarMin.y + Height);
 
         ImU32 ContainerBgColor = ImGui::ColorConvertFloat4ToU32(DASH_BG);
         ImU32 ContainerBorderColor = ImGui::ColorConvertFloat4ToU32(DASH_BORDER);
 
+        // Main Container
+        DrawList->AddRectFilled(BarMin, BarMax, ContainerBgColor, 0.0f);
+
+        float SegmentWidth = TotalWidth / ItemCount;
+
+        // Padding metrics inside each slot
+        float InnerPaddingX = 14.0f;
+        float InnerPaddingY = 6.0f;
+        float AccentPillWidth = 3.0f;
+        float AccentGapping = 10.0f;
+
         for (int i = 0; i < ItemCount; ++i) {
-            ImVec2 PMin = ImGui::GetCursorScreenPos();
-            ImVec2 PMax = ImVec2(PMin.x + CardWidth, PMin.y + Height);
+            ImVec2 SegMin = ImVec2(BarMin.x + (i * SegmentWidth), BarMin.y);
+            ImVec2 SegMax = ImVec2(SegMin.x + SegmentWidth, BarMin.y + Height);
 
-            DrawList->AddRectFilled(PMin, PMax, ContainerBgColor, 8.0f);
-            DrawList->AddRect(PMin, PMax, ContainerBorderColor, 8.0f, 0, 1.0f);
-
-            char ChildLabel[64];
-            ImFormatString(ChildLabel, IM_ARRAYSIZE(ChildLabel), "card_inner_%d", i);
-
-            ImGui::SetCursorScreenPos(PMin);
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 12.0f));
-
-            if (ImGui::BeginChild(ChildLabel,
-                                  ImVec2(CardWidth, Height),
-                                  ImGuiChildFlags_None,
-                                  ImGuiWindowFlags_NoScrollbar)) {
-                // Title
-                ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_MUTED);
-                ImGui::TextUnformatted(Items[i].title);
-                ImGui::PopStyleColor();
-
-                ImGui::Spacing();
-
-                // Value
-                ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_VALUE);
-                ImGui::TextUnformatted(Items[i].value);
-                ImGui::PopStyleColor();
-            }
-            ImGui::EndChild();
-            ImGui::PopStyleVar();
-
+            // Vertical Segment Separators
             if (i < ItemCount - 1) {
-                ImGui::SetCursorScreenPos(ImVec2(PMin.x + CardWidth + Spacing, PMin.y));
+                DrawList->AddLine(ImVec2(SegMax.x, SegMin.y),
+                                  ImVec2(SegMax.x, SegMax.y),
+                                  ContainerBorderColor,
+                                  1.0f);
             }
+
+            // Vertical Accent Pill
+            ImVec2 PillMin = ImVec2(SegMin.x + InnerPaddingX, SegMin.y + InnerPaddingY + 2.0f);
+            ImVec2 PillMax = ImVec2(PillMin.x + AccentPillWidth, SegMax.y - InnerPaddingY - 2.0f);
+            ImU32 AccentCol = ImGui::ColorConvertFloat4ToU32(DASH_BORDER);
+            DrawList->AddRectFilled(PillMin, PillMax, AccentCol, 1.5f);
+
+            float TextOriginX = PillMax.x + AccentGapping;
+            ImVec2 TitlePos = ImVec2(TextOriginX, SegMin.y + InnerPaddingY);
+            ImGui::SetCursorScreenPos(TitlePos);
+
+            // Da Title
+            ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_MUTED);
+            ImGui::TextUnformatted(Items[i].title);
+            ImGui::PopStyleColor();
+
+            float LineHeight = ImGui::GetTextLineHeight();
+            ImVec2 ValuePos = ImVec2(TextOriginX, TitlePos.y + LineHeight - 1.0f);
+            ImGui::SetCursorScreenPos(ValuePos);
+
+            // Value
+            ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_VALUE);
+            ImGui::TextUnformatted(Items[i].value);
+            ImGui::PopStyleColor();
         }
     }
     ImGui::EndChild();
