@@ -6,6 +6,7 @@
 #include <utility>
 #pragma once
 
+#include <bit>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -28,15 +29,7 @@ struct OmniInstanceRegistry
     uint32_t OpenSlotMask = 0x1FF;
 
   public:
-    std::unordered_map<DeviceMap, OmniInstance> AllInstances = {{DeviceMap::LU1, OmniInstance(5)},
-                                                                {DeviceMap::U1, OmniInstance(2)},
-                                                                {DeviceMap::RU1, OmniInstance(6)},
-                                                                {DeviceMap::L1, OmniInstance(1)},
-                                                                {DeviceMap::C0, OmniInstance(0)},
-                                                                {DeviceMap::R1, OmniInstance(3)},
-                                                                {DeviceMap::LD1, OmniInstance(8)},
-                                                                {DeviceMap::D1, OmniInstance(4)},
-                                                                {DeviceMap::RD1, OmniInstance(7)}};
+    std::unordered_map<DeviceMap, OmniInstance> AllInstances = {};
 
     ActiveInstanceContainer ActiveInstances;
 
@@ -65,6 +58,8 @@ struct OmniInstanceRegistry
     {
         return &AllInstances;
     }
+
+    inline int GetAllInstancesCount() { return std::popcount(OpenSlotMask); }
 
     inline void AddInstance(uint32_t IP, DeviceMap DeviceID = DeviceMap::END)
     {

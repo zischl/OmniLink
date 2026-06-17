@@ -54,6 +54,8 @@ class OmniCore
         return &InstanceRegistry.AllInstances;
     }
 
+    inline int GetAvailableDeviceCount() { return InstanceRegistry.GetAllInstancesCount(); }
+
     inline ActiveInstanceContainer* GetActiveInstances()
     {
         return &InstanceRegistry.ActiveInstances;

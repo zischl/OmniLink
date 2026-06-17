@@ -1,12 +1,14 @@
 #include "OmniGUI.h"
+#include "AssetLogo.h"
 #include "InterFonts.h"
 #include "JetBrainsFonts.h"
-#include "OmniLink.h"
-
 #include "OmniIcons.h"
+#include "OmniLink.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
+
+#include <bit>
 
 OmniGUI::OmniGUI(OmniLink& OmniLinkInstance)
     : App(OmniLinkInstance), SelectedDevice(OmniLink::SelectedTargetDevice)
@@ -295,11 +297,17 @@ void OmniGUI::DeviceAddButton(const ImVec2& CenterPos, ImU32 Color)
 {
     // Yes.. It's the Icon again
     ImGui::PushFont(OmniIconsLarge);
-
-    ImVec2 TextSize = ImGui::CalcTextSize(IC_DIAMOND_PLUS); // egfeg
+    static ImVec2 TextSize = ImGui::CalcTextSize(IC_DIAMOND_PLUS);
     ImVec2 RenderPos = ImVec2(CenterPos.x - (TextSize.x * 0.5f), CenterPos.y - (TextSize.y * 0.5f));
 
+    ImVec2 MinPos = RenderPos;
+    ImVec2 MaxPos = ImVec2(RenderPos.x + TextSize.x, RenderPos.y + TextSize.y);
+
+    ImU32 BgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
+    DrawList->AddRectFilled(MinPos, MaxPos, BgColor);
+
     DrawList->AddText(RenderPos, Color, IC_DIAMOND_PLUS);
+
     ImGui::PopFont();
 }
 
@@ -309,7 +317,7 @@ void OmniGUI::CenterItemX(const float ItemWidth)
     ImGui::SetCursorPosX((Space - ItemWidth) * 0.5f);
 }
 
-void OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const float Radius)
+int OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const float Radius)
 {
     ImGui::Dummy(WidgetSize);
 
@@ -336,67 +344,38 @@ void OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const 
     // Center Device
     DeviceIcon("C0", Pos, &Devices[DeviceMap::C0]);
 
-    // Left
-    if (Devices[DeviceMap::L1].InstanceIP) {
-        DeviceIcon("L1", ImVec2(Pos.x - Radius, Pos.y), &Devices[DeviceMap::L1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x - Radius, Pos.y), COL_DEV_EMPTY);
-    }
+    static const UIDeviceLayout LAYOUTS[8] = {
+        {DeviceMap::L1, "L1", -1.0f, 0.0f, false},   // Left
+        {DeviceMap::LU1, "LU1", -1.0f, -1.0f, true}, // Left-Up
+        {DeviceMap::U1, "U1", 0.0f, -1.0f, false},   // Up
+        {DeviceMap::RU1, "RU1", 1.0f, -1.0f, true},  // Right-Up
+        {DeviceMap::R1, "R1", 1.0f, 0.0f, false},    // Right
+        {DeviceMap::RD1, "RD1", 1.0f, 1.0f, true},   // Right-Down
+        {DeviceMap::D1, "D1", 0.0f, 1.0f, false},    // Down
+        {DeviceMap::LD1, "LD1", -1.0f, 1.0f, true}   // Left-Down
+    };
 
-    // Left-Up
-    if (Devices[DeviceMap::LU1].InstanceIP) {
-        DeviceIcon(
-            "LU1", ImVec2(Pos.x - DiagonalAxe, Pos.y - DiagonalAxe), &Devices[DeviceMap::LU1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x - DiagonalAxe, Pos.y - DiagonalAxe), COL_DEV_EMPTY);
-    }
+    unsigned int active_mask = 0;
 
-    // Up
-    if (Devices[DeviceMap::U1].InstanceIP) {
-        DeviceIcon("U1", ImVec2(Pos.x, Pos.y - Radius), &Devices[DeviceMap::U1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x, Pos.y - Radius), COL_DEV_EMPTY);
-    }
+    for (int i = 0; i < 8; ++i) {
+        const auto& layout = LAYOUTS[i];
+        auto& dev = Devices[layout.DeviceID];
 
-    // Right-Up
-    if (Devices[DeviceMap::RU1].InstanceIP) {
-        DeviceIcon(
-            "RU1", ImVec2(Pos.x + DiagonalAxe, Pos.y - DiagonalAxe), &Devices[DeviceMap::RU1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x + DiagonalAxe, Pos.y - DiagonalAxe), COL_DEV_EMPTY);
-    }
+        float offset = layout.DiagonalState ? DiagonalAxe : Radius;
+        ImVec2 target_pos(Pos.x + (layout.DirectionalityX * offset),
+                          Pos.y + (layout.DirectionalityY * offset));
 
-    // Right
-    if (Devices[DeviceMap::R1].InstanceIP) {
-        DeviceIcon("R1", ImVec2(Pos.x + Radius, Pos.y), &Devices[DeviceMap::R1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x + Radius, Pos.y), COL_DEV_EMPTY);
-    }
-
-    // Right-Down
-    if (Devices[DeviceMap::RD1].InstanceIP) {
-        DeviceIcon(
-            "RD1", ImVec2(Pos.x + DiagonalAxe, Pos.y + DiagonalAxe), &Devices[DeviceMap::RD1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x + DiagonalAxe, Pos.y + DiagonalAxe), COL_DEV_EMPTY);
-    }
-
-    // Down
-    if (Devices[DeviceMap::D1].InstanceIP) {
-        DeviceIcon("D1", ImVec2(Pos.x, Pos.y + Radius), &Devices[DeviceMap::D1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x, Pos.y + Radius), COL_DEV_EMPTY);
-    }
-
-    // Left-Down
-    if (Devices[DeviceMap::LD1].InstanceIP) {
-        DeviceIcon(
-            "LD1", ImVec2(Pos.x - DiagonalAxe, Pos.y + DiagonalAxe), &Devices[DeviceMap::LD1]);
-    } else {
-        DeviceAddButton(ImVec2(Pos.x - DiagonalAxe, Pos.y + DiagonalAxe), COL_DEV_EMPTY);
+        if (dev.InstanceIP) {
+            DeviceIcon(layout.Label, target_pos, &dev);
+            active_mask |= (1 << i);
+        } else {
+            DeviceAddButton(target_pos, COL_DEV_EMPTY);
+        }
     }
 
     ImGui::PopFont();
+
+    return std::popcount(active_mask);
 }
 
 void OmniGUI::MetricDashboard(
@@ -462,7 +441,7 @@ void OmniGUI::MetricDashboard(
 
             // Da Title
             ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_MUTED);
-            ImGui::TextUnformatted(Items[i].title);
+            ImGui::TextUnformatted(Items[i].Title);
             ImGui::PopStyleColor();
 
             float LineHeight = ImGui::GetTextLineHeight();
@@ -472,7 +451,7 @@ void OmniGUI::MetricDashboard(
             // Value
             ImGui::PushFont(JetBrainsBold20);
             ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_VALUE);
-            ImGui::TextUnformatted(Items[i].value);
+            ImGui::TextUnformatted(Items[i].Value);
             ImGui::PopStyleColor();
             ImGui::PopFont();
         }

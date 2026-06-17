@@ -5,7 +5,6 @@
 #include <variant>
 #include <vector>
 
-#include "AssetLogo.h"
 #include "IconLoader.h"
 #include "OmniAPI.h"
 #include "OmniEnums.h"
@@ -24,6 +23,15 @@
 
 class OmniLink;
 
+struct UIDeviceLayout
+{
+    DeviceMap DeviceID;
+    const char* Label;
+    float DirectionalityX;
+    float DirectionalityY;
+    bool DiagonalState;
+};
+
 struct Alert
 {
     std::string Title;
@@ -32,8 +40,8 @@ struct Alert
 
 struct MetricItem
 {
-    const char* title;
-    const char* value;
+    const char* Title;
+    const char* Value;
 };
 
 using EventTypes = std::variant<ConnectionRequest, Alert>;
@@ -191,7 +199,7 @@ class OmniGUI
     bool IconizedButton(const char* Label, const char* Icon, bool state, const ImVec2& ButtonSize);
     void DeviceAddButton(const ImVec2& CenterPos, ImU32 Color);
     bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
-    void ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
+    int ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
     void MetricDashboard(const char* ContainerId,
                          const MetricItem* Items,
                          int ItemCount,
@@ -486,7 +494,7 @@ class OmniGUI
 
                 // Da Connection Ring
                 const ImVec2 AvailableSpace = ImGui::GetContentRegionAvail();
-                ConnectionRing(
+                int DeviceCount = ConnectionRing(
                     "DiscoveryRing", ImVec2(AvailableSpace.x, AvailableSpace.y - 60), 205);
 
                 /* if (ImGui::Button("Scan")) {
@@ -498,11 +506,10 @@ class OmniGUI
                 static char availableBuf[16];
                 static char activeBuf[32];
 
-                std::to_chars(
-                    availableBuf, availableBuf + sizeof(availableBuf), AvailableInstances->size());
+                std::to_chars(availableBuf, availableBuf + sizeof(availableBuf), DeviceCount);
 
                 auto [ptr, ec] = std::to_chars(
-                    activeBuf, activeBuf + sizeof(activeBuf), ActiveInstances->size());
+                    activeBuf, activeBuf + sizeof(activeBuf), ActiveInstances->size() - 1);
 
                 *ptr = '/';
                 *(ptr + 1) = '8';
