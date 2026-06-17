@@ -139,7 +139,7 @@ class OmniGUI
     static constexpr ImU32 COL_FEAT_GLOW = IM_COL32(157, 78, 221, 45);
 
     // Connection Ring Radar Layout
-    static constexpr ImU32 COL_RING_BG = IM_COL32(0x11, 0x0C, 0x1A, 255);
+    static constexpr ImU32 COL_RING_BG = IM_COL32(0x25, 0x1E, 0x33, 255);
 
     // Modal Hardware Connection Layouts
     static constexpr ImU32 COL_MODAL_STRIP = IM_COL32(135, 112, 245, 255);
@@ -169,10 +169,11 @@ class OmniGUI
 
     // Fonts
     ImFont* InterReg14 = nullptr;
+    ImFont* InterReg15 = nullptr;
     ImFont* InterMed14 = nullptr;
     ImFont* InterMed16 = nullptr;
     ImFont* JetBrainsMed15 = nullptr;
-    ImFont* JetBrainsBold16 = nullptr;
+    ImFont* JetBrainsBold20 = nullptr;
     ImFont* OmniIconsLarge = nullptr;
     ImFont* OmniIconsMedium = nullptr;
     ImFont* OmniIconsSmall = nullptr;
@@ -332,10 +333,11 @@ class OmniGUI
                     16.0f,
                     ImDrawFlags_RoundCornersTopRight);
 
+                ImGui::PushFont(InterReg15);
                 ImGui::SetCursorPosY(ContentSpaceStart.y + VerticalSpacing);
                 ImGui::SetCursorPosX(ContentSpaceStart.x + 10.0f);
                 // Title Bar Text
-                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "OmniLink > ");
+                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "OmniLink   >   ");
                 ImGui::SameLine(0.0f, 0.0f);
 
                 ImGui::SetCursorPosY(ContentSpaceStart.y + VerticalSpacing);
@@ -354,6 +356,8 @@ class OmniGUI
                     ImGui::TextColored(TEXT_ACTIVE, "Settings");
                     break;
                 }
+
+                ImGui::PopFont();
 
                 // Title Bar Buttons
                 float TotalControlsWidth = TitleBarHeight * 2;
@@ -401,20 +405,23 @@ class OmniGUI
 
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
-                ImGui::PopStyleVar();
 
                 // Feature Mode Text
-                const char* ModeText = "  M  \n  O  \n  D  \n  E  ";
+                const char* ModeText = "    M    \n    O    \n    D    \n    E    ";
                 const ImVec2 ModeTextSize = ImGui::CalcTextSize(ModeText);
-                float ModeTextPadding = FeaturePanelHeight - ModeTextSize.y;
+                float ModeTextPadding = (FeaturePanelHeight - ModeTextSize.y) * 0.5;
 
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, ModeTextPadding));
+                ImGui::BeginGroup();
+                ImGui::Dummy(ImVec2(0.0f, ModeTextPadding));
                 ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "%s", ModeText);
-                ImGui::PopStyleVar();
+                ImGui::Dummy(ImVec2(0.0f, ModeTextPadding));
+                ImGui::EndGroup();
 
                 ImGui::SameLine(0.0f, 0.0f);
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
                 ImGui::SameLine(0.0f, 0.0f);
+
+                ImGui::PopStyleVar();
 
                 ImVec2 size =
                     ImVec2(1 + ((ContentSpaceSize.x - ModeTextSize.x) / 5), FeaturePanelHeight);
@@ -424,7 +431,7 @@ class OmniGUI
 
                 if (IconizedButton("Screen Link",
                                    IC_SCREEN_SHARE,
-                                   (FeatureSates & FeatureFlags::fScreenLink) != 1,
+                                   (FeatureSates & FeatureFlags::fScreenLink) != 0,
                                    size)) {
                     OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, DeviceMap::C0);
                 }

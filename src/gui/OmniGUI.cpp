@@ -47,12 +47,13 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     FontCFG.FontDataOwnedByAtlas = false;
 
     InterReg14 = io.Fonts->AddFontFromMemoryTTF(Inter18Regular, Inter18RegularLen, 14.0f, &FontCFG);
+    InterReg15 = io.Fonts->AddFontFromMemoryTTF(Inter18Regular, Inter18RegularLen, 15.0f, &FontCFG);
     InterMed14 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 14.0f, &FontCFG);
     InterMed16 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 16.0f, &FontCFG);
     JetBrainsMed15 = io.Fonts->AddFontFromMemoryTTF(
         JetBrainsMonoMedium, JetBrainsMonoMediumLen, 15.0f, &FontCFG);
-    JetBrainsBold16 =
-        io.Fonts->AddFontFromMemoryTTF(JetBrainsMonoBold, JetBrainsMonoBoldLen, 16.0f, &FontCFG);
+    JetBrainsBold20 =
+        io.Fonts->AddFontFromMemoryTTF(JetBrainsMonoBold, JetBrainsMonoBoldLen, 20.0f, &FontCFG);
 
     // Range for OmniIconsSmall: Contains only 'airplay'
     static const ImWchar OmniLargeIconRange[] = {61458, 61458, 0};
@@ -288,13 +289,15 @@ bool OmniGUI::IconizedButton(const char* Label,
     ImGui::PopID();
     return clicked;
 }
+
 void OmniGUI::DeviceAddButton(const ImVec2& CenterPos, ImU32 Color)
 {
+    // Yes.. It's the Icon again
+    ImGui::PushFont(OmniIconsLarge);
+
     ImVec2 TextSize = ImGui::CalcTextSize(IC_DIAMOND_PLUS); // egfeg
     ImVec2 RenderPos = ImVec2(CenterPos.x - (TextSize.x * 0.5f), CenterPos.y - (TextSize.y * 0.5f));
 
-    // Yes.. It's the Icon again
-    ImGui::PushFont(OmniIconsLarge);
     DrawList->AddText(RenderPos, Color, IC_DIAMOND_PLUS);
     ImGui::PopFont();
 }
@@ -466,7 +469,7 @@ void OmniGUI::MetricDashboard(
             ImGui::SetCursorScreenPos(ValuePos);
 
             // Value
-            ImGui::PushFont(JetBrainsBold16);
+            ImGui::PushFont(JetBrainsBold20);
             ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_VALUE);
             ImGui::TextUnformatted(Items[i].value);
             ImGui::PopStyleColor();
