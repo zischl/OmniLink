@@ -1,6 +1,7 @@
 #include "OmniGUI.h"
+#include "InterFonts.h"
+#include "JetBrainsFonts.h"
 #include "OmniLink.h"
-#include "fonts.h"
 
 #include "DummyInstances.h"
 #include "OmniIcons.h"
@@ -24,8 +25,7 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
-    // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // IF using
-    // Docking Branch
+    // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
@@ -46,10 +46,13 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     ImFontConfig FontCFG;
     FontCFG.FontDataOwnedByAtlas = false;
 
-    JetBrainsReg20 = io.Fonts->AddFontFromMemoryTTF(
-        JetBrainsMonoRegular, JetBrainsMonoRegular_Size, 20.0f, &FontCFG);
-    JetBrainsReg18 = io.Fonts->AddFontFromMemoryTTF(
-        JetBrainsMonoRegular, JetBrainsMonoRegular_Size, 18.0f, &FontCFG);
+    InterReg14 = io.Fonts->AddFontFromMemoryTTF(Inter18Regular, Inter18RegularLen, 14.0f, &FontCFG);
+    InterMed14 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 14.0f, &FontCFG);
+    InterMed16 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 16.0f, &FontCFG);
+    JetBrainsMed15 = io.Fonts->AddFontFromMemoryTTF(
+        JetBrainsMonoMedium, JetBrainsMonoMediumLen, 15.0f, &FontCFG);
+    JetBrainsBold16 =
+        io.Fonts->AddFontFromMemoryTTF(JetBrainsMonoBold, JetBrainsMonoBoldLen, 16.0f, &FontCFG);
 
     // Range for OmniIconsSmall: Contains only 'airplay'
     static const ImWchar OmniLargeIconRange[] = {61458, 61458, 0};
@@ -259,7 +262,7 @@ bool OmniGUI::IconizedButton(const char* Label,
 
     ImVec2 LabelSize = ImGui::CalcTextSize(Label);
     ImVec2 LabelPos =
-        ImVec2(pos.x + (ButtonSize.x - LabelSize.x) * 0.5f, IconBoxPos.y + IconSize.y + 12.0f);
+        ImVec2(pos.x + (ButtonSize.x - LabelSize.x) * 0.5f, IconBoxPos.y + IconSize.y + 4.0f);
     ImU32 LabelColor = State ? COL_FEAT_TXT_ACT : COL_FEAT_TXT_IDLE;
     // Button Label
     DrawList->AddText(LabelPos, LabelColor, Label);
@@ -319,10 +322,10 @@ void OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const 
 
     ImGui::PopID();
 
+    ImGui::PushFont(JetBrainsMed15);
+
     // uh.. the math if i forget , 205 * sin(45 degrees) = 144.95
     int DiagonalAxe = static_cast<int>(Radius * 0.707106f);
-
-    ImGui::PushFont(JetBrainsReg18);
 
     auto& Devices = *AvailableInstances;
 
@@ -392,7 +395,7 @@ void OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const 
     ImGui::PopFont();
 }
 
-void OmniGUI::DrawMetricDashboard(
+void OmniGUI::MetricDashboard(
     const char* ContainerId, const MetricItem* Items, int ItemCount, float TotalWidth, float Height)
 {
     if (ItemCount <= 0 || !Items)
@@ -407,6 +410,10 @@ void OmniGUI::DrawMetricDashboard(
                           ImVec2(TotalWidth, Height),
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
+        ImGui::PopStyleVar();
 
         ImVec2 BarMin = ImGui::GetCursorScreenPos();
         ImVec2 BarMax = ImVec2(BarMin.x + TotalWidth, BarMin.y + Height);
@@ -424,6 +431,8 @@ void OmniGUI::DrawMetricDashboard(
         float InnerPaddingY = 6.0f;
         float AccentPillWidth = 3.0f;
         float AccentGapping = 10.0f;
+
+        ImGui::PushFont(InterMed14);
 
         for (int i = 0; i < ItemCount; ++i) {
             ImVec2 SegMin = ImVec2(BarMin.x + (i * SegmentWidth), BarMin.y);
@@ -457,10 +466,14 @@ void OmniGUI::DrawMetricDashboard(
             ImGui::SetCursorScreenPos(ValuePos);
 
             // Value
+            ImGui::PushFont(JetBrainsBold16);
             ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_VALUE);
             ImGui::TextUnformatted(Items[i].value);
             ImGui::PopStyleColor();
+            ImGui::PopFont();
         }
+
+        ImGui::PopFont();
     }
     ImGui::EndChild();
 

@@ -168,8 +168,11 @@ class OmniGUI
     std::vector<Notification> Notifications = {};
 
     // Fonts
-    ImFont* JetBrainsReg20 = nullptr;
-    ImFont* JetBrainsReg18 = nullptr;
+    ImFont* InterReg14 = nullptr;
+    ImFont* InterMed14 = nullptr;
+    ImFont* InterMed16 = nullptr;
+    ImFont* JetBrainsMed15 = nullptr;
+    ImFont* JetBrainsBold16 = nullptr;
     ImFont* OmniIconsLarge = nullptr;
     ImFont* OmniIconsMedium = nullptr;
     ImFont* OmniIconsSmall = nullptr;
@@ -185,11 +188,11 @@ class OmniGUI
     void DeviceAddButton(const ImVec2& CenterPos, ImU32 Color);
     bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
     void ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
-    void DrawMetricDashboard(const char* ContainerId,
-                             const MetricItem* Items,
-                             int ItemCount,
-                             float TotalWidth,
-                             float Height);
+    void MetricDashboard(const char* ContainerId,
+                         const MetricItem* Items,
+                         int ItemCount,
+                         float TotalWidth,
+                         float Height);
 
     // Notification Event Handlers
     static bool HandleEvent(ConnectionRequest& request, float timeout);
@@ -275,6 +278,9 @@ class OmniGUI
             ImVec2 MenuItemSize = ImVec2(110, 100);
             ImGui::BeginChild("SideMenu", ImVec2(110, 0), ImGuiChildFlags_None);
             {
+
+                ImGui::PushFont(InterReg14);
+
                 ImGui::Dummy(ImVec2(0, 100));
 
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
@@ -292,6 +298,8 @@ class OmniGUI
 
                 if (VerticalMenuItem("Settings", IC_SETTINGS, ActiveMenu == 3, MenuItemSize))
                     ActiveMenu = 3;
+
+                ImGui::PopFont();
             }
             ImGui::EndChild();
             ImGui::PopStyleColor();
@@ -371,7 +379,7 @@ class OmniGUI
                 ImGui::PopFont();
 
                 ImGui::PopStyleColor(3);
-                ImGui::PopStyleVar();
+                ImGui::PopStyleVar(1);
             }
             ImGui::EndGroup();
 
@@ -385,7 +393,7 @@ class OmniGUI
                 // Feature Panel
                 ImGui::BeginGroup();
 
-                const float FeaturePanelHeight = 88.0f;
+                const float FeaturePanelHeight = 92.0f;
 
                 ImVec2 PanelP1 = ImGui::GetCursorScreenPos();
                 DrawList->AddRectFilled(
@@ -412,6 +420,7 @@ class OmniGUI
                     ImVec2(1 + ((ContentSpaceSize.x - ModeTextSize.x) / 5), FeaturePanelHeight);
 
                 const uint32_t FeatureSates = (*ActiveInstances)[SelectedDevice].ActiveFlags;
+                ImGui::PushFont(InterMed16);
 
                 if (IconizedButton("Screen Link",
                                    IC_SCREEN_SHARE,
@@ -452,10 +461,12 @@ class OmniGUI
                     // SetEvent(EventHandler[0]);
                 }
 
+                ImGui::PopFont();
                 ImGui::PopStyleVar();
                 ImGui::EndGroup();
                 // Feature Panel End
 
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() - ImGui::GetStyle().ItemSpacing.y);
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
                 ImGui::PopStyleVar();
@@ -465,14 +476,12 @@ class OmniGUI
                 // Da Connection Ring
                 const ImVec2 AvailableSpace = ImGui::GetContentRegionAvail();
                 ConnectionRing(
-                    "DiscoveryRing", ImVec2(AvailableSpace.x, AvailableSpace.y - 56), 205);
+                    "DiscoveryRing", ImVec2(AvailableSpace.x, AvailableSpace.y - 60), 205);
 
                 /* if (ImGui::Button("Scan")) {
                     static bool scanning = false;
                     OmniAPI::Scan();
                 } */
-
-                ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
 
                 // Metrics Dashboard
                 static char availableBuf[16];
@@ -493,9 +502,7 @@ class OmniGUI
                                                      {"Latency", "7.6ms"},
                                                      {"Bandwith", "1.2 MB/s"}};
 
-                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetContentRegionAvail().y -
-                                     70.0f);
-                DrawMetricDashboard("NetContainer", staticMetrics, 4, AvailableSpace.x, 55.0f);
+                MetricDashboard("NetContainer", staticMetrics, 4, AvailableSpace.x, 55.0f);
 
                 if (!Notifications.empty()) {
                     for (Notification& notification : Notifications) {
@@ -519,8 +526,6 @@ class OmniGUI
 
                 CreateCurvedLine("ln4", 20);*/
 
-                ImGui::EndGroup();
-
             }
 
             break;
@@ -536,6 +541,8 @@ class OmniGUI
                 break;
             }
         }
+
+        ImGui::EndGroup();
 
         ImGui::End();
     }
