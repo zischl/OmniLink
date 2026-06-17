@@ -106,7 +106,7 @@ class OmniCore
 
     inline void ExecuteCommandQueue()
     {
-        while (!CommandBurstQ.Queue.empty()) {
+        while (!CommandBurstQ.empty()) {
             (this->*CommandTable[CommandBurstQ.Queue[CommandBurstQ.Tail]])();
             if (!CommandBurstQ.pop()) {
                 Logger::log("Command Execution Failure");
@@ -116,7 +116,7 @@ class OmniCore
 
     inline void ExecuteCommandQueueWArgs()
     {
-        while (!CommandBurstQWArgs.Queue.empty()) {
+        while (!CommandBurstQWArgs.empty()) {
             unsigned int Tail = CommandBurstQWArgs.Tail;
             switch (CommandBurstQWArgs.Queue[Tail].index()) {
             case 0: {

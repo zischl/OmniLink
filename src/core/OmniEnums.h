@@ -13,10 +13,11 @@ enum FeatureFlags {
     fScreenLink = 1 << 0,
     fWindowLink = 1 << 1,
     fInputLink = 1 << 2,
-    fLink = 1 << 3,
+    fAudioLink = 1 << 3,
+    fClipBoardLink = 1 << 4
 };
 
-enum FeatureTypes { ScreenLink, WindowLink, InputLink, AudioLink };
+enum FeatureTypes { ScreenLink, WindowLink, InputLink, AudioLink, ClipboardLink };
 
 enum DeviceMap : uint8_t { C0, L1, U1, R1, D1, LU1, RU1, RD1, LD1, END };
 

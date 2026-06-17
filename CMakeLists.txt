@@ -79,7 +79,8 @@ elseif(UNIX)
   )
 endif()
 
-set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc")
+set(RESOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc"
+                   "${CMAKE_CURRENT_SOURCE_DIR}/OmniIcons.h")
 
 # OmniLink C++ and CUDA source files
 set(COMMON_SOURCES
@@ -94,6 +95,8 @@ set(COMMON_SOURCES
     src/codec/nvdec.cpp
     src/codec/CuKernel.cu
     src/capture/CaptureController.cpp)
+
+set(TEST_SOURCES unit_tests/dummies/DummyInstances.h)
 
 if(WIN32)
   set(PLATFORM_SOURCES
@@ -124,11 +127,12 @@ endif()
 
 # Targets.....
 if(WIN32)
-  add_executable(main WIN32 ${IMGUI_SOURCES} ${RESOURCE_FILES}
-                            ${COMMON_SOURCES} ${PLATFORM_SOURCES})
+  add_executable(
+    main WIN32 ${IMGUI_SOURCES} ${RESOURCE_FILES} ${COMMON_SOURCES}
+               ${PLATFORM_SOURCES} ${TEST_SOURCES})
 else()
   add_executable(main ${IMGUI_SOURCES} ${RESOURCE_FILES} ${COMMON_SOURCES}
-                      ${PLATFORM_SOURCES})
+                      ${PLATFORM_SOURCES} ${TEST_SOURCES})
 endif()
 
 set_target_properties(
@@ -159,7 +163,8 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/window
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
           ${CMAKE_CURRENT_SOURCE_DIR}/src/app
-          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc)
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc
+          ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/dummies)
 
 if(WIN32)
   target_include_directories(

@@ -53,7 +53,7 @@ struct OmniActiveInstance : OmniInstance
 {
     std::unique_ptr<session> InstanceSession;
     uint16_t port = 62485;
-    int ActiveFlags = FeatureFlags::fInactive;
+    uint32_t ActiveFlags = FeatureFlags::fInactive;
 
     OmniActiveInstance() {}
 
@@ -75,6 +75,10 @@ struct OmniActiveInstance : OmniInstance
         strncpy(InstanceName, Instance.InstanceName, (OmniDevNameLen + 1));
         DevMapIndex = Instance.DevMapIndex;
     }
+
+    inline void ToggleFeatureState(FeatureFlags Feature) { ActiveFlags ^= Feature; }
+
+    inline bool GetFeatureState(FeatureFlags Feature) const { return (ActiveFlags & Feature) != 0; }
 };
 
 using ActiveInstanceContainer = std::unordered_map<DeviceMap, OmniActiveInstance>;

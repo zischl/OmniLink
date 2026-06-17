@@ -40,6 +40,13 @@ template <typename Type, uint32_t Size> struct BurstQ
         Tail.store((t + 1) & (Size - 1), std::memory_order_release);
         return true;
     }
+
+    [[nodiscard]] bool empty() const
+    {
+        uint32_t t = Tail.load(std::memory_order_relaxed);
+        uint32_t h = Head.load(std::memory_order_acquire);
+        return t == h;
+    }
 };
 
 #endif // BURSTQ_H

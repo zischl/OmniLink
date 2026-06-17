@@ -125,6 +125,8 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 
     /// ......................................... ///
 
+    RunCommandQueue();
+
     OmniMainLoop();
 }
 
