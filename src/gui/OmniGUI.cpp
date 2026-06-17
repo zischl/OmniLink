@@ -3,7 +3,6 @@
 #include "JetBrainsFonts.h"
 #include "OmniLink.h"
 
-#include "DummyInstances.h"
 #include "OmniIcons.h"
 
 #include "imgui.h"
@@ -12,7 +11,7 @@
 OmniGUI::OmniGUI(OmniLink& OmniLinkInstance)
     : App(OmniLinkInstance), SelectedDevice(OmniLink::SelectedTargetDevice)
 {
-    AvailableInstances = &DummyAvailableInstances;
+    AvailableInstances = App.GetAvailableInstances();
     ActiveInstances = App.GetActiveInstances();
 }
 
@@ -30,6 +29,8 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(D3D11Device, D3D11Context);
+
+    IconTexture.LoadEmbeddedRGBA(OmniLinkLogoData, 128, 128, D3D11Device);
 
     ImGuiStyle& style = ImGui::GetStyle();
 

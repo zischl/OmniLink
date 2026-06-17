@@ -2,13 +2,15 @@
 #define OMNIGUI_H
 
 #pragma once
-#include "OmniEnums.h"
-#include "OmniPackets.h"
 #include <variant>
 #include <vector>
 
+#include "AssetLogo.h"
+#include "IconLoader.h"
 #include "OmniAPI.h"
+#include "OmniEnums.h"
 #include "OmniInstances.h"
+#include "OmniPackets.h"
 
 #include <wrl/client.h>
 
@@ -154,6 +156,7 @@ class OmniGUI
     ActiveInstanceContainer* ActiveInstances = nullptr;
     DeviceMap& SelectedDevice;
 
+    IconLoader IconTexture;
     bool ImGuiState = true;
 
     bool DeviceHoverState = false;
@@ -282,7 +285,8 @@ class OmniGUI
 
                 ImGui::PushFont(InterReg14);
 
-                ImGui::Dummy(ImVec2(0, 100));
+                ImGui::Image(reinterpret_cast<ImTextureID>(IconTexture.GetTextureID()),
+                             ImVec2(110.0f, 110.0f));
 
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
 

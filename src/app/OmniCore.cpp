@@ -1,5 +1,9 @@
 #include "OmniCore.h"
-#include "SystemLink.h"
+#include "Helper.h"
+#include "OmniEnums.h"
+#include "OmniPackets.h"
+#include "OmniTypes.h"
+#include <vector>
 
 DeviceMap OmniCore::ActiveIOProcTarget = DeviceMap::C0;
 DeviceMap OmniCore::SelectedTargetDevice = DeviceMap::C0;
@@ -17,9 +21,9 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
         return;
     }
 
-    ConnectionRequest request{DeviceID, "OMNILINK"};
+    ConnectionRequest Request{DeviceID, "OMNILINK"};
     std::unique_ptr<session> NetSession =
-        SessionManager.Connect(request,
+        SessionManager.Connect(Request,
                                InstanceRegistry.UserInstance,
                                InstanceRegistry.ActiveInstances[DeviceID],
                                SystemLink.networkPacketHandler,
@@ -28,6 +32,14 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
     InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
 
     SystemLink.IOCapture.AddEdgeCondition(DeviceID);
+
+    std::vector<uint8_t> RequestBytes = ConnectionRequest::Serialize(Request);
+
+    OmniNetCommand Command{
+        CoreCommandsWArgs::ConnectDevice,
+        static_cast<uint32_t>(Variance::GetVariantTypeIndex<ConnectionRequest, FuncArgTypes>),
+        RequestBytes};
+    TransmitNetCommand(DeviceID, Command, 0, OmniNet::Argonized);
 }
 
 void OmniCore::SwapInstanceLayout(int DeviceID1, int DeviceID2)

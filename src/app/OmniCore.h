@@ -1,6 +1,7 @@
 #ifndef OMNICORE_H
 #define OMNICORE_H
 
+#include "OmniInstances.h"
 #pragma once
 
 #include "BurstQ.h"
@@ -42,14 +43,20 @@ class OmniCore
     OmniSystemLink SystemLink{RenderState, ActiveWindows};
 
     static DeviceMap ActiveIOProcTarget;
-    static DeviceMap SelectedTargetDevice;
 
   public:
+    static DeviceMap SelectedTargetDevice;
+
     OmniCore();
 
     inline std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances()
     {
         return &InstanceRegistry.AllInstances;
+    }
+
+    inline ActiveInstanceContainer* GetActiveInstances()
+    {
+        return &InstanceRegistry.ActiveInstances;
     }
 
     inline void OmniCmdStatus() { Logger::log("CMD Queue Status Test"); }
