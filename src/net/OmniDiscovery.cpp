@@ -1,159 +1,148 @@
 #include "OmniDiscovery.h"
+#include <chrono>
+#include <mutex>
 
-//class connections {
+// class connections {
 //
-//};
+// };
 //
-//void create_listener(asio::ip::tcp::socket& socket) {
-//    uint32_t length;
-//    std::vector<char> buffer;
-//    while (true) {
-//        asio::read(socket, asio::buffer(&length, sizeof(length)));
-//        buffer.resize(length);
-//        asio::read(socket, asio::buffer(buffer.data(), length));
-//        std::cout << "Received: " << std::string(buffer.begin(), buffer.end()) << std::endl;
-//    }
-//}
+// void create_listener(asio::ip::tcp::socket& socket) {
+//     uint32_t length;
+//     std::vector<char> buffer;
+//     while (true) {
+//         asio::read(socket, asio::buffer(&length, sizeof(length)));
+//         buffer.resize(length);
+//         asio::read(socket, asio::buffer(buffer.data(), length));
+//         std::cout << "Received: " << std::string(buffer.begin(), buffer.end()) << std::endl;
+//     }
+// }
 //
-//void start_listener(asio::io_context& io, const std::string& ip, unsigned short port) {
-//    asio::ip::tcp::endpoint endpoint(asio::ip::make_address(ip), port);
-//    asio::ip::tcp::socket socket(io);
-//    socket.connect(endpoint);
-//    std::cout << "listener active!\n";
-//    create_listener(socket);
-//}
+// void start_listener(asio::io_context& io, const std::string& ip, unsigned short port) {
+//     asio::ip::tcp::endpoint endpoint(asio::ip::make_address(ip), port);
+//     asio::ip::tcp::socket socket(io);
+//     socket.connect(endpoint);
+//     std::cout << "listener active!\n";
+//     create_listener(socket);
+// }
 //
-//void send(asio::ip::tcp::socket& socket) {
-//    while (true) {
-//        std::string msg;
-//        std::cout << " : ";
-//        std::cin >> msg;
-//        if (msg == "exit") {
-//            break;
-//        }
-//        uint32_t length = msg.size();
-//        asio::write(socket, asio::buffer(&length, sizeof(length)));
-//        asio::write(socket, asio::buffer(msg));
+// void send(asio::ip::tcp::socket& socket) {
+//     while (true) {
+//         std::string msg;
+//         std::cout << " : ";
+//         std::cin >> msg;
+//         if (msg == "exit") {
+//             break;
+//         }
+//         uint32_t length = msg.size();
+//         asio::write(socket, asio::buffer(&length, sizeof(length)));
+//         asio::write(socket, asio::buffer(msg));
 //
-//    }
-//}
+//     }
+// }
 //
-//void start_sender(asio::io_context& io, unsigned short port) {
-//    asio::ip::tcp::acceptor acceptor(io, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port));
-//    asio::ip::tcp::socket socket(io);
-//    acceptor.accept(socket);
-//    std::cout << "Instance Connected!\n";
-//    send(socket);
-//}
+// void start_sender(asio::io_context& io, unsigned short port) {
+//     asio::ip::tcp::acceptor acceptor(io, asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port));
+//     asio::ip::tcp::socket socket(io);
+//     acceptor.accept(socket);
+//     std::cout << "Instance Connected!\n";
+//     send(socket);
+// }
 
-
-Instances::Instances(char* InstanceName, uint32_t _LocalIP, uint16_t port)
+OmniDiscovery::OmniDiscovery(const std::string& InstanceName, uint32_t _LocalIP, uint16_t port)
 {
     instances[_LocalIP] = InstanceName;
     discovery_port = port;
 }
 
-
-void Instances::PopulateInstances(int Runtime)
+void OmniDiscovery::PopulateInstances(int Runtime)
 {
     AwaitInstances(Runtime);
     Scan(Runtime);
-
-
 }
 
-
-std::unordered_map<uint32_t, std::string>* Instances::get()
+std::unordered_map<uint32_t, std::string> OmniDiscovery::get()
 {
-    return &instances;
+    std::lock_guard<std::mutex> lock(mutex);
+    return instances;
 }
 
-
-void Instances::Scan(int runtime)
+void OmniDiscovery::Scan(int runtime)
 {
     if (!ScanState.load()) {
 
         ScanState.store(true);
 
         std::thread broadcaster([this, runtime]() {
-
             std::chrono::steady_clock::duration Runtime = std::chrono::seconds(runtime);
 
-            std::chrono::time_point<std::chrono::steady_clock> Start = std::chrono::steady_clock::now();
+            std::chrono::time_point<std::chrono::steady_clock> Start =
+                std::chrono::steady_clock::now();
 
             asio::ip::udp::socket socket(io_context);
             socket.open(asio::ip::udp::v4());
             socket.set_option(asio::socket_base::reuse_address(true));
             socket.set_option(asio::socket_base::broadcast(true));
 
-            asio::ip::udp::endpoint broadcast_endpoint(asio::ip::make_address("192.168.1.255"), discovery_port);
+            asio::ip::udp::endpoint broadcast_endpoint(asio::ip::make_address("255.255.255.255"),
+                                                       discovery_port);
 
             while ((std::chrono::steady_clock::now() - Start) <= Runtime) {
 
-                socket.send_to(asio::buffer("OmniLink REQUEST RESPONSE"), broadcast_endpoint);
+                OmniDiscoveryPacket DiscoveryPacket{
+                    OmniLiss, PayloadType::DiscoveryRequest, sizeof(OmniDiscoveryRequest)};
+                std::memcpy(
+                    DiscoveryPacket.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest));
+
+                socket.send_to(asio::buffer(&DiscoveryPacket, sizeof(OmniDiscoveryPacket)),
+                               broadcast_endpoint);
 
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
 
             ScanState.store(false);
-
-            }
-        );
+        });
 
         broadcaster.detach();
     }
-    
-
-
 }
 
-
-
-void Instances::AwaitInstances()
+void OmniDiscovery::AwaitInstances()
 {
 
     std::thread responder([this]() {
+        asio::ip::udp::socket socket(io_context,
+                                     asio::ip::udp::endpoint(asio::ip::udp::v4(), discovery_port));
 
-        asio::ip::udp::socket socket(io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), discovery_port));
-
-        std::array <char, 32> response_buffer;
         asio::ip::udp::endpoint response_endpoint;
 
         while (state.load()) {
 
-            HandleResponse(socket, response_buffer, response_endpoint);
-
+            HandleResponse(socket, response_endpoint);
         }
-
-        
-
-        });
+    });
 
     responder.detach();
 }
 
-
-void Instances::AwaitInstances(int runtime)
+void OmniDiscovery::AwaitInstances(int runtime)
 {
 
     std::thread responder([this, runtime]() {
-
-        std::chrono::steady_clock::duration Runtime = std::chrono::steady_clock::duration(runtime * 10000000);
+        std::chrono::steady_clock::duration Runtime =
+            std::chrono::steady_clock::duration(std::chrono::seconds(runtime));
 
         std::chrono::time_point<std::chrono::steady_clock> Start = std::chrono::steady_clock::now();
 
-        asio::ip::udp::socket socket(io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), discovery_port));
+        asio::ip::udp::socket socket(io_context,
+                                     asio::ip::udp::endpoint(asio::ip::udp::v4(), discovery_port));
 
-        std::array <char, 32> response_buffer;
         asio::ip::udp::endpoint response_endpoint;
 
         while ((std::chrono::steady_clock::now() - Start) <= Runtime) {
 
-            HandleResponse(socket, response_buffer, response_endpoint);
-
+            HandleResponse(socket, response_endpoint);
         }
-
-        });
+    });
 
     responder.detach();
 }
