@@ -25,7 +25,7 @@ struct OmniInstanceRegistry
 {
   protected:
     std::mutex Mutex;
-    Instances* InstanceProbe = nullptr;
+    OmniDiscovery* InstanceProbe = nullptr;
     uint32_t OpenSlotMask = 0x1FF;
 
   public:
@@ -33,6 +33,7 @@ struct OmniInstanceRegistry
 
     ActiveInstanceContainer ActiveInstances;
 
+    // IP to DeviceMap Lookup
     std::unordered_map<uint32_t, DeviceMap> InstanceLookup = {};
 
     const OmniActiveInstance& UserInstance = ActiveInstances[DeviceMap::C0];
@@ -51,7 +52,8 @@ struct OmniInstanceRegistry
 
         // Creating an instance scanner object. Passing in local device name plus the
         // IP and then the port to use.
-        InstanceProbe = new Instances(ActiveInstances[DeviceMap::C0].InstanceName, LocalIP, 62485);
+        InstanceProbe =
+            new OmniDiscovery(ActiveInstances[DeviceMap::C0].InstanceName, LocalIP, 62485);
     }
 
     std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept
@@ -109,7 +111,7 @@ struct OmniInstanceRegistry
             return;
         }
 
-        std::unordered_map<uint32_t, std::string> AvailableInstances = *InstanceProbe->get();
+        std::unordered_map<uint32_t, std::string> AvailableInstances = InstanceProbe->get();
 
         std::lock_guard<std::mutex> lock(Mutex);
 
@@ -121,6 +123,11 @@ struct OmniInstanceRegistry
 
         for (const auto& [IP, Name] : AvailableInstances) {
             if (InstanceLookup.contains(IP)) {
+                OmniInstance& Instance = AllInstances[InstanceLookup[IP]];
+                if (Instance.InstanceName[0] == '\0') {
+                    snprintf(
+                        Instance.InstanceName, sizeof(Instance.InstanceName), "%s", Name.c_str());
+                }
                 continue;
             }
 

@@ -1,7 +1,6 @@
 #ifndef OMNICORE_H
 #define OMNICORE_H
 
-#include "OmniInstances.h"
 #pragma once
 
 #include "BurstQ.h"
@@ -15,6 +14,7 @@
 #include "SessionManager.h"
 #include "StreamWindow.h"
 #include "SystemLink.h"
+#include "UIEvents.h"
 #include "nvenc.h"
 
 #include <array>
@@ -48,6 +48,8 @@ class OmniCore
     static DeviceMap SelectedTargetDevice;
 
     OmniCore();
+
+    virtual void PushNotification(const Notification& notification) {}
 
     inline std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances()
     {

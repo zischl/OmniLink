@@ -1,0 +1,26 @@
+#ifndef UI_EVENTS_H
+#define UI_EVENTS_H
+
+#pragma once
+#include "OmniPackets.h"
+
+#include <string>
+#include <variant>
+
+struct Alert
+{
+    std::string Title;
+    std::string Desc;
+};
+
+using EventTypes = std::variant<ConnectionRequest, Alert>;
+
+struct Notification
+{
+    EventTypes Event;
+    const char* EventName;
+    bool Active = false;
+    float Timeout = 15.0f;
+};
+
+#endif // !UI_EVENTS_H

@@ -26,6 +26,10 @@ class OmniLink : public OmniCore
     OmniLink();
 
     void OmniMain();
+
+    void PushNotification(const Notification& notification) override {
+        if (GUI) GUI->PushNotification(notification);
+    }
 };
 
 #endif

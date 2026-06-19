@@ -24,7 +24,9 @@ void Device::RetrieveUserName(char (&CharArray)[MAX_UNLEN])
         return;
     }
 
-    WideCharToMultiByte(CP_ACP, 0, WUserName, -1, CharArray, MAX_UNLEN + 1, nullptr, nullptr);
+    WideCharToMultiByte(CP_ACP, 0, WUserName, -1, CharArray, MAX_UNLEN, nullptr, nullptr);
+
+    CharArray[MAX_UNLEN - 1] = '\0';
 }
 
 void Device::RetrieveComputerName(char (&CharArray)[MAX_CNLEN])
@@ -37,7 +39,9 @@ void Device::RetrieveComputerName(char (&CharArray)[MAX_CNLEN])
         return;
     }
 
-    WideCharToMultiByte(CP_ACP, 0, WComputerName, -1, CharArray, MAX_CNLEN + 1, nullptr, nullptr);
+    WideCharToMultiByte(CP_ACP, 0, WComputerName, -1, CharArray, MAX_CNLEN, nullptr, nullptr);
+
+    CharArray[MAX_CNLEN - 1] = '\0';
 }
 
 void Device::RetrieveLocalIP(uint32_t& LocalIP, const int index)
@@ -46,10 +50,11 @@ void Device::RetrieveLocalIP(uint32_t& LocalIP, const int index)
     std::vector<sockaddr_in> LocalIPs;
 
     sessions::GetLocals(4, &LocalIPs);
-    if (!LocalIPs.empty()) {
+    if (index >= 0 && index < static_cast<int>(LocalIPs.size())) {
         LocalIP = htonl(LocalIPs[index].sin_addr.S_un.S_addr);
         return;
     }
 
+    LocalIP = 0;
     Logger::log("Failed to Retrieve Local IP : Please Check Your Connection!\n");
 }

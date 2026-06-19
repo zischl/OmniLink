@@ -22,7 +22,7 @@ template <typename Type, uint32_t Size> struct BurstQ
         return true;
     }
 
-    [[nodiscard]] bool pop()
+    bool pop()
     {
         uint32_t t = Tail.load(std::memory_order_relaxed);
         if (t == Head.load(std::memory_order_acquire))
@@ -46,6 +46,14 @@ template <typename Type, uint32_t Size> struct BurstQ
         uint32_t t = Tail.load(std::memory_order_relaxed);
         uint32_t h = Head.load(std::memory_order_acquire);
         return t == h;
+    }
+
+    [[nodiscard]] Type* peek()
+    {
+        uint32_t t = Tail.load(std::memory_order_relaxed);
+        if (t == Head.load(std::memory_order_acquire))
+            return nullptr;
+        return &Queue[t];
     }
 };
 

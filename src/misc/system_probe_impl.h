@@ -6,8 +6,8 @@
 
 namespace Device {
 
-#define MAX_UNLEN 32
-#define MAX_CNLEN 63
+constexpr size_t MAX_UNLEN = 32;
+constexpr size_t MAX_CNLEN = 64;
 
 struct MonitorRes
 {

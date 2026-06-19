@@ -5,11 +5,13 @@
 #include <variant>
 #include <vector>
 
+#include "BurstQ.h"
 #include "IconLoader.h"
 #include "OmniAPI.h"
 #include "OmniEnums.h"
 #include "OmniInstances.h"
 #include "OmniPackets.h"
+#include "UIEvents.h"
 
 #include <wrl/client.h>
 
@@ -32,26 +34,10 @@ struct UIDeviceLayout
     bool DiagonalState;
 };
 
-struct Alert
-{
-    std::string Title;
-    std::string Desc;
-};
-
 struct MetricItem
 {
     const char* Title;
     const char* Value;
-};
-
-using EventTypes = std::variant<ConnectionRequest, Alert>;
-
-struct Notification
-{
-    EventTypes Event;
-    const char* EventName;
-    bool Active = false;
-    float Timeout = 15.0f;
 };
 
 static constexpr ImGuiWindowFlags DefaultFlags =
@@ -176,7 +162,9 @@ class OmniGUI
     ImDrawList* DrawList = nullptr;
 
     int ActiveMenu = 0;
+    Notification TempNotif;
     std::vector<Notification> Notifications = {};
+    BurstQ<Notification, 4> NotificationQueue;
 
     // Fonts
     ImFont* InterReg14 = nullptr;
@@ -251,15 +239,16 @@ class OmniGUI
 
         ImGui::PopStyleVar();
 
-        if (end) {
-            Notifications.erase(Notifications.begin());
-        }
-
-        return clicked ? true : false;
+        return end;
     }
 
   public:
     OmniGUI(OmniLink& OmniLinkInstance);
+
+    inline void PushNotification(const Notification& notification)
+    {
+        NotificationQueue.push(notification);
+    }
 
     void SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context);
 
@@ -522,27 +511,11 @@ class OmniGUI
 
                 MetricDashboard("NetContainer", staticMetrics, 4, AvailableSpace.x, 55.0f);
 
-                if (!Notifications.empty()) {
-                    for (Notification& notification : Notifications) {
-                        NotificationWindow(notification.EventName, notification);
+                if (auto* activeNotif = NotificationQueue.peek()) {
+                    if (NotificationWindow(activeNotif->EventName, *activeNotif)) {
+                        NotificationQueue.pop();
                     }
                 }
-
-                /*CreateCurvedLine("ln4", 20); ImGui::SameLine(40.0f, -1.0f);
-
-                CreateCurvedLine("ln3", 25); ImGui::SameLine(70.0f, -1.0f);
-
-                CreateCurvedLine("ln2", 30); ImGui::SameLine(100.0f, -1.0f);
-
-                CreateCurvedLine("ln1", 40); ImGui::SameLine(100.0f, -1.0f);*/
-
-                /*CreateCurvedLine("ln1", 40); ImGui::SameLine(40.0f, -1.0f);
-
-                CreateCurvedLine("ln2", 30); ImGui::SameLine(70.0f, -1.0f);
-
-                CreateCurvedLine("ln3", 25); ImGui::SameLine(100.0f, -1.0f);
-
-                CreateCurvedLine("ln4", 20);*/
 
             }
 
