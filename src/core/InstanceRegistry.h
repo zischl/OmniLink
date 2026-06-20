@@ -1,8 +1,10 @@
 #ifndef OmniInstanceReg_H
 #define OmniInstanceReg_H
 
+#include "OmniConfig.h"
 #include "SessionHandler.h"
 #include <memory>
+#include <type_traits>
 #include <utility>
 #pragma once
 
@@ -104,7 +106,9 @@ struct OmniInstanceRegistry
 
     // Check whether new scan results are available and get them if so
     // Otherwise initiate a new scana, uses bit masking to store open slots
-    template <typename DiscoveryCallback> void RefreshInstanceList(DiscoveryCallback&& Callback)
+    using DefaultCallbackType = decltype([]() {});
+    template <typename DiscoveryCallback = DefaultCallbackType>
+    void RefreshInstanceList(DiscoveryCallback&& Callback = {})
     {
         if (!InstanceProbe->ScanState.load()) {
             InstanceProbe->Scan(15);
@@ -139,13 +143,20 @@ struct OmniInstanceRegistry
             AddInstance(IP);
         }
 
-        Callback();
+        using DecayedType = std::decay_t<DiscoveryCallback>;
+
+        if constexpr (!std::is_same_v<DecayedType, DefaultCallbackType>) {
+            std::forward<DiscoveryCallback>(Callback)();
+        }
     }
 
     template <typename DiscoveryCallback> void AwaitNewInstances(DiscoveryCallback&& Callback)
     {
-        InstanceProbe->AwaitInstances([this, &Callback]() { RefreshInstanceList(Callback); });
-        RefreshInstanceList(Callback);
+        InstanceProbe->AwaitInstances(
+            [this, Callback = std::forward<DiscoveryCallback>(Callback)](ProbeEvent Event) {
+                RefreshInstanceList();
+                Callback(Event);
+            });
     }
 
     void SwapInstances(DeviceMap DeviceID1, DeviceMap DeviceID2)
@@ -175,6 +186,24 @@ struct OmniInstanceRegistry
             AllInstances[DeviceMap(DeviceID2)].Edit(
                 temp.InstanceName, temp.IPv4_String, temp.InstanceIP, DeviceMap(temp.DevMapIndex));
         }
+    }
+
+    inline void TransmitConnectionRequest(DeviceMap DeviceID)
+    {
+        OmniPayloadBase Payload{PayloadType::LinkRequest, sizeof("lemme in"), "lemme in"};
+        InstanceProbe->SendCustomPayload(AllInstances[DeviceID].InstanceIP, OmniPort, Payload);
+    }
+
+    inline void TransmitConnectionState(DeviceMap DeviceID, NetLinkState LinkState)
+    {
+        OmniPayloadBase Payload{
+            PayloadType::LinkResponse, sizeof(NetLinkState), static_cast<char>(LinkState)};
+        InstanceProbe->SendCustomPayload(AllInstances[DeviceID].InstanceIP, OmniPort, Payload);
+    }
+
+    inline void SetConnectionState(DeviceMap DeviceID, NetLinkState LinkState)
+    {
+        AllInstances[DeviceID].LinkState = LinkState;
     }
 };
 

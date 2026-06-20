@@ -28,6 +28,7 @@ struct OmniInstance
     uint32_t InstanceIP = 0;
     char IPv4_String[16] = {};
     uint8_t DevMapIndex = 0;
+    NetLinkState LinkState = NetLinkState::INACTIVE;
 
     OmniInstance() {}
 
