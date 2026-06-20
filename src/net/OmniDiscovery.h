@@ -137,6 +137,7 @@ class OmniDiscovery
 
             while (state.load()) {
 
+                std::cout << ("Scanning");
                 size_t MsgLen =
                     socket.receive_from(asio::buffer(&packet, sizeof(packet)), ResponseEndpoint);
 

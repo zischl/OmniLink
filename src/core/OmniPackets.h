@@ -4,6 +4,8 @@
 #pragma once
 #include "ByteStream.h"
 #include "OmniEnums.h"
+
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <variant>
@@ -63,7 +65,7 @@ struct ConnectionRequest
 struct WindowCreationData
 {
     uint32_t NameLen = 0;
-    char WindowName[64]{};
+    char8_t WindowName[64]{};
     uint32_t Width = 1920;
     uint32_t Height = 1080;
 
@@ -86,18 +88,23 @@ struct WindowCreationData
         SetTitle(Title.data(), Title.length());
     }
 
-    void SetTitle(const char* title, const size_t TitleLen)
+    void SetTitle(const char* Title, const size_t TitleLen)
     {
-        strncpy_s(WindowName, title, TitleLen);
-        WindowName[TitleLen + 1] = '\0';
+        NameLen = static_cast<uint32_t>((std::min)(TitleLen, size_t{63}));
+
+        std::copy_n(Title, NameLen, WindowName);
+        WindowName[NameLen] = '\0';
     }
 
-    std::wstring GetTitleW() const
+    void SetTitle(std::string_view title)
     {
-        wchar_t WCharName[64]{};
-        MultiByteToWideChar(CP_UTF8, 0, WindowName, -1, WCharName, 64);
-        return std::wstring(WCharName);
+        NameLen = static_cast<uint32_t>((std::min)(title.length(), size_t{63}));
+
+        std::copy_n(title.data(), NameLen, WindowName);
+        WindowName[NameLen] = '\0';
     }
+
+    std::u8string GetTitleU8() const { return std::u8string(WindowName); }
 
     static WindowCreationData Deserialize(ByteStreamReader& reader)
     {
@@ -115,7 +122,7 @@ struct WindowCreationData
     {
         ByteVecStreamEx NetWriter{76};
         NetWriter.WriteU32Ex(obj.NameLen);
-        NetWriter.WriteString(obj.WindowName);
+        NetWriter.WriteU8String(obj.WindowName);
         NetWriter.WriteU32Ex(obj.Width);
         NetWriter.WriteU32Ex(obj.Height);
         return NetWriter.Data;

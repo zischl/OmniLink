@@ -141,6 +141,7 @@ struct OmniInstanceRegistry
             }
 
             AddInstance(IP);
+            Logger::log("Some shit", IP);
         }
 
         using DecayedType = std::decay_t<DiscoveryCallback>;

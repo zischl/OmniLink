@@ -1,6 +1,8 @@
 #include "SystemLink.h"
 #include "WinForge.h"
 
+#include <codecvt>
+
 OmniSystemLink::OmniSystemLink(OmniRenderState& RenderState,
                                std::vector<StreamWindow*>& ActiveWindows)
     : RenderState(RenderState), ActiveWindows(ActiveWindows)
@@ -18,7 +20,10 @@ StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& Windo
 {
     auto* window = new WinForge();
     ActiveWindows.push_back(window);
-    window->CreateWindowAsync(WindowData.GetTitleW().c_str(), hInstance, nCmdShow);
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    std::wstring WindowTitle =
+        converter.from_bytes(reinterpret_cast<const char*>(WindowData.GetTitleU8().data()));
+    window->CreateWindowAsync(WindowTitle.c_str(), hInstance, nCmdShow);
     return window;
 }
 
