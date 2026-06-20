@@ -1,5 +1,6 @@
 #include "SessionHandler.h"
 #include "OmniLogger.h"
+#include <cstddef>
 
 sessions::sessions()
 {
@@ -115,23 +116,6 @@ void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
     return;
 }
 
-void sessions::RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey)
-{
-    if (IOCP == NULL) {
-        IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
-        if (IOCP == NULL) {
-            OutputDebugStringA("IOCP Port Creation Failed Successfully\n");
-        }
-
-        return;
-    } else {
-    }
-    IOCP = CreateIoCompletionPort((HANDLE*)socket, NULL, CompletionKey, 0);
-    if (IOCP == NULL) {
-        OutputDebugStringA("IOCP Port Binding Failed Successfully\n");
-    }
-}
-
 void sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
 {
     int WSResult = 0;
@@ -159,10 +143,35 @@ void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR
         OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
     }
 }
+HANDLE sessions::CreateIOCP(DWORD MaxThreads)
+{
+    HANDLE IOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, MaxThreads);
+    if (!IOCP) {
+        Logger::log("IOCP Creation Failed\n");
+    }
+    return IOCP;
+}
 
-session::session(
-    HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, void* Context)
-    : MTU(MTU_Size), IOCP_Handle(IOCP)
+bool sessions::BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKey)
+{
+    if (IOCP == NULL || Socket == INVALID_SOCKET)
+        return false;
+
+    HANDLE result = CreateIoCompletionPort((HANDLE)Socket, IOCP, CompletionKey, 0);
+    if (result == NULL) {
+        Logger::log("IOCP Binding Failed\n");
+        return false;
+    }
+    return true;
+}
+
+session::session(PCSTR Local_IP,
+                 PCSTR IP,
+                 unsigned short port,
+                 int MTU_Size,
+                 void* Context,
+                 ULONG_PTR CompletionKey)
+    : MTU(MTU_Size)
 {
 
     PreSetBufferMTU();
@@ -170,21 +179,27 @@ session::session(
     socketR = sessions::CreateSocket();
     sessions::BindReceiver(Local_IP, port, socketR);
     sessions::ConnectSesssion(address, socketR);
-    sessions::RegIOCP(IOCP, socketR);
+
+    IOCPHandle = sessions::CreateIOCP();
 
     WorkerThread = sessions::StartCompletionPortHandlerThread(
-        IOCP, socketR, &RecvPool, &OnIOCompletion, Context);
+        IOCPHandle, socketR, &RecvPool, &OnIOCompletion, Context);
+
+    sessions::BindIOCP(IOCPHandle, socketR, CompletionKey);
 
     sessions::PostWSARecv(socketR, RecvPool);
 }
 
 session::~session()
 {
-    if (IOCP_Handle) {
-        PostQueuedCompletionStatus(IOCP_Handle, 0, 0, nullptr);
+    if (IOCPHandle) {
+        PostQueuedCompletionStatus(IOCPHandle, 0, 0, nullptr);
     }
     if (WorkerThread.joinable()) {
         WorkerThread.join();
+    }
+    if (IOCPHandle) {
+        CloseHandle(IOCPHandle);
     }
     closesocket(socketR);
 }

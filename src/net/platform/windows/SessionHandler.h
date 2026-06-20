@@ -1,6 +1,7 @@
 #ifndef SESSIONHANDLER_H
 #define SESSIONHANDLER_H
 
+#include <cstddef>
 #pragma once
 #include "IOLink.h"
 #include "OmniConfig.h"
@@ -103,12 +104,10 @@ class sessions
 {
   private:
     int WSResult;
-
     int WinsockInit();
 
   public:
     WSADATA wsaData;
-    HANDLE IOCP = NULL;
 
     sessions();
 
@@ -120,7 +119,9 @@ class sessions
 
     static void ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR);
 
-    static void RegIOCP(HANDLE& IOCP, SOCKET& socket, const ULONG_PTR CompletionKey = 0);
+    static HANDLE CreateIOCP(DWORD MaxThreads = 1);
+
+    static bool BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKey);
 
     template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
     static std::thread StartCompletionPortHandlerThread(
@@ -167,20 +168,16 @@ class sessions
                         break;
                     case OmniNet::PacketType::ChunkEnd:
                         if (Pool->TryPushFinalChunk(BufferSize)) {
-                            if (*PacketHandlerFnPtr) {
-                                (*PacketHandlerFnPtr)(&Pool->BufferPool[0],
-                                                      Pool->CurrentChunkUsage,
-                                                      BufferHeader,
-                                                      Context);
-                            }
+                            (*PacketHandlerFnPtr)(&Pool->BufferPool[0],
+                                                  Pool->CurrentChunkUsage,
+                                                  BufferHeader,
+                                                  Context);
                         }
                         Pool->ResetChunk();
                         break;
                     default:
-                        if (*PacketHandlerFnPtr) {
-                            (*PacketHandlerFnPtr)(
-                                Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Context);
-                        }
+                        (*PacketHandlerFnPtr)(
+                            Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Context);
                         break;
                     }
 
@@ -226,6 +223,8 @@ class session
 
     sockaddr_in address;
     SOCKET socketR;
+    HANDLE IOCPHandle = NULL;
+    std::thread WorkerThread;
 
     const int MTU;
 
@@ -262,12 +261,13 @@ class session
         }
     }
 
-    HANDLE IOCP_Handle = NULL;
-    std::thread WorkerThread;
-
   public:
-    session(
-        HANDLE& IOCP, PCSTR Local_IP, PCSTR IP, unsigned short port, int MTU_Size, void* Context);
+    session(PCSTR Local_IP,
+            PCSTR IP,
+            unsigned short port,
+            int MTU_Size,
+            void* Context,
+            ULONG_PTR CompletionKey);
     ~session();
 
     void (*OnIOCompletion)(CHAR* Buffer,

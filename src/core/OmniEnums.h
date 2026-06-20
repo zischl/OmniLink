@@ -17,7 +17,9 @@ enum FeatureFlags {
     fClipBoardLink = 1 << 4
 };
 
-enum FeatureTypes { ScreenLink, WindowLink, InputLink, AudioLink, ClipboardLink };
+enum FeatureTypes : uint8_t { ScreenLink, WindowLink, InputLink, AudioLink, ClipboardLink };
+
+enum NetLinkState : uint8_t { INACTIVE, LINKING, LINKED, FAILED };
 
 enum DeviceMap : uint8_t { C0, L1, U1, R1, D1, LU1, RU1, RD1, LD1, END };
 
