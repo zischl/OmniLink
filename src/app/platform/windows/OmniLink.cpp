@@ -1,5 +1,6 @@
 #include "D3D11Renderer.h"
 #include "NetVariance.h"
+#include "OmniDiscovery.h"
 #include "OmniEnums.h"
 #include "OmniPackets.h"
 #include "SessionManager.h"
@@ -116,7 +117,13 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
     GUI = new OmniGUI(*this);
     GUI->SetupImGui(hwnd, RenderState.Device, RenderState.Context);
 
-    InstanceRegistry.AwaitNewInstances([this]() -> void { UIState = OmniGUIState::RENDER; });
+    // Setting up UI Updates on event, Note this ain't the callback given to OmniDiscovery
+    // This is da callback for the InstanceRegistery Await, which then combines with RefreshList
+    // Before sending it inside OmniDiscovery. so.. technically.. ig it is given to OmniDiscovery
+    InstanceRegistry.AwaitNewInstances([this](ProbeEvent Event = {}) -> void {
+        UIState = OmniGUIState::RENDER;
+        DiscoveryPacketHandler(Event);
+    });
 
     /// Input Capture Test Cases ///
 

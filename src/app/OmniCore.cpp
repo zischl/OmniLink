@@ -10,6 +10,27 @@ DeviceMap OmniCore::SelectedTargetDevice = DeviceMap::C0;
 
 OmniCore::OmniCore() = default;
 
+void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
+{
+    switch (Event.Mode) {
+    case PayloadType::LinkRequest: {
+        DeviceMap DeviceID = InstanceRegistry.InstanceLookup[Event.InstanceIP];
+
+        FuncArgTypes Args = ConnectionRequest{DeviceID};
+        PushCommandWArgs(Args);
+    }
+
+    case PayloadType::LinkResponse: {
+        DeviceMap DeviceID = InstanceRegistry.InstanceLookup[Event.InstanceIP];
+
+        InstanceRegistry.SetConnectionState(DeviceID,
+                                            Event.Flags == ProbeEventFlags::Succeeded
+                                                ? NetLinkState::LINKED
+                                                : NetLinkState::FAILED);
+    }
+    }
+}
+
 void OmniCore::ScanInstances()
 {
     InstanceRegistry.RefreshInstanceList([this]() -> void { UIState = OmniGUIState::RENDER; });
@@ -21,25 +42,24 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
         return;
     }
 
-    ConnectionRequest Request{DeviceID, "OMNILINK"};
     std::unique_ptr<session> NetSession =
-        SessionManager.Connect(Request,
-                               InstanceRegistry.UserInstance,
+        SessionManager.Connect(InstanceRegistry.UserInstance,
                                InstanceRegistry.ActiveInstances[DeviceID],
                                SystemLink.networkPacketHandler,
                                &ActiveWindows);
 
     InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
 
-    SystemLink.IOCapture.AddEdgeCondition(DeviceID);
+    InstanceRegistry.TransmitConnectionState(DeviceID, NetLinkState::LINKED);
+}
 
-    std::vector<uint8_t> RequestBytes = ConnectionRequest::Serialize(Request);
+void OmniCore::InitiateLinkingSequence(DeviceMap DeviceID)
+{
+    InstanceRegistry.TransmitConnectionRequest(DeviceID);
 
-    OmniNetCommand Command{
-        CoreCommandsWArgs::ConnectDevice,
-        static_cast<uint32_t>(Variance::GetVariantTypeIndex<ConnectionRequest, FuncArgTypes>),
-        RequestBytes};
-    TransmitNetCommand(DeviceID, Command, 0, OmniNet::Argonized);
+    ConnectInstance(DeviceID);
+
+    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING);
 }
 
 void OmniCore::SwapInstanceLayout(int DeviceID1, int DeviceID2)

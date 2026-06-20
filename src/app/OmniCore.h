@@ -1,6 +1,7 @@
 #ifndef OMNICORE_H
 #define OMNICORE_H
 
+#include "OmniDiscovery.h"
 #pragma once
 
 #include "BurstQ.h"
@@ -65,9 +66,13 @@ class OmniCore
 
     inline void OmniCmdStatus() { Logger::log("CMD Queue Status Test"); }
 
+    void DiscoveryPacketHandler(ProbeEvent Event);
+
     void ScanInstances();
 
     void ConnectInstance(DeviceMap DeviceID);
+
+    void InitiateLinkingSequence(DeviceMap DeviceID);
 
     void SwapInstanceLayout(int DeviceID1, int DeviceID2);
 
