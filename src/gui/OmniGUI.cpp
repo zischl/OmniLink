@@ -129,10 +129,10 @@ void OmniGUI::DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstanc
     ImGui::PopFont();
 
     // The IP , imma go with name later
-    ImVec2 TextSize = ImGui::CalcTextSize(DeviceData->IPv4_String);
+    ImVec2 TextSize = ImGui::CalcTextSize(DeviceData->InstanceName);
     float HalfWidth = TextSize.x * 0.5f;
     ImVec2 TextPos = ImVec2(Pos.x - HalfWidth, Pos.y + (IconRenderSize.y * 0.5) + 5.0f);
-    DrawList->AddText(TextPos, Col, DeviceData->IPv4_String);
+    DrawList->AddText(TextPos, Col, DeviceData->InstanceName);
 
     // Drag and Drop Handling
     if (ImGui::BeginDragDropSource()) {

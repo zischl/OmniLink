@@ -17,7 +17,6 @@
 constexpr uint32_t OmniLiss = 0x4F4D4E49;
 constexpr char OmniDiscoveryRequest[32] = "OmniLink Liss Where";
 constexpr char OmniDiscoveryResponse[32] = "OmniLink Liss Who";
-constexpr char OmniIdentifyRequest[32] = "OmniLink WHO ARE U";
 
 /* #pragma pack(push, 1)
 struct LinkingPayload
@@ -88,6 +87,8 @@ class OmniDiscovery
     std::unordered_map<uint32_t, std::string> instances;
     std::mutex mutex;
     std::atomic_bool state{true};
+
+    uint32_t InstanceIP = 0;
 
   public:
     OmniDiscovery(const std::string& InstanceName, uint32_t _LocalIP, uint16_t port);
@@ -225,12 +226,15 @@ class OmniDiscovery
                         OmniDiscoveryPacket ResponsePacket{
                             PayloadType::IdentifyResponse,
                         };
-                        std::memcpy(ResponsePacket.Payload,
-                                    OmniIdentifyRequest,
-                                    sizeof(OmniIdentifyRequest));
 
-                        ResponsePacket.PayloadLen = Device::MAX_CNLEN;
+                        ResponsePacket.PayloadLen = Device::MAX_UNLEN;
                         ResponsePacket.Liss = OmniLiss;
+
+                        std::strncpy(ResponsePacket.Payload,
+                                     instances[InstanceIP].c_str(),
+                                     sizeof(packet.Payload) - 1);
+
+                        packet.Payload[sizeof(packet.Payload) - 1] = '\0';
 
                         socket.send_to(asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
                                        ResponseEndpoint);

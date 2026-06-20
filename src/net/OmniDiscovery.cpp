@@ -54,6 +54,7 @@ OmniDiscovery::OmniDiscovery(const std::string& InstanceName, uint32_t _LocalIP,
     : io_context(), socket(io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), port))
 {
     instances[_LocalIP] = InstanceName;
+    InstanceIP = _LocalIP;
     discovery_port = port;
 
     socket.set_option(asio::socket_base::reuse_address(true));
