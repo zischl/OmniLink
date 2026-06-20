@@ -1,4 +1,6 @@
 #include "OmniDiscovery.h"
+#include "OmniLogger.h"
+#include "asio/io_context.hpp"
 #include <chrono>
 #include <mutex>
 
@@ -49,9 +51,12 @@
 // }
 
 OmniDiscovery::OmniDiscovery(const std::string& InstanceName, uint32_t _LocalIP, uint16_t port)
+    : io_context(), socket(io_context, asio::ip::udp::endpoint(asio::ip::udp::v4(), port))
 {
     instances[_LocalIP] = InstanceName;
     discovery_port = port;
+
+    socket.set_option(asio::socket_base::reuse_address(true));
 }
 
 void OmniDiscovery::PopulateInstances(int Runtime)
@@ -88,10 +93,13 @@ void OmniDiscovery::Scan(int runtime)
 
             while ((std::chrono::steady_clock::now() - Start) <= Runtime) {
 
-                OmniDiscoveryPacket DiscoveryPacket{
-                    OmniLiss, PayloadType::DiscoveryRequest, sizeof(OmniDiscoveryRequest)};
+                OmniDiscoveryPacket DiscoveryPacket{PayloadType::DiscoveryRequest,
+                                                    sizeof(OmniDiscoveryRequest)};
+
                 std::memcpy(
                     DiscoveryPacket.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest));
+
+                DiscoveryPacket.Liss = OmniLiss;
 
                 socket.send_to(asio::buffer(&DiscoveryPacket, sizeof(OmniDiscoveryPacket)),
                                broadcast_endpoint);
@@ -110,9 +118,6 @@ void OmniDiscovery::AwaitInstances()
 {
 
     std::thread responder([this]() {
-        asio::ip::udp::socket socket(io_context,
-                                     asio::ip::udp::endpoint(asio::ip::udp::v4(), discovery_port));
-
         asio::ip::udp::endpoint response_endpoint;
 
         while (state.load()) {
@@ -133,9 +138,6 @@ void OmniDiscovery::AwaitInstances(int runtime)
 
         std::chrono::time_point<std::chrono::steady_clock> Start = std::chrono::steady_clock::now();
 
-        asio::ip::udp::socket socket(io_context,
-                                     asio::ip::udp::endpoint(asio::ip::udp::v4(), discovery_port));
-
         asio::ip::udp::endpoint response_endpoint;
 
         while ((std::chrono::steady_clock::now() - Start) <= Runtime) {
@@ -145,4 +147,45 @@ void OmniDiscovery::AwaitInstances(int runtime)
     });
 
     responder.detach();
+}
+
+void OmniDiscovery::SendCustomPayload(const std::string& TargetIPv4,
+                                      uint16_t TargetPort,
+                                      const OmniPayloadBase& Payload)
+{
+    std::error_code ErrorCode;
+
+    auto Address = asio::ip::make_address(TargetIPv4, ErrorCode);
+    if (ErrorCode) {
+        Logger::log("Invalid Target IP address: " + ErrorCode.message());
+        return;
+    }
+
+    asio::ip::udp::endpoint TargetEndpoint(Address, TargetPort);
+    OmniDiscoveryPacket Packet = OmniDiscoveryPacket::From(Payload);
+
+    socket.send_to(
+        asio::buffer(&Packet, sizeof(OmniDiscoveryPacket)), TargetEndpoint, 0, ErrorCode);
+
+    if (ErrorCode) {
+        Logger::log("Connection Request Died MidWay: " + ErrorCode.message());
+    }
+}
+
+void OmniDiscovery::SendCustomPayload(uint32_t TargetIPv4,
+                                      uint16_t TargetPort,
+                                      const OmniPayloadBase& Payload)
+{
+    std::error_code ErrorCode;
+
+    asio::ip::udp::endpoint TargetEndpoint(asio::ip::address_v4(TargetIPv4), TargetPort);
+
+    OmniDiscoveryPacket Packet = OmniDiscoveryPacket::From(Payload);
+
+    socket.send_to(
+        asio::buffer(&Packet, sizeof(OmniDiscoveryPacket)), TargetEndpoint, 0, ErrorCode);
+
+    if (ErrorCode) {
+        Logger::log("Connection Request Died MidWay: " + ErrorCode.message());
+    }
 }
