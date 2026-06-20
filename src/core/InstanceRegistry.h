@@ -56,6 +56,8 @@ struct OmniInstanceRegistry
         // IP and then the port to use.
         InstanceProbe =
             new OmniDiscovery(ActiveInstances[DeviceMap::C0].InstanceName, LocalIP, 62485);
+
+        InstanceProbe->Scan(15);
     }
 
     std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept

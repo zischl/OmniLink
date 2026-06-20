@@ -117,6 +117,8 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
     GUI = new OmniGUI(*this);
     GUI->SetupImGui(hwnd, RenderState.Device, RenderState.Context);
 
+    Logger::log("GUI Initialization Complete");
+
     // Setting up UI Updates on event, Note this ain't the callback given to OmniDiscovery
     // This is da callback for the InstanceRegistery Await, which then combines with RefreshList
     // Before sending it inside OmniDiscovery. so.. technically.. ig it is given to OmniDiscovery
@@ -124,6 +126,8 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
         UIState = OmniGUIState::RENDER;
         DiscoveryPacketHandler(Event);
     });
+
+    Logger::log("Instance Discovery Initialization Complete");
 
     /// Input Capture Test Cases ///
 
