@@ -177,10 +177,12 @@ class OmniGUI
     ImFont* OmniIconsMedium = nullptr;
     ImFont* OmniIconsSmall = nullptr;
 
-    void DeviceIconPreview(const ImVec2& pos,
-                           const ImU32& col,
-                           const ImVec2& text_size = ImVec2{0, 0},
-                           const char* text = "");
+    void DeviceIconPreview(
+        const ImVec2& pos,
+        const ImU32& col,
+        const ImVec2& text_size = ImVec2{0, 0},
+        const char* text = ""
+    );
 
     void DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstance* DeviceData);
 
@@ -188,11 +190,13 @@ class OmniGUI
     void DeviceAddButton(const ImVec2& CenterPos, ImU32 Color);
     bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
     int ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
-    void MetricDashboard(const char* ContainerId,
-                         const MetricItem* Items,
-                         int ItemCount,
-                         float TotalWidth,
-                         float Height);
+    void MetricDashboard(
+        const char* ContainerId,
+        const MetricItem* Items,
+        int ItemCount,
+        float TotalWidth,
+        float Height
+    );
 
     // Notification Event Handlers
     static bool HandleEvent(ConnectionRequest& request, float timeout);
@@ -210,15 +214,16 @@ class OmniGUI
             notification.Active = false;
         }
 
+        ImVec2 position;
+
         if (notification.Layout == Notification::EventLayout::CENTER) {
-            ImVec2 position = ImGui::GetMainViewport()->GetCenter();
+            position = ImGui::GetMainViewport()->GetCenter();
             ImGui::SetNextWindowPos(position, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
             ImGui::SetNextWindowSize(ImVec2(360.0f, 364.0f));
         } else {
             const ImGuiViewport* viewport = ImGui::GetMainViewport();
             ImVec2 size = ImVec2(320.0f, 72.0f);
             float padding = 10.0f;
-            ImVec2 position;
             position.x = viewport->WorkPos.x + viewport->WorkSize.x - size.x - padding;
             position.y = viewport->WorkPos.y + viewport->WorkSize.y - size.y - padding;
 
@@ -237,9 +242,10 @@ class OmniGUI
                 end = true;
             }
 
-            clicked =
-                std::visit([&](auto& args) { return HandleEvent(args, notification.Timeout); },
-                           notification.Event);
+            clicked = std::visit(
+                [&](auto& args) { return HandleEvent(args, notification.Timeout); },
+                notification.Event
+            );
             if (clicked)
                 end = true;
 
@@ -294,8 +300,10 @@ class OmniGUI
 
                 ImGui::PushFont(InterReg14);
 
-                ImGui::Image(reinterpret_cast<ImTextureID>(IconTexture.GetTextureID()),
-                             ImVec2(110.0f, 110.0f));
+                ImGui::Image(
+                    reinterpret_cast<ImTextureID>(IconTexture.GetTextureID()),
+                    ImVec2(110.0f, 110.0f)
+                );
 
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
 
@@ -344,7 +352,8 @@ class OmniGUI
                     ImVec2(MaxContentPosX, ContentSpaceStart.y + TitleBarHeight),
                     IM_COL32(8, 9, 14, 255),
                     16.0f,
-                    ImDrawFlags_RoundCornersTopRight);
+                    ImDrawFlags_RoundCornersTopRight
+                );
 
                 ImGui::PushFont(InterReg15);
                 ImGui::SetCursorPosY(ContentSpaceStart.y + VerticalSpacing);
@@ -414,7 +423,8 @@ class OmniGUI
 
                 ImVec2 PanelP1 = ImGui::GetCursorScreenPos();
                 DrawList->AddRectFilled(
-                    PanelP1, ImVec2(MaxContentPosX, PanelP1.y + FeaturePanelHeight), BG_CHILD_1);
+                    PanelP1, ImVec2(MaxContentPosX, PanelP1.y + FeaturePanelHeight), BG_CHILD_1
+                );
 
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
                 ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
@@ -442,42 +452,49 @@ class OmniGUI
                 const uint32_t FeatureSates = (*ActiveInstances)[SelectedDevice].ActiveFlags;
                 ImGui::PushFont(InterMed16);
 
-                if (IconizedButton("Screen Link",
-                                   IC_SCREEN_SHARE,
-                                   (FeatureSates & FeatureFlags::fScreenLink) != 0,
-                                   size)) {
+                if (IconizedButton(
+                        "Screen Link",
+                        IC_SCREEN_SHARE,
+                        (FeatureSates & FeatureFlags::fScreenLink) != 0,
+                        size
+                    )) {
                     OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, DeviceMap::C0);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 
-                if (IconizedButton("Window Link",
-                                   IC_APP_WINDOW,
-                                   (FeatureSates & FeatureFlags::fWindowLink) != 0,
-                                   size)) {
+                if (IconizedButton(
+                        "Window Link",
+                        IC_APP_WINDOW,
+                        (FeatureSates & FeatureFlags::fWindowLink) != 0,
+                        size
+                    )) {
                     OmniAPI::ToggleFeature(FeatureTypes::WindowLink, DeviceMap::C0);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 
-                if (IconizedButton("Input Link",
-                                   IC_MOUSE,
-                                   (FeatureSates & FeatureFlags::fInputLink) != 1,
-                                   size)) {
+                if (IconizedButton(
+                        "Input Link", IC_MOUSE, (FeatureSates & FeatureFlags::fInputLink) != 1, size
+                    )) {
                     OmniAPI::ToggleFeature(FeatureTypes::InputLink, DeviceMap::C0);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 
-                if (IconizedButton("Audio Link",
-                                   IC_VOLUME_2,
-                                   (FeatureSates & FeatureFlags::fAudioLink) != 0,
-                                   size)) {
+                if (IconizedButton(
+                        "Audio Link",
+                        IC_VOLUME_2,
+                        (FeatureSates & FeatureFlags::fAudioLink) != 0,
+                        size
+                    )) {
                     OmniAPI::ToggleFeature(FeatureTypes::AudioLink, DeviceMap::C0);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 
-                if (IconizedButton("Clipboard Link",
-                                   IC_CLIPBOARD,
-                                   (FeatureSates & FeatureFlags::fClipBoardLink) != 0,
-                                   size)) {
+                if (IconizedButton(
+                        "Clipboard Link",
+                        IC_CLIPBOARD,
+                        (FeatureSates & FeatureFlags::fClipBoardLink) != 0,
+                        size
+                    )) {
                     // SetEvent(EventHandler[0]);
                 }
 
@@ -496,7 +513,8 @@ class OmniGUI
                 // Da Connection Ring
                 const ImVec2 AvailableSpace = ImGui::GetContentRegionAvail();
                 int DeviceCount = ConnectionRing(
-                    "DiscoveryRing", ImVec2(AvailableSpace.x, AvailableSpace.y - 60), 205);
+                    "DiscoveryRing", ImVec2(AvailableSpace.x, AvailableSpace.y - 60), 205
+                );
 
                 /* if (ImGui::Button("Scan")) {
                     static bool scanning = false;
@@ -510,16 +528,19 @@ class OmniGUI
                 std::to_chars(availableBuf, availableBuf + sizeof(availableBuf), DeviceCount);
 
                 auto [ptr, ec] = std::to_chars(
-                    activeBuf, activeBuf + sizeof(activeBuf), ActiveInstances->size() - 1);
+                    activeBuf, activeBuf + sizeof(activeBuf), ActiveInstances->size() - 1
+                );
 
                 *ptr = '/';
                 *(ptr + 1) = '8';
                 *(ptr + 2) = '\0';
 
-                static MetricItem staticMetrics[] = {{"Available", availableBuf},
-                                                     {"Active", activeBuf},
-                                                     {"Latency", "7.6ms"},
-                                                     {"Bandwith", "1.2 MB/s"}};
+                static MetricItem staticMetrics[] = {
+                    {"Available", availableBuf},
+                    {"Active", activeBuf},
+                    {"Latency", "7.6ms"},
+                    {"Bandwith", "1.2 MB/s"}
+                };
 
                 MetricDashboard("NetContainer", staticMetrics, 4, AvailableSpace.x, 55.0f);
 

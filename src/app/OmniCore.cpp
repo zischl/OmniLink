@@ -40,7 +40,12 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
         }
     }
     case PayloadType::IdentifyResponse: {
-        const Notification UIEvent{Alert{"Instance Found", "bleh"}};
+        const Notification UIEvent{
+            Alert{"Instance Found", "bleh"},
+            "DeviceFoundNotif",
+            Notification::EventLayout::BOTTOM_RIGHT
+        };
+
         PushNotification(UIEvent);
         break;
     }

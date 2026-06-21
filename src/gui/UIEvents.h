@@ -19,9 +19,9 @@ struct Notification
 {
     EventData Event;
     const char* EventName;
-    bool Active = false;
-    float Timeout = 15.0f;
     enum EventLayout { CENTER, BOTTOM_RIGHT } Layout = EventLayout::CENTER;
+    float Timeout = 15.0f;
+    bool Active = false;
 };
 
 #endif // !UI_EVENTS_H
