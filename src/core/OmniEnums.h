@@ -19,12 +19,12 @@ enum FeatureFlags {
 
 enum FeatureTypes : uint8_t { ScreenLink, WindowLink, InputLink, AudioLink, ClipboardLink };
 
-enum NetLinkState : uint8_t { INACTIVE, LINKING, LINKED, FAILED };
+enum NetLinkState : uint8_t { INACTIVE, FAILED, WAITING, LINKING, LINKED };
 
 enum DeviceMap : uint8_t { C0, L1, U1, R1, D1, LU1, RU1, RD1, LD1, END };
 
 enum CoreCommands { OmniStatus, ScanInstances };
 
-enum CoreCommandsWArgs : uint8_t { SwapLayout, ConnectDevice, CreateStreamLink };
+enum CoreCommandsWArgs : uint8_t { SwapLayout, ConnectDevice, CreateStreamLink, InitiateHandshake };
 
 #endif // OMNIENUMS_H

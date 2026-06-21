@@ -11,7 +11,8 @@
 
 Device::MonitorRes Device::GetMonitorResolution()
 {
-    return MonitorRes{GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)};
+    return MonitorRes{static_cast<uint32_t>(GetSystemMetrics(SM_CXSCREEN)),
+                      static_cast<uint32_t>(GetSystemMetrics(SM_CYSCREEN))};
 }
 
 void Device::RetrieveUserName(char (&CharArray)[MAX_UNLEN])

@@ -2,6 +2,7 @@
 #define OMNIDISCOVERY_H
 
 #pragma once
+#include "OmniEnums.h"
 #include "system_probe_impl.h"
 
 #include <asio.hpp>
@@ -41,18 +42,10 @@ enum class PayloadType : uint8_t {
     LinkResponse = 0x06,
 };
 
-enum ProbeEventFlags : uint8_t {
-    None,
-    Succeeded,
-    Failed,
-    Pending,
-    Timeout,
-};
-
 struct ProbeEvent
 {
     PayloadType Mode;
-    ProbeEventFlags Flags;
+    NetLinkState LinkState;
     uint32_t InstanceIP;
 };
 
@@ -176,7 +169,7 @@ class OmniDiscovery
 
                             if (event) {
                                 Callback(ProbeEvent{
-                                    PayloadType::DiscoveryRequest, ProbeEventFlags::None, Addr});
+                                    PayloadType::DiscoveryRequest, NetLinkState::INACTIVE, Addr});
                             }
                         }
 
@@ -215,7 +208,7 @@ class OmniDiscovery
 
                             if (event) {
                                 Callback(ProbeEvent{
-                                    PayloadType::DiscoveryResponse, ProbeEventFlags::None, Addr});
+                                    PayloadType::DiscoveryResponse, NetLinkState::INACTIVE, Addr});
                             }
                         }
 
@@ -251,8 +244,8 @@ class OmniDiscovery
                             if (!(instances.find(Addr) == instances.end())) {
                                 instances[Addr] = packet.Payload;
 
-                                std::cout << "Instance" << instances[Addr]
-                                          << "Identified At: " << ResponseEndpoint.address()
+                                std::cout << "Instance " << instances[Addr]
+                                          << " Identified At: " << ResponseEndpoint.address()
                                           << " : " << ResponseEndpoint.port() << " "
                                           << socket.local_endpoint().port() << "\n";
                                 event = true;
@@ -261,7 +254,7 @@ class OmniDiscovery
 
                         if (event) {
                             Callback(ProbeEvent{
-                                PayloadType::IdentifyResponse, ProbeEventFlags::None, Addr});
+                                PayloadType::IdentifyResponse, NetLinkState::INACTIVE, Addr});
                         }
 
                         break;
@@ -269,15 +262,14 @@ class OmniDiscovery
 
                     case PayloadType::LinkRequest: {
                         uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
-                        Callback(ProbeEvent{PayloadType::LinkRequest, ProbeEventFlags::None, Addr});
+                        Callback(ProbeEvent{PayloadType::LinkRequest, NetLinkState::LINKING, Addr});
                         break;
                     }
                     case PayloadType::LinkResponse: {
                         uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+                        NetLinkState LinkState = static_cast<NetLinkState>(packet.Payload[0]);
 
-                        ProbeEventFlags Flags = static_cast<ProbeEventFlags>(packet.Payload[0]);
-
-                        Callback(ProbeEvent{PayloadType::LinkRequest, Flags, Addr});
+                        Callback(ProbeEvent{PayloadType::LinkRequest, LinkState, Addr});
                     }
                     default:
                         break;

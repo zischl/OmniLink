@@ -11,8 +11,8 @@ constexpr size_t MAX_CNLEN = 64;
 
 struct MonitorRes
 {
-    int Width = 0;
-    int Height = 0;
+    uint32_t Width = 0;
+    uint32_t Height = 0;
 };
 
 MonitorRes GetMonitorResolution();

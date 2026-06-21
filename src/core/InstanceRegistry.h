@@ -143,7 +143,6 @@ struct OmniInstanceRegistry
             }
 
             AddInstance(IP);
-            Logger::log("Some shit", IP);
         }
 
         using DecayedType = std::decay_t<DiscoveryCallback>;
@@ -197,16 +196,27 @@ struct OmniInstanceRegistry
         InstanceProbe->SendCustomPayload(AllInstances[DeviceID].InstanceIP, OmniPort, Payload);
     }
 
-    inline void TransmitConnectionState(DeviceMap DeviceID, NetLinkState LinkState)
+    inline void TransmitConnectionState(DeviceMap DeviceID)
     {
-        OmniPayloadBase Payload{
-            PayloadType::LinkResponse, sizeof(NetLinkState), static_cast<char>(LinkState)};
+        OmniPayloadBase Payload{PayloadType::LinkResponse,
+                                sizeof(NetLinkState),
+                                static_cast<char>(AllInstances[DeviceID].LinkState)};
         InstanceProbe->SendCustomPayload(AllInstances[DeviceID].InstanceIP, OmniPort, Payload);
     }
 
     inline void SetConnectionState(DeviceMap DeviceID, NetLinkState LinkState)
     {
         AllInstances[DeviceID].LinkState = LinkState;
+    }
+
+    inline NetLinkState GetConnectionState(DeviceMap DeviceID)
+    {
+        return AllInstances[DeviceID].LinkState;
+    }
+
+    inline bool GetSessionState(DeviceMap DeviceID)
+    {
+        return ActiveInstances[DeviceID].InstanceSession != nullptr;
     }
 };
 

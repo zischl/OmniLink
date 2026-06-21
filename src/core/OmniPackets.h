@@ -129,12 +129,55 @@ struct WindowCreationData
     }
 };
 
-struct TestArg
+struct HandshakeData
 {
-    int x = 0;
+    struct MonitorRes
+    {
+        uint32_t Width = 1920;
+        uint32_t Height = 1080;
+    };
+
+    uint32_t IP = 0;
+    DeviceMap DeviceID = DeviceMap::END;
+    uint8_t Key[32]{};
+    MonitorRes Resolution;
+
+    static HandshakeData Deserialize(ByteStreamReader& reader)
+    {
+        HandshakeData obj;
+
+        reader.ReadU32Ex(obj.IP);
+
+        uint8_t DevId;
+        reader.ReadU8Ex(DevId);
+        obj.DeviceID = DeviceMap(DevId);
+
+        reader.ReadBytes(obj.Key, 32);
+
+        reader.ReadU32Ex(obj.Resolution.Width);
+        reader.ReadU32Ex(obj.Resolution.Height);
+
+        return obj;
+    }
+
+    static std::vector<uint8_t> Serialize(const HandshakeData& obj)
+    {
+        ByteVecStreamEx NetWriter{45};
+
+        NetWriter.WriteU32Ex(obj.IP);
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.DeviceID));
+
+        NetWriter.WriteBytes(obj.Key, 32);
+
+        NetWriter.WriteU32Ex(obj.Resolution.Width);
+        NetWriter.WriteU32Ex(obj.Resolution.Height);
+
+        return NetWriter.Data;
+    }
 };
 
-using FuncArgTypes = std::variant<ArraySwapLayout, ConnectionRequest, WindowCreationData>;
+using FuncArgTypes =
+    std::variant<ArraySwapLayout, ConnectionRequest, WindowCreationData, HandshakeData>;
 
 using DataTypes = std::variant<int>;
 
