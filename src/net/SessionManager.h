@@ -14,19 +14,21 @@ struct OmniSessionManager
     uint8_t SessionCount = 0;
 
     template <typename PacketHandler, typename PacketContext>
-    std::unique_ptr<session> Connect(const OmniActiveInstance& UserInstance,
-                                     const OmniActiveInstance& TargetInstance,
-                                     PacketHandler&& Handler,
-                                     PacketContext* Context)
+    std::unique_ptr<session> Connect(
+        const OmniActiveInstance& UserInstance,
+        const OmniActiveInstance& TargetInstance,
+        PacketHandler&& Handler,
+        PacketContext* Context
+    )
     {
-        std::unique_ptr<session> NetSession = std::make_unique<session>(UserInstance.IPv4_String,
-                                                                        TargetInstance.IPv4_String,
-                                                                        TargetInstance.port,
-                                                                        OmniMTU,
-                                                                        Context,
-                                                                        TargetInstance.DevMapIndex);
-        Logger::log(
-            "Connecting to : ", TargetInstance.InstanceName, "at ", TargetInstance.IPv4_String);
+        std::unique_ptr<session> NetSession = std::make_unique<session>(
+            UserInstance.IPv4_String,
+            TargetInstance.IPv4_String,
+            TargetInstance.port,
+            OmniMTU,
+            Context,
+            TargetInstance.DevMapIndex
+        );
 
         NetSession->OnIOCompletion = Handler;
 

@@ -46,18 +46,18 @@ struct OmniInstanceRegistry
         uint32_t LocalIP;
         Device::RetrieveLocalIP(LocalIP, 0);
         if (LocalIP != 0) {
-            IP2Char(LocalIP, ActiveInstances[DeviceMap::C0].IPv4_String);
+            IP2Char(LocalIP, AllInstances[DeviceMap::C0].IPv4_String);
         }
 
         // Getting user data and initializing user instance
-        Device::RetrieveUserName(ActiveInstances[DeviceMap::C0].InstanceName);
+        Device::RetrieveUserName(AllInstances[DeviceMap::C0].InstanceName);
 
         // Creating an instance scanner object. Passing in local device name plus the
         // IP and then the port to use.
-        InstanceProbe =
-            new OmniDiscovery(ActiveInstances[DeviceMap::C0].InstanceName, LocalIP, 62485);
-
+        InstanceProbe = new OmniDiscovery(AllInstances[DeviceMap::C0].InstanceName, LocalIP, 62485);
         InstanceProbe->Scan(15);
+
+        ActivateInstance(DeviceMap::C0, nullptr);
     }
 
     std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept
@@ -81,12 +81,14 @@ struct OmniInstanceRegistry
         }
 
         AllInstances[OpenSlot].InstanceIP = IP;
-        std::sprintf(AllInstances[OpenSlot].IPv4_String,
-                     "%u.%u.%u.%u",
-                     (IP >> 24) & 0xFF,
-                     (IP >> 16) & 0xFF,
-                     (IP >> 8) & 0xFF,
-                     IP & 0xFF);
+        std::sprintf(
+            AllInstances[OpenSlot].IPv4_String,
+            "%u.%u.%u.%u",
+            (IP >> 24) & 0xFF,
+            (IP >> 16) & 0xFF,
+            (IP >> 8) & 0xFF,
+            IP & 0xFF
+        );
         AllInstances[OpenSlot].DevMapIndex = OpenSlot;
 
         InstanceLookup[IP] = OpenSlot;
@@ -132,7 +134,8 @@ struct OmniInstanceRegistry
                 OmniInstance& Instance = AllInstances[InstanceLookup[IP]];
                 if (Instance.InstanceName[0] == '\0') {
                     snprintf(
-                        Instance.InstanceName, sizeof(Instance.InstanceName), "%s", Name.c_str());
+                        Instance.InstanceName, sizeof(Instance.InstanceName), "%s", Name.c_str()
+                    );
                 }
                 continue;
             }
@@ -158,7 +161,8 @@ struct OmniInstanceRegistry
             [this, Callback = std::forward<DiscoveryCallback>(Callback)](ProbeEvent Event) {
                 RefreshInstanceList();
                 Callback(Event);
-            });
+            }
+        );
     }
 
     void SwapInstances(DeviceMap DeviceID1, DeviceMap DeviceID2)
@@ -167,12 +171,16 @@ struct OmniInstanceRegistry
             AllInstances[DeviceMap(DeviceID2)].InstanceIP =
                 AllInstances[DeviceMap(DeviceID1)].InstanceIP;
             AllInstances[DeviceMap(DeviceID2)].DevMapIndex = static_cast<uint8_t>(DeviceID1);
-            strncpy(AllInstances[DeviceMap(DeviceID2)].InstanceName,
-                    AllInstances[DeviceMap(DeviceID1)].InstanceName,
-                    OmniDevNameLen);
-            strncpy(AllInstances[DeviceMap(DeviceID2)].IPv4_String,
-                    AllInstances[DeviceMap(DeviceID1)].IPv4_String,
-                    16);
+            strncpy(
+                AllInstances[DeviceMap(DeviceID2)].InstanceName,
+                AllInstances[DeviceMap(DeviceID1)].InstanceName,
+                OmniDevNameLen
+            );
+            strncpy(
+                AllInstances[DeviceMap(DeviceID2)].IPv4_String,
+                AllInstances[DeviceMap(DeviceID1)].IPv4_String,
+                16
+            );
 
             AllInstances[DeviceMap(DeviceID1)].Clear();
 
@@ -180,13 +188,16 @@ struct OmniInstanceRegistry
 
         else {
             OmniInstance temp = AllInstances[static_cast<DeviceMap>(DeviceID1)];
-            AllInstances[DeviceMap(DeviceID1)].Edit(AllInstances[DeviceMap(DeviceID2)].InstanceName,
-                                                    AllInstances[DeviceMap(DeviceID2)].IPv4_String,
-                                                    AllInstances[DeviceMap(DeviceID2)].InstanceIP,
-                                                    DeviceMap(DeviceID2));
+            AllInstances[DeviceMap(DeviceID1)].Edit(
+                AllInstances[DeviceMap(DeviceID2)].InstanceName,
+                AllInstances[DeviceMap(DeviceID2)].IPv4_String,
+                AllInstances[DeviceMap(DeviceID2)].InstanceIP,
+                DeviceMap(DeviceID2)
+            );
 
             AllInstances[DeviceMap(DeviceID2)].Edit(
-                temp.InstanceName, temp.IPv4_String, temp.InstanceIP, DeviceMap(temp.DevMapIndex));
+                temp.InstanceName, temp.IPv4_String, temp.InstanceIP, DeviceMap(temp.DevMapIndex)
+            );
         }
     }
 
@@ -198,9 +209,11 @@ struct OmniInstanceRegistry
 
     inline void TransmitConnectionState(DeviceMap DeviceID)
     {
-        OmniPayloadBase Payload{PayloadType::LinkResponse,
-                                sizeof(NetLinkState),
-                                static_cast<char>(AllInstances[DeviceID].LinkState)};
+        OmniPayloadBase Payload{
+            PayloadType::LinkResponse,
+            sizeof(NetLinkState),
+            static_cast<char>(AllInstances[DeviceID].LinkState)
+        };
         InstanceProbe->SendCustomPayload(AllInstances[DeviceID].InstanceIP, OmniPort, Payload);
     }
 
