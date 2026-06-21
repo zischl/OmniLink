@@ -13,14 +13,15 @@ struct Alert
     std::string Desc;
 };
 
-using EventTypes = std::variant<ConnectionRequest, Alert>;
+using EventData = std::variant<ConnectionRequest, Alert>;
 
 struct Notification
 {
-    EventTypes Event;
+    EventData Event;
     const char* EventName;
     bool Active = false;
     float Timeout = 15.0f;
+    enum EventLayout { CENTER, BOTTOM_RIGHT } Layout = EventLayout::CENTER;
 };
 
 #endif // !UI_EVENTS_H

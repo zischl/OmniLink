@@ -210,9 +210,21 @@ class OmniGUI
             notification.Active = false;
         }
 
-        ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-        ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(360.0f, 364.0f));
+        if (notification.Layout == Notification::EventLayout::CENTER) {
+            ImVec2 position = ImGui::GetMainViewport()->GetCenter();
+            ImGui::SetNextWindowPos(position, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+            ImGui::SetNextWindowSize(ImVec2(360.0f, 364.0f));
+        } else {
+            const ImGuiViewport* viewport = ImGui::GetMainViewport();
+            ImVec2 size = ImVec2(320.0f, 72.0f);
+            float padding = 10.0f;
+            ImVec2 position;
+            position.x = viewport->WorkPos.x + viewport->WorkSize.x - size.x - padding;
+            position.y = viewport->WorkPos.y + viewport->WorkSize.y - size.y - padding;
+
+            ImGui::SetNextWindowPos(position, ImGuiCond_Always);
+            ImGui::SetNextWindowSize(size);
+        }
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
 
