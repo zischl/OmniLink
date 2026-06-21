@@ -34,7 +34,10 @@ struct OmniSystemLink
 
     OmniSystemLink(OmniRenderState& RenderState, std::vector<StreamWindow*>& ActiveWindows);
 
-    void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
+    void SetupSystemLink(HINSTANCE hInstance,
+                         int nCmdShow,
+                         HWND WindowID,
+                         NetworkPacketHandlerFn PacketHandlerFn);
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
 

@@ -9,11 +9,16 @@ OmniSystemLink::OmniSystemLink(OmniRenderState& RenderState,
 {
 }
 
-void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND WindowID_)
+void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_,
+                                     int nCmdShow_,
+                                     HWND WindowID_,
+                                     NetworkPacketHandlerFn PacketHandlerFn)
 {
     hInstance = hInstance_;
     nCmdShow = nCmdShow_;
     WindowID = WindowID_;
+
+    networkPacketHandler = PacketHandlerFn;
 }
 
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& WindowData)

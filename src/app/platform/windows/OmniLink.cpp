@@ -129,6 +129,8 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 
     Logger::log("Instance Discovery Initialization Complete");
 
+    SystemLink.SetupSystemLink(hInstance, nCmdShow, hwnd, NetworkPacketHandler);
+
     /// Input Capture Test Cases ///
 
     // OmniCap.WindowMoveListener(true);

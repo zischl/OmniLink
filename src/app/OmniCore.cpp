@@ -3,6 +3,8 @@
 #include "OmniEnums.h"
 #include "OmniPackets.h"
 #include "OmniTypes.h"
+#include "UIEvents.h"
+#include "system_probe_impl.h"
 #include <vector>
 
 DeviceMap OmniCore::ActiveIOProcTarget = DeviceMap::C0;
@@ -16,6 +18,8 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
     case PayloadType::LinkRequest: {
         DeviceMap DeviceID = InstanceRegistry.InstanceLookup[Event.InstanceIP];
 
+        InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::WAITING);
+
         FuncArgTypes Args = ConnectionRequest{DeviceID};
         PushCommandWArgs(Args);
     }
@@ -23,11 +27,30 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
     case PayloadType::LinkResponse: {
         DeviceMap DeviceID = InstanceRegistry.InstanceLookup[Event.InstanceIP];
 
-        InstanceRegistry.SetConnectionState(DeviceID,
-                                            Event.Flags == ProbeEventFlags::Succeeded
-                                                ? NetLinkState::LINKED
-                                                : NetLinkState::FAILED);
+        if (Event.LinkState == NetLinkState::LINKING &&
+            InstanceRegistry.GetSessionState(DeviceID)) {
+
+            InstanceRegistry.SetConnectionState(DeviceID, Event.LinkState);
+            Logger::log("Linking Instance @", Event.InstanceIP);
+
+            std::vector<uint8_t> RequestData =
+                ConnectionRequest::Serialize(ConnectionRequest{DeviceID});
+
+            RequestHandshake(DeviceID);
+        }
     }
+    case PayloadType::IdentifyResponse: {
+        const Notification UIEvent{Alert{"Instance Found", "bleh"}};
+        PushNotification(UIEvent);
+        break;
+    }
+
+    case PayloadType::DiscoveryRequest:
+    case PayloadType::DiscoveryResponse:
+    case PayloadType::IdentifyRequest:
+        break;
+    default:
+        break;
     }
 }
 
@@ -35,31 +58,82 @@ void OmniCore::ScanInstances()
 {
     InstanceRegistry.RefreshInstanceList([this]() -> void { UIState = OmniGUIState::RENDER; });
 }
+void OmniCore::RequestHandshake(DeviceMap DeviceID)
+{
+    const HandshakeData Data{
+        InstanceRegistry.UserInstance.InstanceIP,
+        DeviceID,
+        {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
+         0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+         0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20},
+        HandshakeData::MonitorRes{1920, 1080}
+    };
+
+    OmniNetCommand Command{
+        CoreCommandsWArgs::InitiateHandshake,
+        Variance::GetVariantTypeIndex<HandshakeData, FuncArgTypes>,
+        HandshakeData::Serialize(Data)
+    };
+
+    TransmitNetCommand(DeviceID, Command);
+}
+void OmniCore::HandshakeHandler(HandshakeData Data)
+{
+    DeviceMap DeviceID = InstanceRegistry.InstanceLookup[Data.IP];
+
+    // Gotta handle ECDH and monitor res later
+
+    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED);
+}
 
 void OmniCore::ConnectInstance(DeviceMap DeviceID)
 {
-    if (!SystemLink.networkPacketHandler) {
-        return;
+    switch (InstanceRegistry.GetConnectionState(DeviceID))
+
+    {
+    case NetLinkState::FAILED:
+    case NetLinkState::INACTIVE: {
+        if (!SystemLink.networkPacketHandler) {
+            return;
+        }
+
+        InstanceRegistry.TransmitConnectionRequest(DeviceID);
+
+        std::unique_ptr<session> NetSession = SessionManager.Connect(
+            InstanceRegistry.UserInstance,
+            InstanceRegistry.ActiveInstances[DeviceID],
+            SystemLink.networkPacketHandler,
+            &ActiveWindows
+        );
+
+        if (NetSession) {
+            InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
+            InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING);
+
+            InstanceRegistry.TransmitConnectionState(DeviceID);
+        }
+
+        break;
     }
 
-    std::unique_ptr<session> NetSession =
-        SessionManager.Connect(InstanceRegistry.UserInstance,
-                               InstanceRegistry.ActiveInstances[DeviceID],
-                               SystemLink.networkPacketHandler,
-                               &ActiveWindows);
+    case NetLinkState::WAITING: {
+        std::unique_ptr<session> NetSession = SessionManager.Connect(
+            InstanceRegistry.UserInstance,
+            InstanceRegistry.ActiveInstances[DeviceID],
+            SystemLink.networkPacketHandler,
+            &ActiveWindows
+        );
 
-    InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
+        if (NetSession) {
+            InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
+            InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING);
 
-    InstanceRegistry.TransmitConnectionState(DeviceID, NetLinkState::LINKED);
-}
+            InstanceRegistry.TransmitConnectionState(DeviceID);
+        }
 
-void OmniCore::InitiateLinkingSequence(DeviceMap DeviceID)
-{
-    InstanceRegistry.TransmitConnectionRequest(DeviceID);
-
-    ConnectInstance(DeviceID);
-
-    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING);
+        break;
+    }
+    }
 }
 
 void OmniCore::SwapInstanceLayout(int DeviceID1, int DeviceID2)
@@ -89,9 +163,9 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
 
         TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
 
-        SystemLink.AddCaptureStream(InstanceRegistry.ActiveInstances[Index].InstanceSession.get(),
-                                    Index,
-                                    CaptureMode::DXGI);
+        SystemLink.AddCaptureStream(
+            InstanceRegistry.ActiveInstances[Index].InstanceSession.get(), Index, CaptureMode::DXGI
+        );
 
         break;
     }
@@ -109,7 +183,8 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
         TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
 
         SystemLink.AddCaptureStream(
-            InstanceRegistry.ActiveInstances[Index].InstanceSession.get(), Index, CaptureMode::WGC);
+            InstanceRegistry.ActiveInstances[Index].InstanceSession.get(), Index, CaptureMode::WGC
+        );
 
         break;
     }

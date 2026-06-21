@@ -70,9 +70,11 @@ class OmniCore
 
     void ScanInstances();
 
-    void ConnectInstance(DeviceMap DeviceID);
+    void RequestHandshake(DeviceMap DeviceID);
 
-    void InitiateLinkingSequence(DeviceMap DeviceID);
+    void HandshakeHandler(HandshakeData Data);
+
+    void ConnectInstance(DeviceMap DeviceID);
 
     void SwapInstanceLayout(int DeviceID1, int DeviceID2);
 
@@ -82,8 +84,9 @@ class OmniCore
     std::condition_variable CommandQCV;
     std::thread CommandQThread;
 
-    std::array<void (OmniCore::*)(), 10> CommandTable = {&OmniCore::OmniCmdStatus,
-                                                         &OmniCore::ScanInstances};
+    std::array<void (OmniCore::*)(), 10> CommandTable = {
+        &OmniCore::OmniCmdStatus, &OmniCore::ScanInstances
+    };
 
     BurstQ<CoreCommands, 16> CommandBurstQ = BurstQ<CoreCommands, 16>();
     BurstQ<FuncArgTypes, 16> CommandBurstQWArgs = BurstQ<FuncArgTypes, 16>();
@@ -165,6 +168,10 @@ class OmniCore
                 }
                 break;
             }
+            case 3: {
+                HandshakeData args = std::get<3>(CommandBurstQWArgs.Queue[Tail]);
+                HandshakeHandler(args);
+            }
             }
         }
     }
@@ -192,10 +199,9 @@ class OmniCore
         }
     }
 
-    inline void TransmitNetCommand(DeviceMap TargetDevice,
-                                   OmniNetCommand& Command,
-                                   uint8_t Target = 0,
-                                   uint8_t Flags = 0)
+    inline void TransmitNetCommand(
+        DeviceMap TargetDevice, OmniNetCommand& Command, uint8_t Target = 0, uint8_t Flags = 0
+    )
     {
         OmniNet::OmniHeader header;
         header.PacketType = OmniNet::PacketType::Command;
@@ -205,7 +211,8 @@ class OmniCore
         std::vector<uint8_t> payload = OmniNetCommand::Serialize(Command);
 
         InstanceRegistry.ActiveInstances[TargetDevice].InstanceSession->SessionSend(
-            reinterpret_cast<char*>(payload.data()), payload.size(), header);
+            reinterpret_cast<char*>(payload.data()), payload.size(), header
+        );
     }
 
     void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
