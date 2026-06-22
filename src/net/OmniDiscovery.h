@@ -99,9 +99,9 @@ class OmniDiscovery
     std::atomic_bool ScanState{false};
 
     // Sends a direct connection request payload to a specific discovered target IP.
-    void SendCustomPayload(const std::string& TargetIP,
-                           uint16_t TargetPort,
-                           const OmniPayloadBase& Packet);
+    void SendCustomPayload(
+        const std::string& TargetIP, uint16_t TargetPort, const OmniPayloadBase& Packet
+    );
 
     void
     SendCustomPayload(uint32_t TargetIPv4, uint16_t TargetPort, const OmniPayloadBase& Payload);
@@ -137,20 +137,24 @@ class OmniDiscovery
                 if (MsgLen >= sizeof(OmniDiscoveryPacket) && packet.Liss == 0x4F4D4E49) {
                     switch (packet.Type) {
                     case PayloadType::DiscoveryRequest: {
-                        if (std::memcmp(packet.Payload,
-                                        OmniDiscoveryRequest,
-                                        sizeof(OmniDiscoveryRequest)) == 0) {
+                        if (std::memcmp(
+                                packet.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest)
+                            ) == 0) {
                             ResponseEndpoint.port(discovery_port);
 
                             OmniDiscoveryPacket ResponsePacket;
                             ResponsePacket.Type = PayloadType::DiscoveryResponse;
-                            std::memcpy(ResponsePacket.Payload,
-                                        OmniDiscoveryResponse,
-                                        sizeof(OmniDiscoveryResponse));
+                            std::memcpy(
+                                ResponsePacket.Payload,
+                                OmniDiscoveryResponse,
+                                sizeof(OmniDiscoveryResponse)
+                            );
                             ResponsePacket.PayloadLen = sizeof(OmniDiscoveryResponse);
 
-                            socket.send_to(asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                           ResponseEndpoint);
+                            socket.send_to(
+                                asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                ResponseEndpoint
+                            );
 
                             uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
 
@@ -164,12 +168,33 @@ class OmniDiscovery
                                               << " : " << ResponseEndpoint.port() << " "
                                               << socket.local_endpoint().port() << "\n";
                                     event = true;
+
+                                    OmniDiscoveryPacket ResponsePacket{
+                                        PayloadType::IdentifyRequest,
+                                    };
+
+                                    ResponsePacket.PayloadLen = Device::MAX_CNLEN;
+                                    ResponsePacket.Liss = OmniLiss;
+
+                                    std::strncpy(
+                                        ResponsePacket.Payload,
+                                        instances[InstanceIP].c_str(),
+                                        sizeof(packet.Payload) - 1
+                                    );
+
+                                    socket.send_to(
+                                        asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                        ResponseEndpoint
+                                    );
                                 }
                             }
 
                             if (event) {
-                                Callback(ProbeEvent{
-                                    PayloadType::DiscoveryRequest, NetLinkState::INACTIVE, Addr});
+                                Callback(
+                                    ProbeEvent{
+                                        PayloadType::DiscoveryRequest, NetLinkState::INACTIVE, Addr
+                                    }
+                                );
                             }
                         }
 
@@ -177,9 +202,9 @@ class OmniDiscovery
                     }
 
                     case PayloadType::DiscoveryResponse: {
-                        if (std::memcmp(packet.Payload,
-                                        OmniDiscoveryResponse,
-                                        sizeof(OmniDiscoveryResponse)) == 0) {
+                        if (std::memcmp(
+                                packet.Payload, OmniDiscoveryResponse, sizeof(OmniDiscoveryResponse)
+                            ) == 0) {
                             uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
                             bool event = false;
 
@@ -194,21 +219,31 @@ class OmniDiscovery
                                     OmniDiscoveryPacket ResponsePacket{
                                         PayloadType::IdentifyRequest,
                                     };
-                                    Device::RetrieveUserName(ResponsePacket.Payload);
+
                                     ResponsePacket.PayloadLen = Device::MAX_CNLEN;
                                     ResponsePacket.Liss = OmniLiss;
 
+                                    std::strncpy(
+                                        ResponsePacket.Payload,
+                                        instances[InstanceIP].c_str(),
+                                        sizeof(packet.Payload) - 1
+                                    );
+
                                     socket.send_to(
                                         asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                        ResponseEndpoint);
+                                        ResponseEndpoint
+                                    );
 
                                     event = true;
                                 }
                             }
 
                             if (event) {
-                                Callback(ProbeEvent{
-                                    PayloadType::DiscoveryResponse, NetLinkState::INACTIVE, Addr});
+                                Callback(
+                                    ProbeEvent{
+                                        PayloadType::DiscoveryResponse, NetLinkState::INACTIVE, Addr
+                                    }
+                                );
                             }
                         }
 
@@ -223,14 +258,17 @@ class OmniDiscovery
                         ResponsePacket.PayloadLen = Device::MAX_UNLEN;
                         ResponsePacket.Liss = OmniLiss;
 
-                        std::strncpy(ResponsePacket.Payload,
-                                     instances[InstanceIP].c_str(),
-                                     sizeof(packet.Payload) - 1);
+                        std::strncpy(
+                            ResponsePacket.Payload,
+                            instances[InstanceIP].c_str(),
+                            sizeof(packet.Payload) - 1
+                        );
 
                         packet.Payload[sizeof(packet.Payload) - 1] = '\0';
 
-                        socket.send_to(asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                       ResponseEndpoint);
+                        socket.send_to(
+                            asio::buffer(&ResponsePacket, sizeof(ResponsePacket)), ResponseEndpoint
+                        );
 
                         break;
                     }
@@ -253,8 +291,11 @@ class OmniDiscovery
                         }
 
                         if (event) {
-                            Callback(ProbeEvent{
-                                PayloadType::IdentifyResponse, NetLinkState::INACTIVE, Addr});
+                            Callback(
+                                ProbeEvent{
+                                    PayloadType::IdentifyResponse, NetLinkState::INACTIVE, Addr
+                                }
+                            );
                         }
 
                         break;
@@ -294,8 +335,8 @@ class OmniDiscovery
     asio::ip::udp::socket socket;
 
     // Basic response handling using the OmniPacket structure.
-    inline void HandleResponse(asio::ip::udp::socket& socket,
-                               asio::ip::udp::endpoint& response_endpoint)
+    inline void
+    HandleResponse(asio::ip::udp::socket& socket, asio::ip::udp::endpoint& response_endpoint)
     {
         OmniDiscoveryPacket packet;
         asio::ip::udp::endpoint ResponseEndpoint;
@@ -308,18 +349,20 @@ class OmniDiscovery
             case PayloadType::DiscoveryRequest:
 
                 if (std::memcmp(
-                        packet.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest)) == 0) {
+                        packet.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest)
+                    ) == 0) {
                     ResponseEndpoint.port(discovery_port);
 
                     OmniDiscoveryPacket ResponsePacket;
                     ResponsePacket.Type = PayloadType::DiscoveryResponse;
-                    std::memcpy(ResponsePacket.Payload,
-                                OmniDiscoveryResponse,
-                                sizeof(OmniDiscoveryResponse));
+                    std::memcpy(
+                        ResponsePacket.Payload, OmniDiscoveryResponse, sizeof(OmniDiscoveryResponse)
+                    );
                     ResponsePacket.PayloadLen = sizeof(OmniDiscoveryResponse);
 
-                    socket.send_to(asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                   ResponseEndpoint);
+                    socket.send_to(
+                        asio::buffer(&ResponsePacket, sizeof(ResponsePacket)), ResponseEndpoint
+                    );
 
                     uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
                     std::lock_guard<std::mutex> lock(mutex);
@@ -335,9 +378,9 @@ class OmniDiscovery
 
             case PayloadType::DiscoveryResponse:
 
-                if (std::memcmp(packet.Payload,
-                                OmniDiscoveryResponse,
-                                sizeof(OmniDiscoveryResponse)) == 0) {
+                if (std::memcmp(
+                        packet.Payload, OmniDiscoveryResponse, sizeof(OmniDiscoveryResponse)
+                    ) == 0) {
                     uint32_t ip_addr = ResponseEndpoint.address().to_v4().to_uint();
                     std::lock_guard<std::mutex> lock(mutex);
                     if (instances.find(ip_addr) == instances.end()) {

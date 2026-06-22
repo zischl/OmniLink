@@ -1,6 +1,7 @@
 #include "OmniCore.h"
 #include "Helper.h"
 #include "OmniEnums.h"
+#include "OmniLogger.h"
 #include "OmniPackets.h"
 #include "OmniTypes.h"
 #include "UIEvents.h"
@@ -65,6 +66,10 @@ void OmniCore::ScanInstances()
 }
 void OmniCore::RequestHandshake(DeviceMap DeviceID)
 {
+    Logger::log(
+        "Initiating Handshake Request With Instance ",
+        InstanceRegistry.AllInstances[DeviceID].InstanceName
+    );
     const HandshakeData Data{
         InstanceRegistry.UserInstance.InstanceIP,
         DeviceID,
@@ -89,6 +94,12 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
     // Gotta handle ECDH and monitor res later
 
     InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED);
+
+    Logger::log(
+        "Handshake Request With Instance ",
+        InstanceRegistry.AllInstances[DeviceID].InstanceName,
+        " Complete"
+    );
 }
 
 void OmniCore::ConnectInstance(DeviceMap DeviceID)
