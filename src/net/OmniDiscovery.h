@@ -143,6 +143,10 @@ class OmniDiscovery
                             ) == 0) {
                             ResponseEndpoint.port(discovery_port);
 
+                            if (InstanceUUID == packet.UUID) {
+                                break;
+                            }
+
                             OmniDiscoveryPacket ResponsePacket;
                             ResponsePacket.PayloadLen = sizeof(OmniDiscoveryResponse);
                             ResponsePacket.Type = PayloadType::DiscoveryResponse;
@@ -213,6 +217,10 @@ class OmniDiscovery
                             ) == 0) {
                             uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
                             bool event = false;
+
+                            if (InstanceUUID == packet.UUID) {
+                                break;
+                            }
 
                             {
                                 std::lock_guard<std::mutex> lock(mutex);

@@ -54,7 +54,8 @@ struct OmniInstanceRegistry
 
         // Creating an instance scanner object. Passing in local device name plus the
         // IP and then the port to use.
-        InstanceProbe = new OmniDiscovery(AllInstances[DeviceMap::C0].InstanceName, LocalIP, 62485);
+        InstanceProbe =
+            new OmniDiscovery(AllInstances[DeviceMap::C0].InstanceName, LocalIP, OmniDiscoveryPort);
         InstanceProbe->Scan(15);
 
         ActivateInstance(DeviceMap::C0, nullptr);
@@ -204,7 +205,9 @@ struct OmniInstanceRegistry
     inline void TransmitConnectionRequest(DeviceMap DeviceID)
     {
         OmniPayloadBase Payload{PayloadType::LinkRequest, sizeof("lemme in"), "lemme in"};
-        InstanceProbe->SendCustomPayload(AllInstances[DeviceID].InstanceIP, OmniPort, Payload);
+        InstanceProbe->SendCustomPayload(
+            AllInstances[DeviceID].InstanceIP, OmniDiscoveryPort, Payload
+        );
     }
 
     inline void TransmitConnectionState(DeviceMap DeviceID)
@@ -214,7 +217,9 @@ struct OmniInstanceRegistry
             sizeof(NetLinkState),
             static_cast<char>(AllInstances[DeviceID].LinkState)
         };
-        InstanceProbe->SendCustomPayload(AllInstances[DeviceID].InstanceIP, OmniPort, Payload);
+        InstanceProbe->SendCustomPayload(
+            AllInstances[DeviceID].InstanceIP, OmniDiscoveryPort, Payload
+        );
     }
 
     inline void SetConnectionState(DeviceMap DeviceID, NetLinkState LinkState)

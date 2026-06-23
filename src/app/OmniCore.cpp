@@ -114,7 +114,7 @@ void OmniCore::RequestHandshake(DeviceMap DeviceID)
         HandshakeData::Serialize(Data)
     };
 
-    TransmitNetCommand(DeviceID, Command);
+    TransmitNetCommand(DeviceID, Command, 0, OmniNet::Argonized);
 }
 void OmniCore::HandshakeHandler(HandshakeData Data)
 {
