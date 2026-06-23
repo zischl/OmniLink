@@ -190,6 +190,8 @@ void OmniDiscovery::SendCustomPayload(
 
     OmniDiscoveryPacket Packet = OmniDiscoveryPacket::From(Payload);
 
+    Packet.Liss = OmniLiss;
+
     socket.send_to(
         asio::buffer(&Packet, sizeof(OmniDiscoveryPacket)), TargetEndpoint, 0, ErrorCode
     );

@@ -63,14 +63,12 @@ struct OmniDiscoveryPacket : public OmniPayloadBase
     uint32_t Liss = OmniLiss;
     uint8_t UUID[12] = {};
 
-    static const OmniDiscoveryPacket& From(const OmniPayloadBase& base)
+    static OmniDiscoveryPacket From(const OmniPayloadBase& base)
     {
-        return *reinterpret_cast<const OmniDiscoveryPacket*>(&base);
-    }
+        OmniDiscoveryPacket packet;
+        std::memcpy(&packet, &base, sizeof(OmniPayloadBase));
 
-    static const OmniDiscoveryPacket* From(const OmniPayloadBase* base)
-    {
-        return reinterpret_cast<const OmniDiscoveryPacket*>(base);
+        return packet;
     }
 };
 #pragma pack(pop)
