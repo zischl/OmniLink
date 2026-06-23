@@ -47,7 +47,7 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
             Notification::EventLayout::BOTTOM_RIGHT
         };
 
-        PushNotification(UIEvent);
+        // PushNotification(UIEvent);
         break;
     }
 
@@ -127,6 +127,15 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
             InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING);
 
             InstanceRegistry.TransmitConnectionState(DeviceID);
+
+            EventData Event{Alert{
+                "Establishing Instance Link",
+                {"Instance : ", InstanceRegistry.ActiveInstances[DeviceID].InstanceName}
+            }};
+
+            PushNotification(
+                Notification{Event, "EstablishingLink", Notification::EventLayout::BOTTOM_RIGHT}
+            );
         }
 
         break;
@@ -149,6 +158,29 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
 
         break;
     }
+    case LINKING: {
+        if (InstanceRegistry.ActiveInstances[DeviceID].InstanceSession) {
+            InstanceRegistry.TransmitConnectionState(DeviceID);
+        } else {
+            std::unique_ptr<session> NetSession = SessionManager.Connect(
+                InstanceRegistry.UserInstance,
+                InstanceRegistry.ActiveInstances[DeviceID],
+                SystemLink.networkPacketHandler,
+                &ActiveWindows
+            );
+
+            if (NetSession) {
+                InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
+                InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING);
+
+                InstanceRegistry.TransmitConnectionState(DeviceID);
+            }
+
+            break;
+        }
+    }
+    case LINKED:
+        break;
     }
 }
 
