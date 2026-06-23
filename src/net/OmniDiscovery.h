@@ -251,6 +251,8 @@ class OmniDiscovery
                     }
 
                     case PayloadType::IdentifyRequest: {
+                        uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+
                         OmniDiscoveryPacket ResponsePacket{
                             PayloadType::IdentifyResponse,
                         };
@@ -261,7 +263,7 @@ class OmniDiscovery
                         std::strncpy(
                             ResponsePacket.Payload,
                             instances[InstanceIP].c_str(),
-                            sizeof(packet.Payload) - 1
+                            sizeof(ResponsePacket.Payload) - 1
                         );
 
                         packet.Payload[sizeof(packet.Payload) - 1] = '\0';
@@ -269,6 +271,28 @@ class OmniDiscovery
                         socket.send_to(
                             asio::buffer(&ResponsePacket, sizeof(ResponsePacket)), ResponseEndpoint
                         );
+
+                        std::string AddrString = ResponseEndpoint.address().to_string();
+
+                        if (instances[Addr].empty() || instances[Addr] == AddrString) {
+                            OmniDiscoveryPacket ResponsePacket{
+                                PayloadType::IdentifyRequest,
+                            };
+
+                            ResponsePacket.PayloadLen = Device::MAX_CNLEN;
+                            ResponsePacket.Liss = OmniLiss;
+
+                            std::strncpy(
+                                ResponsePacket.Payload,
+                                instances[InstanceIP].c_str(),
+                                sizeof(packet.Payload) - 1
+                            );
+
+                            socket.send_to(
+                                asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                ResponseEndpoint
+                            );
+                        }
 
                         break;
                     }
