@@ -34,20 +34,10 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
             InstanceRegistry.SetConnectionState(DeviceID, Event.LinkState);
             Logger::log("Linking Instance @", Event.InstanceIP);
 
-            std::vector<uint8_t> RequestData =
-                ConnectionRequest::Serialize(ConnectionRequest{DeviceID});
-
             RequestHandshake(DeviceID);
         }
     }
     case PayloadType::IdentifyResponse: {
-        const Notification UIEvent{
-            Alert{"Instance Found", "bleh"},
-            "DeviceFoundNotif",
-            Notification::EventLayout::BOTTOM_RIGHT
-        };
-
-        // PushNotification(UIEvent);
         break;
     }
 
@@ -66,10 +56,19 @@ void OmniCore::ScanInstances()
 }
 void OmniCore::RequestHandshake(DeviceMap DeviceID)
 {
-    Logger::log(
-        "Initiating Handshake Request With Instance ",
-        InstanceRegistry.AllInstances[DeviceID].InstanceName
-    );
+    const Notification UIEvent{
+        Alert{
+            "Handshake Request Initiated",
+            "Instance : ",
+            InstanceRegistry.AllInstances[DeviceID].InstanceName
+        },
+        "HandshakeNotif",
+        Notification::EventLayout::BOTTOM_RIGHT,
+        2
+    };
+
+    PushNotification(UIEvent);
+
     const HandshakeData Data{
         InstanceRegistry.UserInstance.InstanceIP,
         DeviceID,
@@ -95,11 +94,18 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
 
     InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED);
 
-    Logger::log(
-        "Handshake Request With Instance ",
-        InstanceRegistry.AllInstances[DeviceID].InstanceName,
-        " Complete"
-    );
+    const Notification UIEvent{
+        Alert{
+            "Handshake Complete",
+            "Instance : ",
+            InstanceRegistry.AllInstances[DeviceID].InstanceName
+        },
+        "HandshakeNotif",
+        Notification::EventLayout::BOTTOM_RIGHT,
+        2
+    };
+
+    PushNotification(UIEvent);
 }
 
 void OmniCore::ConnectInstance(DeviceMap DeviceID)
@@ -130,11 +136,12 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
 
             EventData Event{Alert{
                 "Establishing Instance Link",
-                {"Instance : ", InstanceRegistry.ActiveInstances[DeviceID].InstanceName}
+                "Instance : ",
+                InstanceRegistry.AllInstances[DeviceID].InstanceName
             }};
 
             PushNotification(
-                Notification{Event, "EstablishingLink", Notification::EventLayout::BOTTOM_RIGHT}
+                Notification{Event, "EstablishingLink", Notification::EventLayout::BOTTOM_RIGHT, 1}
             );
         }
 
@@ -142,6 +149,10 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
     }
 
     case NetLinkState::WAITING: {
+        if (!SystemLink.networkPacketHandler) {
+            return;
+        }
+
         std::unique_ptr<session> NetSession = SessionManager.Connect(
             InstanceRegistry.UserInstance,
             InstanceRegistry.ActiveInstances[DeviceID],
@@ -155,6 +166,16 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
 
             InstanceRegistry.TransmitConnectionState(DeviceID);
         }
+
+        EventData Event{Alert{
+            "Establishing Instance Link",
+            "Instance : ",
+            InstanceRegistry.AllInstances[DeviceID].InstanceName
+        }};
+
+        PushNotification(
+            Notification{Event, "EstablishingLink", Notification::EventLayout::BOTTOM_RIGHT}
+        );
 
         break;
     }

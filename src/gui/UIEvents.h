@@ -9,13 +9,14 @@
 
 struct Alert
 {
-    char Title[32];
-    char Desc[64];
+    char Title[32] = {};
+    char Desc[64] = {};
 
-    Alert(const std::string_view Title_, const std::string_view Desc_)
+    Alert(std::string_view title, std::string_view descPrefix, std::string_view descValue)
     {
-        std::snprintf(Title, sizeof(Title), "%s", Title_.data());
-        std::snprintf(Desc, sizeof(Desc), "%s", Desc_.data());
+        title.copy(Title, sizeof(Title) - 1);
+
+        std::format_to_n(Desc, sizeof(Desc) - 1, "{}{}", descPrefix, descValue);
     }
 };
 
