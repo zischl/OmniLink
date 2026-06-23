@@ -49,6 +49,8 @@ struct OmniInstanceRegistry
             IP2Char(LocalIP, AllInstances[DeviceMap::C0].IPv4_String);
         }
 
+        AllInstances[DeviceMap::C0].InstanceIP = LocalIP;
+
         // Getting user data and initializing user instance
         Device::RetrieveUserName(AllInstances[DeviceMap::C0].InstanceName);
 

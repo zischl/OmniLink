@@ -24,18 +24,6 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
         FuncArgTypes Args = ConnectionRequest{DeviceID};
         PushCommandWArgs(Args);
 
-        const Notification UIEvent{
-            Alert{
-                "Handshake Request Initiated",
-                "Instance : ",
-                InstanceRegistry.AllInstances[DeviceID].InstanceName
-            },
-            "HandshakeNotif",
-            Notification::EventLayout::BOTTOM_RIGHT,
-            2
-        };
-
-        PushNotification(UIEvent);
         break;
     }
 
@@ -47,9 +35,13 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
 
             InstanceRegistry.SetConnectionState(DeviceID, Event.LinkState);
 
+        } else if (
+            Event.LinkState == NetLinkState::PENDING && InstanceRegistry.GetSessionState(DeviceID)
+        ) {
             RequestHandshake(DeviceID);
-        } else if (Event.LinkState == NetLinkState::LINKED) {
-            InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED);
+        } else if (
+            Event.LinkState == NetLinkState::LINKED && InstanceRegistry.GetSessionState(DeviceID)
+        ) {
 
             const Notification UIEvent{
                 Alert{
@@ -155,7 +147,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
 
         std::unique_ptr<session> NetSession = SessionManager.Connect(
             InstanceRegistry.UserInstance,
-            InstanceRegistry.ActiveInstances[DeviceID],
+            InstanceRegistry.AllInstances[DeviceID],
             SystemLink.networkPacketHandler,
             &ActiveWindows
         );
@@ -181,20 +173,17 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
     }
 
     case NetLinkState::WAITING: {
-        if (!SystemLink.networkPacketHandler) {
-            return;
-        }
 
         std::unique_ptr<session> NetSession = SessionManager.Connect(
             InstanceRegistry.UserInstance,
-            InstanceRegistry.ActiveInstances[DeviceID],
+            InstanceRegistry.AllInstances[DeviceID],
             SystemLink.networkPacketHandler,
             &ActiveWindows
         );
 
         if (NetSession) {
             InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
-            InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING);
+            InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::PENDING);
 
             InstanceRegistry.TransmitConnectionState(DeviceID);
         }
@@ -217,7 +206,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
         } else {
             std::unique_ptr<session> NetSession = SessionManager.Connect(
                 InstanceRegistry.UserInstance,
-                InstanceRegistry.ActiveInstances[DeviceID],
+                InstanceRegistry.AllInstances[DeviceID],
                 SystemLink.networkPacketHandler,
                 &ActiveWindows
             );
