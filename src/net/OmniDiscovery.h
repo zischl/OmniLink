@@ -341,7 +341,7 @@ class OmniDiscovery
                         uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
                         NetLinkState LinkState = static_cast<NetLinkState>(packet.Payload[0]);
 
-                        Callback(ProbeEvent{PayloadType::LinkRequest, LinkState, Addr});
+                        Callback(ProbeEvent{PayloadType::LinkResponse, LinkState, Addr});
                     }
                     default:
                         break;

@@ -174,7 +174,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
         }};
 
         PushNotification(
-            Notification{Event, "EstablishingLink", Notification::EventLayout::BOTTOM_RIGHT}
+            Notification{Event, "EstablishingLink", Notification::EventLayout::BOTTOM_RIGHT, 1}
         );
 
         break;
