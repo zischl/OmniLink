@@ -171,6 +171,12 @@ class OmniCore
             case 3: {
                 HandshakeData args = std::get<3>(CommandBurstQWArgs.Queue[Tail]);
                 HandshakeHandler(args);
+
+                if (!CommandBurstQWArgs.pop()) {
+                    Logger::log("Command Execution Failure");
+                }
+
+                break;
             }
             }
         }
