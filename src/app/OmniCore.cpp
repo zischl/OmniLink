@@ -23,6 +23,20 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
 
         FuncArgTypes Args = ConnectionRequest{DeviceID};
         PushCommandWArgs(Args);
+
+        const Notification UIEvent{
+            Alert{
+                "Handshake Request Initiated",
+                "Instance : ",
+                InstanceRegistry.AllInstances[DeviceID].InstanceName
+            },
+            "HandshakeNotif",
+            Notification::EventLayout::BOTTOM_RIGHT,
+            2
+        };
+
+        PushNotification(UIEvent);
+        break;
     }
 
     case PayloadType::LinkResponse: {
@@ -32,10 +46,26 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
             InstanceRegistry.GetSessionState(DeviceID)) {
 
             InstanceRegistry.SetConnectionState(DeviceID, Event.LinkState);
-            Logger::log("Linking Instance @", Event.InstanceIP);
 
             RequestHandshake(DeviceID);
+        } else if (Event.LinkState == NetLinkState::LINKED) {
+            InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED);
+
+            const Notification UIEvent{
+                Alert{
+                    "Handshake Complete",
+                    "Instance : ",
+                    InstanceRegistry.AllInstances[DeviceID].InstanceName
+                },
+                "HandshakeNotif",
+                Notification::EventLayout::BOTTOM_RIGHT,
+                2
+            };
+
+            PushNotification(UIEvent);
         }
+
+        break;
     }
     case PayloadType::IdentifyResponse: {
         break;
@@ -93,6 +123,8 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
     // Gotta handle ECDH and monitor res later
 
     InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED);
+
+    InstanceRegistry.TransmitConnectionState(DeviceID);
 
     const Notification UIEvent{
         Alert{
