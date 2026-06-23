@@ -89,21 +89,27 @@ void OmniDiscovery::Scan(int runtime)
             socket.set_option(asio::socket_base::reuse_address(true));
             socket.set_option(asio::socket_base::broadcast(true));
 
-            asio::ip::udp::endpoint broadcast_endpoint(asio::ip::make_address("255.255.255.255"),
-                                                       discovery_port);
+            asio::ip::udp::endpoint broadcast_endpoint(
+                asio::ip::make_address("255.255.255.255"), discovery_port
+            );
 
             while ((std::chrono::steady_clock::now() - Start) <= Runtime) {
 
-                OmniDiscoveryPacket DiscoveryPacket{PayloadType::DiscoveryRequest,
-                                                    sizeof(OmniDiscoveryRequest)};
+                OmniDiscoveryPacket DiscoveryPacket{
+                    PayloadType::DiscoveryRequest, sizeof(OmniDiscoveryRequest)
+                };
 
                 std::memcpy(
-                    DiscoveryPacket.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest));
+                    DiscoveryPacket.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest)
+                );
+
+                memcpy(DiscoveryPacket.UUID, InstanceUUID.Bytes, sizeof(DiscoveryPacket.UUID));
 
                 DiscoveryPacket.Liss = OmniLiss;
 
-                socket.send_to(asio::buffer(&DiscoveryPacket, sizeof(OmniDiscoveryPacket)),
-                               broadcast_endpoint);
+                socket.send_to(
+                    asio::buffer(&DiscoveryPacket, sizeof(OmniDiscoveryPacket)), broadcast_endpoint
+                );
 
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
@@ -150,9 +156,9 @@ void OmniDiscovery::AwaitInstances(int runtime)
     responder.detach();
 }
 
-void OmniDiscovery::SendCustomPayload(const std::string& TargetIPv4,
-                                      uint16_t TargetPort,
-                                      const OmniPayloadBase& Payload)
+void OmniDiscovery::SendCustomPayload(
+    const std::string& TargetIPv4, uint16_t TargetPort, const OmniPayloadBase& Payload
+)
 {
     std::error_code ErrorCode;
 
@@ -166,16 +172,17 @@ void OmniDiscovery::SendCustomPayload(const std::string& TargetIPv4,
     OmniDiscoveryPacket Packet = OmniDiscoveryPacket::From(Payload);
 
     socket.send_to(
-        asio::buffer(&Packet, sizeof(OmniDiscoveryPacket)), TargetEndpoint, 0, ErrorCode);
+        asio::buffer(&Packet, sizeof(OmniDiscoveryPacket)), TargetEndpoint, 0, ErrorCode
+    );
 
     if (ErrorCode) {
         Logger::log("Connection Request Died MidWay: " + ErrorCode.message());
     }
 }
 
-void OmniDiscovery::SendCustomPayload(uint32_t TargetIPv4,
-                                      uint16_t TargetPort,
-                                      const OmniPayloadBase& Payload)
+void OmniDiscovery::SendCustomPayload(
+    uint32_t TargetIPv4, uint16_t TargetPort, const OmniPayloadBase& Payload
+)
 {
     std::error_code ErrorCode;
 
@@ -184,7 +191,8 @@ void OmniDiscovery::SendCustomPayload(uint32_t TargetIPv4,
     OmniDiscoveryPacket Packet = OmniDiscoveryPacket::From(Payload);
 
     socket.send_to(
-        asio::buffer(&Packet, sizeof(OmniDiscoveryPacket)), TargetEndpoint, 0, ErrorCode);
+        asio::buffer(&Packet, sizeof(OmniDiscoveryPacket)), TargetEndpoint, 0, ErrorCode
+    );
 
     if (ErrorCode) {
         Logger::log("Connection Request Died MidWay: " + ErrorCode.message());

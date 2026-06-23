@@ -3,6 +3,7 @@
 
 #pragma once
 #include "OmniEnums.h"
+#include "OmniUUID.h"
 #include "system_probe_impl.h"
 
 #include <asio.hpp>
@@ -60,6 +61,7 @@ struct OmniPayloadBase
 struct OmniDiscoveryPacket : public OmniPayloadBase
 {
     uint32_t Liss = OmniLiss;
+    uint8_t UUID[12] = {};
 
     static const OmniDiscoveryPacket& From(const OmniPayloadBase& base)
     {
@@ -82,6 +84,7 @@ class OmniDiscovery
     std::atomic_bool state{true};
 
     uint32_t InstanceIP = 0;
+    const NodeID InstanceUUID = GenerateLocalID();
 
   public:
     OmniDiscovery(const std::string& InstanceName, uint32_t _LocalIP, uint16_t port);
@@ -143,13 +146,16 @@ class OmniDiscovery
                             ResponseEndpoint.port(discovery_port);
 
                             OmniDiscoveryPacket ResponsePacket;
+                            ResponsePacket.PayloadLen = sizeof(OmniDiscoveryResponse);
                             ResponsePacket.Type = PayloadType::DiscoveryResponse;
                             std::memcpy(
                                 ResponsePacket.Payload,
                                 OmniDiscoveryResponse,
                                 sizeof(OmniDiscoveryResponse)
                             );
-                            ResponsePacket.PayloadLen = sizeof(OmniDiscoveryResponse);
+                            memcpy(
+                                ResponsePacket.UUID, InstanceUUID.Bytes, sizeof(ResponsePacket.UUID)
+                            );
 
                             socket.send_to(
                                 asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
@@ -162,7 +168,9 @@ class OmniDiscovery
 
                             {
                                 std::lock_guard<std::mutex> lock(mutex);
-                                if (instances.find(Addr) == instances.end()) {
+                                if (instances.find(Addr) == instances.end() &&
+                                    !(InstanceUUID == packet.UUID)) {
+
                                     instances[Addr] = ResponseEndpoint.address().to_string();
                                     std::cout << "Instance Found At: " << ResponseEndpoint.address()
                                               << " : " << ResponseEndpoint.port() << " "
@@ -210,7 +218,8 @@ class OmniDiscovery
 
                             {
                                 std::lock_guard<std::mutex> lock(mutex);
-                                if (instances.find(Addr) == instances.end()) {
+                                if (instances.find(Addr) == instances.end() &&
+                                    !(InstanceUUID == packet.UUID)) {
                                     instances[Addr] = ResponseEndpoint.address().to_string();
                                     std::cout << "Instance Found At: " << ResponseEndpoint.address()
                                               << " : " << ResponseEndpoint.port() << " "
