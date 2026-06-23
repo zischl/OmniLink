@@ -16,7 +16,7 @@ struct OmniSessionManager
     template <typename PacketHandler, typename PacketContext>
     std::unique_ptr<session> Connect(
         const OmniActiveInstance& UserInstance,
-        const OmniActiveInstance& TargetInstance,
+        const OmniInstance& TargetInstance,
         PacketHandler&& Handler,
         PacketContext* Context
     )
@@ -24,7 +24,7 @@ struct OmniSessionManager
         std::unique_ptr<session> NetSession = std::make_unique<session>(
             UserInstance.IPv4_String,
             TargetInstance.IPv4_String,
-            TargetInstance.port,
+            OmniPort,
             OmniMTU,
             Context,
             TargetInstance.DevMapIndex
