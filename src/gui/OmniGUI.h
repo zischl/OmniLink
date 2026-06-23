@@ -162,9 +162,7 @@ class OmniGUI
     ImDrawList* DrawList = nullptr;
 
     int ActiveMenu = 0;
-    Notification TempNotif;
-    std::vector<Notification> Notifications = {};
-    BurstQ<Notification, 4> NotificationQueue;
+    BurstQ<Notification, 4> NotificationQueue{};
 
     // Fonts
     ImFont* InterReg14 = nullptr;

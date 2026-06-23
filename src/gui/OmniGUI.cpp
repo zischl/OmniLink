@@ -54,7 +54,8 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     InterMed14 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 14.0f, &FontCFG);
     InterMed16 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 16.0f, &FontCFG);
     JetBrainsMed15 = io.Fonts->AddFontFromMemoryTTF(
-        JetBrainsMonoMedium, JetBrainsMonoMediumLen, 15.0f, &FontCFG);
+        JetBrainsMonoMedium, JetBrainsMonoMediumLen, 15.0f, &FontCFG
+    );
     JetBrainsBold20 =
         io.Fonts->AddFontFromMemoryTTF(JetBrainsMonoBold, JetBrainsMonoBoldLen, 20.0f, &FontCFG);
 
@@ -79,25 +80,28 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     OmniIconsSmall =
         io.Fonts->AddFontFromMemoryTTF(OmniIcons_ttf, OmniIcons_ttf_len, 14.0f, &FontCFG);
 }
-void OmniGUI::DeviceIconPreview(const ImVec2& pos,
-                                const ImU32& col,
-                                const ImVec2& text_size,
-                                const char* text)
+void OmniGUI::DeviceIconPreview(
+    const ImVec2& pos, const ImU32& col, const ImVec2& text_size, const char* text
+)
 {
-    DrawList->AddRect(ImVec2(pos.x - 50, pos.y - 40),
-                      ImVec2(pos.x + 50, pos.y + 40),
-                      col,
-                      5.0f,
-                      0,
-                      2.0f); // monitor
+    DrawList->AddRect(
+        ImVec2(pos.x - 50, pos.y - 40),
+        ImVec2(pos.x + 50, pos.y + 40),
+        col,
+        5.0f,
+        0,
+        2.0f
+    ); // monitor
     DrawList->AddText(ImVec2(pos.x - (text_size.x * 0.5f), pos.y), col, text);
     DrawList->AddRect(ImVec2(pos.x, pos.y + 40), ImVec2(pos.x, pos.y + 55), col, 5.0f, 0, 2.0f);
-    DrawList->AddRect(ImVec2(pos.x - 15, pos.y + 55),
-                      ImVec2(pos.x + 15, pos.y + 55),
-                      col,
-                      10.0f,
-                      0,
-                      1.0f); // stand
+    DrawList->AddRect(
+        ImVec2(pos.x - 15, pos.y + 55),
+        ImVec2(pos.x + 15, pos.y + 55),
+        col,
+        10.0f,
+        0,
+        1.0f
+    ); // stand
 }
 
 void OmniGUI::DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstance* DeviceData)
@@ -113,9 +117,10 @@ void OmniGUI::DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstanc
     ImVec2 IconRenderPos =
         ImVec2(Pos.x - (IconRenderSize.x * 0.5f), Pos.y - (IconRenderSize.y * 0.5f));
 
-    ImRect Bbox =
-        ImRect(IconRenderPos,
-               ImVec2(IconRenderPos.x + IconRenderSize.x, IconRenderPos.y + IconRenderSize.y));
+    ImRect Bbox = ImRect(
+        IconRenderPos,
+        ImVec2(IconRenderPos.x + IconRenderSize.x, IconRenderPos.y + IconRenderSize.y)
+    );
 
     ImGui::ItemAdd(Bbox, Id, NULL, ImGuiItemFlags_None);
 
@@ -137,7 +142,8 @@ void OmniGUI::DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstanc
     // Drag and Drop Handling
     if (ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload(
-            "DeviceInfo", &(DeviceData->DevMapIndex), sizeof(DeviceData->DevMapIndex));
+            "DeviceInfo", &(DeviceData->DevMapIndex), sizeof(DeviceData->DevMapIndex)
+        );
         DeviceIconPreview(ImGui::GetCursorScreenPos(), Col, TextSize, DeviceData->IPv4_String);
         ImGui::EndDragDropSource();
     } else if (ImGui::BeginDragDropTarget()) {
@@ -162,10 +168,9 @@ void OmniGUI::DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstanc
     ImGui::PopID();
 }
 
-bool OmniGUI::VerticalMenuItem(const char* Label,
-                               const char* Icon,
-                               bool State,
-                               ImVec2& MenuItemSize)
+bool OmniGUI::VerticalMenuItem(
+    const char* Label, const char* Icon, bool State, ImVec2& MenuItemSize
+)
 {
     ImGui::PushID(Label);
 
@@ -205,8 +210,10 @@ bool OmniGUI::VerticalMenuItem(const char* Label,
     ImU32 IconTint = State ? COL_MENU_TINT_ACT : COL_MENU_TINT_IDLE;
     ImGui::PushFont(OmniIconsMedium);
     ImVec2 GlyphSize = ImGui::CalcTextSize(Icon);
-    ImVec2 GlyphPos = ImVec2(IconBoxMin.x + (IconSize.x - GlyphSize.x) * 0.5f,
-                             IconBoxMin.y + (IconSize.y - GlyphSize.y) * 0.5f);
+    ImVec2 GlyphPos = ImVec2(
+        IconBoxMin.x + (IconSize.x - GlyphSize.x) * 0.5f,
+        IconBoxMin.y + (IconSize.y - GlyphSize.y) * 0.5f
+    );
 
     DrawList->AddText(GlyphPos, IconTint, Icon);
     ImGui::PopFont();
@@ -222,10 +229,9 @@ bool OmniGUI::VerticalMenuItem(const char* Label,
     return Clicked;
 }
 
-bool OmniGUI::IconizedButton(const char* Label,
-                             const char* Icon,
-                             bool State,
-                             const ImVec2& ButtonSize)
+bool OmniGUI::IconizedButton(
+    const char* Label, const char* Icon, bool State, const ImVec2& ButtonSize
+)
 {
     ImGui::PushID(Label);
 
@@ -238,10 +244,12 @@ bool OmniGUI::IconizedButton(const char* Label,
     // Button BG
     if (State) {
         DrawList->AddRectFilled(
-            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), COL_FEAT_BG_ACTIVE);
+            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), COL_FEAT_BG_ACTIVE
+        );
     } else if (hovered) {
         DrawList->AddRectFilled(
-            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), COL_FEAT_BG_HOVER);
+            pos, ImVec2(pos.x + ButtonSize.x, pos.y + ButtonSize.y), COL_FEAT_BG_HOVER
+        );
     }
 
     const ImVec2 IconSize = ImVec2(44.0f, 44.0f);
@@ -249,16 +257,17 @@ bool OmniGUI::IconizedButton(const char* Label,
 
     ImU32 IconBgColor = State ? COL_FEAT_IC_ACTIVE : COL_FEAT_IC_HOVER;
     // Icon BG
-    DrawList->AddRectFilled(IconBoxPos,
-                            ImVec2(IconBoxPos.x + IconSize.x, IconBoxPos.y + IconSize.y),
-                            IconBgColor,
-                            12.0f);
+    DrawList->AddRectFilled(
+        IconBoxPos, ImVec2(IconBoxPos.x + IconSize.x, IconBoxPos.y + IconSize.y), IconBgColor, 12.0f
+    );
 
     // Da Icon
     ImGui::PushFont(OmniIconsMedium);
     ImVec2 IconTextSize = ImGui::CalcTextSize(Icon);
-    ImVec2 IconTextPos = ImVec2(IconBoxPos.x + (IconSize.x - IconTextSize.x) * 0.5f,
-                                IconBoxPos.y + (IconSize.y - IconTextSize.y) * 0.5f);
+    ImVec2 IconTextPos = ImVec2(
+        IconBoxPos.x + (IconSize.x - IconTextSize.x) * 0.5f,
+        IconBoxPos.y + (IconSize.y - IconTextSize.y) * 0.5f
+    );
     ImU32 IconColor = State ? COL_FEAT_TINT_ACT : COL_FEAT_TINT_IDLE;
 
     DrawList->AddText(IconTextPos, IconColor, Icon);
@@ -279,14 +288,17 @@ bool OmniGUI::IconizedButton(const char* Label,
         ImVec2 stripPosRight = ImVec2(StripPosLeft.x + StripWidth, pos.y + ButtonSize.y);
 
         DrawList->AddRectFilled(
-            StripPosLeft, stripPosRight, COL_FEAT_STRIP, 1.5f, ImDrawFlags_RoundCornersTop);
+            StripPosLeft, stripPosRight, COL_FEAT_STRIP, 1.5f, ImDrawFlags_RoundCornersTop
+        );
 
-        DrawList->AddRectFilledMultiColor(ImVec2(StripPosLeft.x, StripPosLeft.y - 8),
-                                          stripPosRight,
-                                          IM_COL32_BLACK_TRANS,
-                                          IM_COL32_BLACK_TRANS,
-                                          COL_FEAT_GLOW,
-                                          COL_FEAT_GLOW);
+        DrawList->AddRectFilledMultiColor(
+            ImVec2(StripPosLeft.x, StripPosLeft.y - 8),
+            stripPosRight,
+            IM_COL32_BLACK_TRANS,
+            IM_COL32_BLACK_TRANS,
+            COL_FEAT_GLOW,
+            COL_FEAT_GLOW
+        );
     }
 
     ImGui::PopID();
@@ -362,8 +374,9 @@ int OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const f
         auto& dev = Devices[layout.DeviceID];
 
         float offset = layout.DiagonalState ? DiagonalAxe : Radius;
-        ImVec2 target_pos(Pos.x + (layout.DirectionalityX * offset),
-                          Pos.y + (layout.DirectionalityY * offset));
+        ImVec2 target_pos(
+            Pos.x + (layout.DirectionalityX * offset), Pos.y + (layout.DirectionalityY * offset)
+        );
 
         if (dev.InstanceIP) {
             DeviceIcon(layout.Label, target_pos, &dev);
@@ -379,7 +392,8 @@ int OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const f
 }
 
 void OmniGUI::MetricDashboard(
-    const char* ContainerId, const MetricItem* Items, int ItemCount, float TotalWidth, float Height)
+    const char* ContainerId, const MetricItem* Items, int ItemCount, float TotalWidth, float Height
+)
 {
     if (ItemCount <= 0 || !Items)
         return;
@@ -389,10 +403,12 @@ void OmniGUI::MetricDashboard(
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
-    if (ImGui::BeginChild(ContainerId,
-                          ImVec2(TotalWidth, Height),
-                          ImGuiChildFlags_None,
-                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+    if (ImGui::BeginChild(
+            ContainerId,
+            ImVec2(TotalWidth, Height),
+            ImGuiChildFlags_None,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+        )) {
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal);
@@ -423,10 +439,12 @@ void OmniGUI::MetricDashboard(
 
             // Vertical Segment Separators
             if (i < ItemCount - 1) {
-                DrawList->AddLine(ImVec2(SegMax.x, SegMin.y),
-                                  ImVec2(SegMax.x, SegMax.y),
-                                  ContainerBorderColor,
-                                  1.0f);
+                DrawList->AddLine(
+                    ImVec2(SegMax.x, SegMin.y),
+                    ImVec2(SegMax.x, SegMax.y),
+                    ContainerBorderColor,
+                    1.0f
+                );
             }
 
             // Vertical Accent Pill
@@ -473,11 +491,13 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
     ImVec2 windowPos = ImGui::GetWindowPos();
     float windowWidth = ImGui::GetWindowWidth();
 
-    drawList->AddRectFilled(ImVec2(windowPos.x + 10.0f, windowPos.y),
-                            ImVec2(windowPos.x - 10.0f + windowWidth, windowPos.y + 3.0f),
-                            COL_MODAL_STRIP,
-                            16.0f,
-                            ImDrawFlags_RoundCornersTop);
+    drawList->AddRectFilled(
+        ImVec2(windowPos.x + 10.0f, windowPos.y),
+        ImVec2(windowPos.x - 10.0f + windowWidth, windowPos.y + 3.0f),
+        COL_MODAL_STRIP,
+        16.0f,
+        ImDrawFlags_RoundCornersTop
+    );
 
     float paddingTop = 21.0f;
     ImVec2 circleCenter =
@@ -510,7 +530,8 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
     drawList->AddText(
         ImVec2(circleCenter.x - (arrowSize.x / 2.0f), circleCenter.y - (arrowSize.y / 2.0f)),
         IM_COL32_WHITE,
-        arrowText);
+        arrowText
+    );
     ImGui::SetWindowFontScale(1.0f);
 
     ImGui::Dummy(ImVec2(windowWidth, boxSize + paddingTop + 14.0f));
@@ -551,19 +572,22 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
         ImGui::TableSetColumnIndex(0);
         ImGui::SetCursorPosX(
             ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PROTOCOL").x) * 0.5f);
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PROTOCOL").x) * 0.5f
+        );
         ImGui::TextColored(EV_TEXT_MUTED, "PROTOCOL");
 
         ImGui::TableSetColumnIndex(1);
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PORT").x) *
-                                 0.5f);
+        ImGui::SetCursorPosX(
+            ImGui::GetCursorPosX() +
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PORT").x) * 0.5f
+        );
         ImGui::TextColored(EV_TEXT_MUTED, "PORT");
 
         ImGui::TableSetColumnIndex(2);
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("LATENCY").x) *
-                                 0.5f);
+        ImGui::SetCursorPosX(
+            ImGui::GetCursorPosX() +
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("LATENCY").x) * 0.5f
+        );
         ImGui::TextColored(EV_TEXT_MUTED, "LATENCY");
 
         ImGui::TableNextRow();
@@ -572,19 +596,22 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
         ImGui::TableSetColumnIndex(0);
         ImGui::SetCursorPosX(
             ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("[V] [M] [A]").x) * 0.5f);
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("[V] [M] [A]").x) * 0.5f
+        );
         ImGui::TextColored(EV_ACCENT, "[V] [M] [A]");
 
         ImGui::TableSetColumnIndex(1);
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("7474").x) *
-                                 0.5f);
+        ImGui::SetCursorPosX(
+            ImGui::GetCursorPosX() +
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("7474").x) * 0.5f
+        );
         ImGui::TextUnformatted("7474");
 
         ImGui::TableSetColumnIndex(2);
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-                             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("4 ms").x) *
-                                 0.5f);
+        ImGui::SetCursorPosX(
+            ImGui::GetCursorPosX() +
+            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("4 ms").x) * 0.5f
+        );
         ImGui::TextUnformatted("4 ms");
 
         ImGui::SetWindowFontScale(1.0f);
@@ -652,7 +679,35 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
 
 bool OmniGUI::HandleEvent(Alert& request, float timeout)
 {
-    return true;
+
+    constexpr float WindowWidth = 320.0f;
+    constexpr float WindowHeight = 72.0f;
+    constexpr float ButtonWidth = 30.0f;
+
+    float TextContentWidth = WindowWidth - ButtonWidth - (ImGui::GetStyle().WindowPadding.x * 2.0f);
+
+    ImGui::BeginGroup();
+    ImGui::PushTextWrapPos(TextContentWidth);
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.82f, 0.0f, 1.0f));
+    ImGui::TextUnformatted(request.Title);
+    ImGui::PopStyleColor();
+
+    ImGui::Separator();
+
+    ImGui::TextWrapped("%s", request.Desc);
+
+    ImGui::PopTextWrapPos();
+    ImGui::EndGroup();
+
+    ImGui::SetCursorPos(ImVec2(WindowWidth - ButtonWidth, 0.0f));
+
+    if (ImGui::Button("X", ImVec2(ButtonWidth, WindowHeight))) {
+        ImGui::CloseCurrentPopup();
+        return true;
+    }
+
+    return false;
 }
 
 void OmniGUI::CreateCurvedLine(const char* label, int curve)
