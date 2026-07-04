@@ -243,13 +243,11 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
     case FeatureTypes::ScreenLink: {
         WindowCreationData WGC{"Test Window"};
 
-        OmniNetCommand command{};
-        command.CommandType = CoreCommandsWArgs::CreateStreamLink;
-        command.ArgTypeIndex = 2;
-
-        std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
-        command.Args = payload;
-        command.ArgArrayLength = payload.size();
+        OmniNetCommand command{
+            CoreCommandsWArgs::CreateStreamLink,
+            2,
+            WindowCreationData::Serialize(WGC),
+        };
 
         TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
 
@@ -257,14 +255,22 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
             InstanceRegistry.ActiveInstances[Index].InstanceSession.get(), Index, CaptureMode::DXGI
         );
 
+        auto& instance = InstanceRegistry.ActiveInstances[Index];
+        if (instance.InstanceSession) {
+            SystemLink.AddCaptureStream(instance.InstanceSession.get(), Index, CaptureMode::DXGI);
+        } else {
+        }
+
         break;
     }
     case FeatureTypes::WindowLink: {
         WindowCreationData WGC{"Test Window"};
 
-        OmniNetCommand command{};
-        command.CommandType = CoreCommandsWArgs::CreateStreamLink;
-        command.ArgTypeIndex = 2;
+        OmniNetCommand command{
+            CoreCommandsWArgs::CreateStreamLink,
+            2,
+            WindowCreationData::Serialize(WGC),
+        };
 
         std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
         command.Args = payload;
@@ -272,9 +278,11 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
 
         TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
 
-        SystemLink.AddCaptureStream(
-            InstanceRegistry.ActiveInstances[Index].InstanceSession.get(), Index, CaptureMode::WGC
-        );
+        auto& instance = InstanceRegistry.ActiveInstances[Index];
+        if (instance.InstanceSession) {
+            SystemLink.AddCaptureStream(instance.InstanceSession.get(), Index, CaptureMode::WGC);
+        } else {
+        }
 
         break;
     }

@@ -298,6 +298,8 @@ class OmniGUI
 
                 ImGui::PushFont(InterReg14);
 
+                ImGui::Dummy(ImVec2(0, 4));
+
                 ImGui::Image(
                     reinterpret_cast<ImTextureID>(IconTexture.GetTextureID()),
                     ImVec2(110.0f, 110.0f)
@@ -456,7 +458,7 @@ class OmniGUI
                         (FeatureSates & FeatureFlags::fScreenLink) != 0,
                         size
                     )) {
-                    OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, DeviceMap::C0);
+                    OmniAPI::ToggleFeature(FeatureTypes::ScreenLink, SelectedDevice);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 
@@ -466,14 +468,14 @@ class OmniGUI
                         (FeatureSates & FeatureFlags::fWindowLink) != 0,
                         size
                     )) {
-                    OmniAPI::ToggleFeature(FeatureTypes::WindowLink, DeviceMap::C0);
+                    OmniAPI::ToggleFeature(FeatureTypes::WindowLink, SelectedDevice);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 
                 if (IconizedButton(
                         "Input Link", IC_MOUSE, (FeatureSates & FeatureFlags::fInputLink) != 1, size
                     )) {
-                    OmniAPI::ToggleFeature(FeatureTypes::InputLink, DeviceMap::C0);
+                    OmniAPI::ToggleFeature(FeatureTypes::InputLink, SelectedDevice);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 
@@ -483,7 +485,7 @@ class OmniGUI
                         (FeatureSates & FeatureFlags::fAudioLink) != 0,
                         size
                     )) {
-                    OmniAPI::ToggleFeature(FeatureTypes::AudioLink, DeviceMap::C0);
+                    OmniAPI::ToggleFeature(FeatureTypes::AudioLink, SelectedDevice);
                 }
                 ImGui::SameLine(0.0f, 0.0f);
 

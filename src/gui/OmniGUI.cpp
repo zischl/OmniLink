@@ -1,7 +1,8 @@
 #include "OmniGUI.h"
-#include "AssetLogo.h"
+#include "AssetLogoNB.h"
 #include "InterFonts.h"
 #include "JetBrainsFonts.h"
+#include "OmniEnums.h"
 #include "OmniIcons.h"
 #include "OmniLink.h"
 
@@ -9,6 +10,7 @@
 #include "imgui_internal.h"
 
 #include <bit>
+#include <limits>
 
 OmniGUI::OmniGUI(OmniLink& OmniLinkInstance)
     : App(OmniLinkInstance), SelectedDevice(OmniLink::SelectedTargetDevice)
@@ -32,7 +34,7 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(D3D11Device, D3D11Context);
 
-    IconTexture.LoadEmbeddedRGBA(OmniLinkLogoData, 128, 128, D3D11Device);
+    IconTexture.LoadEmbeddedRGBA(OmniLinkLogoNBData, 128, 128, D3D11Device);
 
     ImGuiStyle& style = ImGui::GetStyle();
 
@@ -163,6 +165,10 @@ void OmniGUI::DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstanc
             OmniAPI::Connect(Request);
         }
         ImGui::EndPopup();
+    }
+
+    if (Pressed) {
+        SelectedDevice = DeviceMap(DeviceData->DevMapIndex);
     }
 
     ImGui::PopID();
@@ -349,31 +355,34 @@ int OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const f
     ImGui::PushFont(JetBrainsMed15);
 
     // uh.. the math if i forget , 205 * sin(45 degrees) = 144.95
-    int DiagonalAxe = static_cast<int>(Radius * 0.707106f);
+    const int DiagonalAxe = static_cast<int>(Radius * 0.707106f);
 
     auto& Devices = *AvailableInstances;
 
     // Center Device
     DeviceIcon("C0", Pos, &Devices[DeviceMap::C0]);
 
-    static const UIDeviceLayout LAYOUTS[8] = {
+    static const UIDeviceLayout LAYOUTS[9] = {
+        {DeviceMap::C0, "C0", 0.0f, 0.0f, false},    // Center
         {DeviceMap::L1, "L1", -1.0f, 0.0f, false},   // Left
-        {DeviceMap::LU1, "LU1", -1.0f, -1.0f, true}, // Left-Up
         {DeviceMap::U1, "U1", 0.0f, -1.0f, false},   // Up
-        {DeviceMap::RU1, "RU1", 1.0f, -1.0f, true},  // Right-Up
         {DeviceMap::R1, "R1", 1.0f, 0.0f, false},    // Right
-        {DeviceMap::RD1, "RD1", 1.0f, 1.0f, true},   // Right-Down
         {DeviceMap::D1, "D1", 0.0f, 1.0f, false},    // Down
+        {DeviceMap::LU1, "LU1", -1.0f, -1.0f, true}, // Left-Up
+        {DeviceMap::RU1, "RU1", 1.0f, -1.0f, true},  // Right-Up
+        {DeviceMap::RD1, "RD1", 1.0f, 1.0f, true},   // Right-Down
         {DeviceMap::LD1, "LD1", -1.0f, 1.0f, true}   // Left-Down
     };
 
     unsigned int active_mask = 0;
 
-    for (int i = 0; i < 8; ++i) {
+    float offset;
+
+    for (int i = 1; i < 9; ++i) {
         const auto& layout = LAYOUTS[i];
         auto& dev = Devices[layout.DeviceID];
 
-        float offset = layout.DiagonalState ? DiagonalAxe : Radius;
+        offset = layout.DiagonalState ? DiagonalAxe : Radius;
         ImVec2 target_pos(
             Pos.x + (layout.DirectionalityX * offset), Pos.y + (layout.DirectionalityY * offset)
         );
@@ -384,6 +393,48 @@ int OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const f
         } else {
             DeviceAddButton(target_pos, COL_DEV_EMPTY);
         }
+    }
+
+    if (SelectedDevice != DeviceMap::C0 && SelectedDevice < DeviceMap::END) {
+        const uint8_t layout_index = static_cast<uint8_t>(SelectedDevice);
+        const auto& layout = LAYOUTS[layout_index];
+
+        float offset = layout.DiagonalState ? DiagonalAxe : Radius;
+        ImVec2 target_pos(
+            Pos.x + (layout.DirectionalityX * offset),
+            Pos.y + 12.0f + (layout.DirectionalityY * offset)
+        );
+
+        constexpr float total_offset = 32.0f + 12.0f;
+        constexpr float arrow_size = 8.0f;
+        constexpr float thickness = 2.0f;
+
+        ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+        ImVec2 tl_tip(target_pos.x - total_offset, target_pos.y - total_offset);
+        ImVec2 tl_pts[3] = {
+            ImVec2(tl_tip.x - arrow_size, tl_tip.y), tl_tip, ImVec2(tl_tip.x, tl_tip.y - arrow_size)
+        };
+
+        ImVec2 tr_tip(target_pos.x + total_offset, target_pos.y - total_offset);
+        ImVec2 tr_pts[3] = {
+            ImVec2(tr_tip.x + arrow_size, tr_tip.y), tr_tip, ImVec2(tr_tip.x, tr_tip.y - arrow_size)
+        };
+
+        ImVec2 bl_tip(target_pos.x - total_offset, target_pos.y + total_offset);
+        ImVec2 bl_pts[3] = {
+            ImVec2(bl_tip.x - arrow_size, bl_tip.y), bl_tip, ImVec2(bl_tip.x, bl_tip.y + arrow_size)
+        };
+
+        ImVec2 br_tip(target_pos.x + total_offset, target_pos.y + total_offset);
+        ImVec2 br_pts[3] = {
+            ImVec2(br_tip.x + arrow_size, br_tip.y), br_tip, ImVec2(br_tip.x, br_tip.y + arrow_size)
+        };
+
+        DrawList->AddPolyline(tl_pts, 3, COL_MENU_STRIP, 0, thickness);
+        DrawList->AddPolyline(tr_pts, 3, COL_MENU_STRIP, 0, thickness);
+        DrawList->AddPolyline(bl_pts, 3, COL_MENU_STRIP, 0, thickness);
+        DrawList->AddPolyline(br_pts, 3, COL_MENU_STRIP, 0, thickness);
     }
 
     ImGui::PopFont();
