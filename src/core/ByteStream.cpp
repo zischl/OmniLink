@@ -32,7 +32,8 @@ bool ByteStreamReader::SafeReadU64(uint64_t& Dest)
 {
     if (CurrentLength < 8) {
         Logger::log(
-            "ByteStreamReader U64 : Remaining bytestream length insufficient for decoding.");
+            "ByteStreamReader U64 : Remaining bytestream length insufficient for decoding."
+        );
         return false;
     }
     ReadU64Ex(Dest);
@@ -43,7 +44,8 @@ bool ByteStreamReader::SafeReadU32(uint32_t& Dest)
 {
     if (CurrentLength < 4) {
         Logger::log(
-            "ByteStreamReader U32 : Remaining bytestream length insufficient for decoding.");
+            "ByteStreamReader U32 : Remaining bytestream length insufficient for decoding."
+        );
         return false;
     }
     ReadU32Ex(Dest);
@@ -54,7 +56,8 @@ bool ByteStreamReader::SafeReadU16(uint16_t& Dest)
 {
     if (CurrentLength < 2) {
         Logger::log(
-            "ByteStreamReader U16 : Remaining bytestream length insufficient for decoding.");
+            "ByteStreamReader U16 : Remaining bytestream length insufficient for decoding."
+        );
         return false;
     }
     ReadU16Ex(Dest);
@@ -78,8 +81,10 @@ void ByteStreamReader::SafeReadString(std::string& Dest)
         return;
 
     if (CurrentLength < StringLength) {
-        Logger::log("ByteStreamReader : String length exceeds maximum allowed length or remaining "
-                    "data length");
+        Logger::log(
+            "ByteStreamReader : String length exceeds maximum allowed length or remaining "
+            "data length"
+        );
         return;
     }
 
@@ -94,7 +99,8 @@ void ByteStreamReader::ReadString(std::vector<char>& Dest)
     ReadU32Ex(StringLength);
 
     Dest.insert(
-        Dest.end(), reinterpret_cast<char*>(Data), reinterpret_cast<char*>(Data) + StringLength);
+        Dest.end(), reinterpret_cast<char*>(Data), reinterpret_cast<char*>(Data) + StringLength
+    );
 
     Data += StringLength;
     CurrentLength -= StringLength;
@@ -107,13 +113,16 @@ void ByteStreamReader::SafeReadString(std::vector<char>& Dest)
         return;
 
     if (CurrentLength < StringLength) {
-        Logger::log("ByteStreamReader : String length exceeds maximum allowed length or remaining "
-                    "data length");
+        Logger::log(
+            "ByteStreamReader : String length exceeds maximum allowed length or remaining "
+            "data length"
+        );
         return;
     }
 
     Dest.insert(
-        Dest.end(), reinterpret_cast<char*>(Data), reinterpret_cast<char*>(Data) + StringLength);
+        Dest.end(), reinterpret_cast<char*>(Data), reinterpret_cast<char*>(Data) + StringLength
+    );
 
     Data += StringLength;
     CurrentLength -= StringLength;
@@ -134,13 +143,22 @@ void ByteStreamReader::ReadString(char* Dest, uint32_t MaxLen)
     uint32_t StringLength;
     ReadU32Ex(StringLength);
 
-    if (StringLength > MaxLen || CurrentLength < StringLength) {
-        Logger::log("ByteStreamReader : String length exceeds maximum allowed length or remaining "
-                    "data length");
+    if (StringLength >= MaxLen || CurrentLength < StringLength) {
+        Logger::log(
+            "ByteStreamReader : String length exceeds maximum allowed length or remaining "
+            "data length"
+        );
+        uint32_t AdvanceLength = (std::min)(StringLength, CurrentLength);
+        Data += AdvanceLength;
+        CurrentLength -= AdvanceLength;
+        if (MaxLen > 0) {
+            Dest[0] = '\0';
+        }
         return;
     }
 
     std::memcpy(Dest, Data, StringLength);
+    Dest[StringLength] = '\0';
     Data += StringLength;
     CurrentLength -= StringLength;
 }
@@ -150,13 +168,22 @@ void ByteStreamReader::ReadString(char8_t* Dest, uint32_t MaxLen)
     uint32_t StringLength;
     ReadU32Ex(StringLength);
 
-    if (StringLength > MaxLen || CurrentLength < StringLength) {
-        Logger::log("ByteStreamReader : String length exceeds maximum allowed length or remaining "
-                    "data length");
+    if (StringLength >= MaxLen || CurrentLength < StringLength) {
+        Logger::log(
+            "ByteStreamReader : String length exceeds maximum allowed length or remaining "
+            "data length"
+        );
+        uint32_t AdvanceLength = (std::min)(StringLength, CurrentLength);
+        Data += AdvanceLength;
+        CurrentLength -= AdvanceLength;
+        if (MaxLen > 0) {
+            Dest[0] = '\0';
+        }
         return;
     }
 
     std::memcpy(Dest, Data, StringLength);
+    Dest[StringLength] = '\0';
     Data += StringLength;
     CurrentLength -= StringLength;
 }
@@ -244,8 +271,10 @@ bool ByteStreamEx::SafeWriteString(const std::string_view& String, uint32_t MaxL
     WriteU32Ex(StringLength);
 
     if (StringLength > MaxLen) {
-        Logger::log("ByteStreamWriter::SafeWriteString : String length exceeds maximum allowed "
-                    "length of the buffer for encoding.");
+        Logger::log(
+            "ByteStreamWriter::SafeWriteString : String length exceeds maximum allowed "
+            "length of the buffer for encoding."
+        );
     }
 
     std::memcpy(Data + CurrentLength, String.data(), StringLength);
@@ -307,8 +336,10 @@ void ByteVecStreamEx::WriteString(const std::string_view& String)
 {
 
     if (String.size() > UINT32_MAX) {
-        Logger::log("ByteStreamWriter::WriteString : String length exceeds maximum allowed length "
-                    "for encoding.");
+        Logger::log(
+            "ByteStreamWriter::WriteString : String length exceeds maximum allowed length "
+            "for encoding."
+        );
         return;
     }
 
@@ -326,7 +357,8 @@ void ByteVecStreamEx::WriteU8String(const std::u8string_view& String)
     if (String.size() > UINT32_MAX) {
         Logger::log(
             "ByteStreamWriter::WriteU8String : String length exceeds maximum allowed length "
-            "for encoding.");
+            "for encoding."
+        );
         return;
     }
 
@@ -344,8 +376,10 @@ void ByteVecStreamEx::WriteU8String(const std::u8string_view& String)
 void ByteVecStreamEx::SafeWriteString(const std::string_view& String, const uint32_t MaxLen)
 {
     if (String.size() > UINT32_MAX) {
-        Logger::log("ByteStreamWriter::WriteString : String length exceeds maximum allowed length "
-                    "for encoding.");
+        Logger::log(
+            "ByteStreamWriter::WriteString : String length exceeds maximum allowed length "
+            "for encoding."
+        );
         return;
     }
 

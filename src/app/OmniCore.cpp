@@ -249,16 +249,25 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
             WindowCreationData::Serialize(WGC),
         };
 
-        TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
-
-        SystemLink.AddCaptureStream(
-            InstanceRegistry.ActiveInstances[Index].InstanceSession.get(), Index, CaptureMode::DXGI
-        );
-
         auto& instance = InstanceRegistry.ActiveInstances[Index];
         if (instance.InstanceSession) {
+            TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
             SystemLink.AddCaptureStream(instance.InstanceSession.get(), Index, CaptureMode::DXGI);
         } else {
+            EventData Event{Alert{
+                "Stream Link Error",
+                "Instance : ",
+                InstanceRegistry.AllInstances[Index].InstanceName
+            }};
+
+            PushNotification(
+                Notification{
+                    Event,
+                    "Please Select An Instance First",
+                    Notification::EventLayout::BOTTOM_RIGHT,
+                    1
+                }
+            );
         }
 
         break;

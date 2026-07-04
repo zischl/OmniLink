@@ -190,18 +190,20 @@ struct OmniNetCommand
 
     OmniNetCommand() = default;
 
-    OmniNetCommand(CoreCommandsWArgs InCommandType,
-                   uint32_t InArgTypeIndex,
-                   std::vector<uint8_t> InArgs)
+    OmniNetCommand(
+        CoreCommandsWArgs InCommandType, uint32_t InArgTypeIndex, std::vector<uint8_t> InArgs
+    )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex),
           ArgArrayLength(static_cast<uint32_t>(InArgs.size())), Args(std::move(InArgs))
     {
     }
 
-    OmniNetCommand(CoreCommandsWArgs InCommandType,
-                   uint32_t InArgTypeIndex,
-                   const uint8_t* InArgs,
-                   uint32_t InLength)
+    OmniNetCommand(
+        CoreCommandsWArgs InCommandType,
+        uint32_t InArgTypeIndex,
+        uint32_t InLength,
+        const uint8_t* InArgs
+    )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex), ArgArrayLength(InLength),
           Args(InArgs, InArgs + InLength)
     {

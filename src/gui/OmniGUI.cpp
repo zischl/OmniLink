@@ -159,6 +159,7 @@ void OmniGUI::DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstanc
 
     // Context Menu
     if (ImGui::BeginPopupContextItem("DeviceContextMenu")) {
+        SelectedDevice = DeviceMap(DeviceData->DevMapIndex);
         if (ImGui::MenuItem("Connect Instance")) {
             ConnectionRequest Request;
             Request.DeviceID = static_cast<DeviceMap>(DeviceData->DevMapIndex);

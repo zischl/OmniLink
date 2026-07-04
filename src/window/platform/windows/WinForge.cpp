@@ -39,9 +39,10 @@ HWND WinForge::CreateWindowAsync(const wchar_t *window_name,
                                  HINSTANCE &hInstance, int nCmdShow,
                                  D3DDevice D3DDevStruct) {
 
-  std::thread test1([&] {
+  std::wstring name(window_name);
+  std::thread test1([this, name, hInstance, nCmdShow, D3DDevStruct] {
     hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    WinConfig config(L"Linker", 1920, 1080, window_name, NULL);
+    WinConfig config(L"Linker", 1920, 1080, name.c_str(), NULL);
     hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
     ShowWindow(hwnd, nCmdShow);
 
