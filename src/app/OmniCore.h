@@ -98,7 +98,7 @@ class OmniCore
                 while (AppState == OmniAppState::RUNNING) {
                     std::unique_lock<std::mutex> lock(CommandQMutex);
                     CommandQCV.wait(lock, [this]() -> boolean {
-                        return !CommandBurstQ.Queue.empty() || !CommandBurstQWArgs.Queue.empty();
+                        return !CommandBurstQ.empty() || !CommandBurstQWArgs.empty();
                     });
 
                     ExecuteCommandQueue();
