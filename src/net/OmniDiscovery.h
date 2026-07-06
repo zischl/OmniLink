@@ -86,6 +86,7 @@ class OmniDiscovery
 
   public:
     OmniDiscovery(const std::string& InstanceName, uint32_t _LocalIP, uint16_t port);
+    ~OmniDiscovery();
 
     void PopulateInstances(int Runtime);
 
@@ -126,247 +127,260 @@ class OmniDiscovery
     /// </summary>
     template <typename Type> void AwaitInstances(Type&& Callback)
     {
-        std::thread responder([this, Callback]() {
+        if (AwaitThread.joinable()) {
+            AwaitThread.join();
+        }
+
+        AwaitThread = std::thread([this, Callback]() {
             OmniDiscoveryPacket packet;
             asio::ip::udp::endpoint ResponseEndpoint;
 
             while (state.load()) {
+                try {
+                    size_t MsgLen =
+                        socket.receive_from(asio::buffer(&packet, sizeof(packet)), ResponseEndpoint);
 
-                size_t MsgLen =
-                    socket.receive_from(asio::buffer(&packet, sizeof(packet)), ResponseEndpoint);
+                    if (MsgLen >= sizeof(OmniDiscoveryPacket) && packet.Liss == 0x4F4D4E49) {
+                        switch (packet.Type) {
+                        case PayloadType::DiscoveryRequest: {
+                            if (std::memcmp(
+                                    packet.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest)
+                                ) == 0) {
+                                ResponseEndpoint.port(discovery_port);
 
-                if (MsgLen >= sizeof(OmniDiscoveryPacket) && packet.Liss == 0x4F4D4E49) {
-                    switch (packet.Type) {
-                    case PayloadType::DiscoveryRequest: {
-                        if (std::memcmp(
-                                packet.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest)
-                            ) == 0) {
-                            ResponseEndpoint.port(discovery_port);
+                                if (InstanceUUID == packet.UUID) {
+                                    break;
+                                }
 
-                            if (InstanceUUID == packet.UUID) {
-                                break;
-                            }
+                                OmniDiscoveryPacket ResponsePacket;
+                                ResponsePacket.PayloadLen = sizeof(OmniDiscoveryResponse);
+                                ResponsePacket.Type = PayloadType::DiscoveryResponse;
+                                std::memcpy(
+                                    ResponsePacket.Payload,
+                                    OmniDiscoveryResponse,
+                                    sizeof(OmniDiscoveryResponse)
+                                );
+                                memcpy(
+                                    ResponsePacket.UUID, InstanceUUID.Bytes, sizeof(ResponsePacket.UUID)
+                                );
 
-                            OmniDiscoveryPacket ResponsePacket;
-                            ResponsePacket.PayloadLen = sizeof(OmniDiscoveryResponse);
-                            ResponsePacket.Type = PayloadType::DiscoveryResponse;
-                            std::memcpy(
-                                ResponsePacket.Payload,
-                                OmniDiscoveryResponse,
-                                sizeof(OmniDiscoveryResponse)
-                            );
-                            memcpy(
-                                ResponsePacket.UUID, InstanceUUID.Bytes, sizeof(ResponsePacket.UUID)
-                            );
+                                socket.send_to(
+                                    asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                    ResponseEndpoint
+                                );
 
-                            socket.send_to(
-                                asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                ResponseEndpoint
-                            );
+                                uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
 
-                            uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+                                bool event = false;
 
-                            bool event = false;
+                                {
+                                    std::lock_guard<std::mutex> lock(mutex);
+                                    if (instances.find(Addr) == instances.end() &&
+                                        !(InstanceUUID == packet.UUID)) {
 
-                            {
-                                std::lock_guard<std::mutex> lock(mutex);
-                                if (instances.find(Addr) == instances.end() &&
-                                    !(InstanceUUID == packet.UUID)) {
+                                        instances[Addr] = ResponseEndpoint.address().to_string();
+                                        std::cout << "Instance Found At: " << ResponseEndpoint.address()
+                                                  << " : " << ResponseEndpoint.port() << " "
+                                                  << socket.local_endpoint().port() << "\n";
+                                        event = true;
 
-                                    instances[Addr] = ResponseEndpoint.address().to_string();
-                                    std::cout << "Instance Found At: " << ResponseEndpoint.address()
-                                              << " : " << ResponseEndpoint.port() << " "
-                                              << socket.local_endpoint().port() << "\n";
-                                    event = true;
+                                        OmniDiscoveryPacket ResponsePacket{
+                                            PayloadType::IdentifyRequest,
+                                        };
 
-                                    OmniDiscoveryPacket ResponsePacket{
-                                        PayloadType::IdentifyRequest,
-                                    };
+                                        ResponsePacket.PayloadLen = Device::MAX_CNLEN;
+                                        ResponsePacket.Liss = OmniLiss;
 
-                                    ResponsePacket.PayloadLen = Device::MAX_CNLEN;
-                                    ResponsePacket.Liss = OmniLiss;
+                                        std::strncpy(
+                                            ResponsePacket.Payload,
+                                            instances[InstanceIP].c_str(),
+                                            sizeof(packet.Payload) - 1
+                                        );
 
-                                    std::strncpy(
-                                        ResponsePacket.Payload,
-                                        instances[InstanceIP].c_str(),
-                                        sizeof(packet.Payload) - 1
-                                    );
+                                        socket.send_to(
+                                            asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                            ResponseEndpoint
+                                        );
+                                    }
+                                }
 
-                                    socket.send_to(
-                                        asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                        ResponseEndpoint
+                                if (event) {
+                                    Callback(
+                                        ProbeEvent{
+                                            PayloadType::DiscoveryRequest, NetLinkState::INACTIVE, Addr
+                                        }
                                     );
                                 }
                             }
 
-                            if (event) {
-                                Callback(
-                                    ProbeEvent{
-                                        PayloadType::DiscoveryRequest, NetLinkState::INACTIVE, Addr
-                                    }
-                                );
-                            }
+                            break;
                         }
 
-                        break;
-                    }
+                        case PayloadType::DiscoveryResponse: {
+                            if (std::memcmp(
+                                    packet.Payload, OmniDiscoveryResponse, sizeof(OmniDiscoveryResponse)
+                                ) == 0) {
+                                uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+                                bool event = false;
 
-                    case PayloadType::DiscoveryResponse: {
-                        if (std::memcmp(
-                                packet.Payload, OmniDiscoveryResponse, sizeof(OmniDiscoveryResponse)
-                            ) == 0) {
-                            uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
-                            bool event = false;
+                                if (InstanceUUID == packet.UUID) {
+                                    break;
+                                }
 
-                            if (InstanceUUID == packet.UUID) {
-                                break;
-                            }
+                                {
+                                    std::lock_guard<std::mutex> lock(mutex);
+                                    if (instances.find(Addr) == instances.end() &&
+                                        !(InstanceUUID == packet.UUID)) {
+                                        instances[Addr] = ResponseEndpoint.address().to_string();
+                                        std::cout << "Instance Found At: " << ResponseEndpoint.address()
+                                                  << " : " << ResponseEndpoint.port() << " "
+                                                  << socket.local_endpoint().port() << "\n";
 
-                            {
-                                std::lock_guard<std::mutex> lock(mutex);
-                                if (instances.find(Addr) == instances.end() &&
-                                    !(InstanceUUID == packet.UUID)) {
-                                    instances[Addr] = ResponseEndpoint.address().to_string();
-                                    std::cout << "Instance Found At: " << ResponseEndpoint.address()
-                                              << " : " << ResponseEndpoint.port() << " "
-                                              << socket.local_endpoint().port() << "\n";
+                                        OmniDiscoveryPacket ResponsePacket{
+                                            PayloadType::IdentifyRequest,
+                                        };
 
-                                    OmniDiscoveryPacket ResponsePacket{
-                                        PayloadType::IdentifyRequest,
-                                    };
+                                        ResponsePacket.PayloadLen = Device::MAX_CNLEN;
+                                        ResponsePacket.Liss = OmniLiss;
 
-                                    ResponsePacket.PayloadLen = Device::MAX_CNLEN;
-                                    ResponsePacket.Liss = OmniLiss;
+                                        std::strncpy(
+                                            ResponsePacket.Payload,
+                                            instances[InstanceIP].c_str(),
+                                            sizeof(packet.Payload) - 1
+                                        );
 
-                                    std::strncpy(
-                                        ResponsePacket.Payload,
-                                        instances[InstanceIP].c_str(),
-                                        sizeof(packet.Payload) - 1
+                                        socket.send_to(
+                                            asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                            ResponseEndpoint
+                                        );
+
+                                        event = true;
+                                    }
+                                }
+
+                                if (event) {
+                                    Callback(
+                                        ProbeEvent{
+                                            PayloadType::DiscoveryResponse, NetLinkState::INACTIVE, Addr
+                                        }
                                     );
-
-                                    socket.send_to(
-                                        asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                        ResponseEndpoint
-                                    );
-
-                                    event = true;
                                 }
                             }
 
-                            if (event) {
-                                Callback(
-                                    ProbeEvent{
-                                        PayloadType::DiscoveryResponse, NetLinkState::INACTIVE, Addr
-                                    }
-                                );
-                            }
+                            break;
                         }
 
-                        break;
-                    }
+                        case PayloadType::IdentifyRequest: {
+                            uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
 
-                    case PayloadType::IdentifyRequest: {
-                        uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
-
-                        OmniDiscoveryPacket ResponsePacket{
-                            PayloadType::IdentifyResponse,
-                        };
-
-                        ResponsePacket.PayloadLen = Device::MAX_UNLEN;
-                        ResponsePacket.Liss = OmniLiss;
-
-                        std::strncpy(
-                            ResponsePacket.Payload,
-                            instances[InstanceIP].c_str(),
-                            sizeof(ResponsePacket.Payload) - 1
-                        );
-
-                        packet.Payload[sizeof(packet.Payload) - 1] = '\0';
-
-                        socket.send_to(
-                            asio::buffer(&ResponsePacket, sizeof(ResponsePacket)), ResponseEndpoint
-                        );
-
-                        std::string AddrString = ResponseEndpoint.address().to_string();
-
-                        if (instances[Addr].empty() || instances[Addr] == AddrString) {
                             OmniDiscoveryPacket ResponsePacket{
-                                PayloadType::IdentifyRequest,
+                                PayloadType::IdentifyResponse,
                             };
 
-                            ResponsePacket.PayloadLen = Device::MAX_CNLEN;
+                            ResponsePacket.PayloadLen = Device::MAX_UNLEN;
                             ResponsePacket.Liss = OmniLiss;
 
                             std::strncpy(
                                 ResponsePacket.Payload,
                                 instances[InstanceIP].c_str(),
-                                sizeof(packet.Payload) - 1
+                                sizeof(ResponsePacket.Payload) - 1
                             );
+
+                            packet.Payload[sizeof(packet.Payload) - 1] = '\0';
 
                             socket.send_to(
-                                asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
-                                ResponseEndpoint
+                                asio::buffer(&ResponsePacket, sizeof(ResponsePacket)), ResponseEndpoint
                             );
-                        }
 
-                        break;
-                    }
+                            std::string AddrString = ResponseEndpoint.address().to_string();
 
-                    case PayloadType::IdentifyResponse: {
-                        uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+                            if (instances[Addr].empty() || instances[Addr] == AddrString) {
+                                OmniDiscoveryPacket ResponsePacket{
+                                    PayloadType::IdentifyRequest,
+                                };
 
-                        bool event = false;
-                        {
-                            std::lock_guard<std::mutex> lock(mutex);
-                            if (!(instances.find(Addr) == instances.end())) {
-                                instances[Addr] = packet.Payload;
+                                ResponsePacket.PayloadLen = Device::MAX_CNLEN;
+                                ResponsePacket.Liss = OmniLiss;
 
-                                std::cout << "Instance " << instances[Addr]
-                                          << " Identified At: " << ResponseEndpoint.address()
-                                          << " : " << ResponseEndpoint.port() << " "
-                                          << socket.local_endpoint().port() << "\n";
-                                event = true;
+                                std::strncpy(
+                                    ResponsePacket.Payload,
+                                    instances[InstanceIP].c_str(),
+                                    sizeof(packet.Payload) - 1
+                                );
+
+                                socket.send_to(
+                                    asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                    ResponseEndpoint
+                                );
                             }
+
+                            break;
                         }
 
-                        if (event) {
-                            Callback(
-                                ProbeEvent{
-                                    PayloadType::IdentifyResponse, NetLinkState::INACTIVE, Addr
+                        case PayloadType::IdentifyResponse: {
+                            uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+
+                            bool event = false;
+                            {
+                                std::lock_guard<std::mutex> lock(mutex);
+                                if (!(instances.find(Addr) == instances.end())) {
+                                    instances[Addr] = packet.Payload;
+
+                                    std::cout << "Instance " << instances[Addr]
+                                              << " Identified At: " << ResponseEndpoint.address()
+                                              << " : " << ResponseEndpoint.port() << " "
+                                              << socket.local_endpoint().port() << "\n";
+                                    event = true;
                                 }
-                            );
+                            }
+
+                            if (event) {
+                                Callback(
+                                    ProbeEvent{
+                                        PayloadType::IdentifyResponse, NetLinkState::INACTIVE, Addr
+                                    }
+                                );
+                            }
+
+                            break;
                         }
 
-                        break;
-                    }
+                        case PayloadType::LinkRequest: {
+                            uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+                            Callback(ProbeEvent{PayloadType::LinkRequest, NetLinkState::LINKING, Addr});
+                            break;
+                        }
+                        case PayloadType::LinkResponse: {
+                            uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+                            NetLinkState LinkState = static_cast<NetLinkState>(packet.Payload[0]);
 
-                    case PayloadType::LinkRequest: {
-                        uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
-                        Callback(ProbeEvent{PayloadType::LinkRequest, NetLinkState::LINKING, Addr});
-                        break;
+                            Callback(ProbeEvent{PayloadType::LinkResponse, LinkState, Addr});
+                        }
+                        default:
+                            break;
+                        }
                     }
-                    case PayloadType::LinkResponse: {
-                        uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
-                        NetLinkState LinkState = static_cast<NetLinkState>(packet.Payload[0]);
-
-                        Callback(ProbeEvent{PayloadType::LinkResponse, LinkState, Addr});
-                    }
-                    default:
-                        break;
-                    }
+                } catch (const std::exception&) {
+                    break;
                 }
             }
         });
-
-        responder.detach();
     }
 
     /// <summary>
     /// Used to end AwaitInstances if not run with the parameter runtime.
     /// </summary>
-    inline void EndAwait() { state.store(false); }
+    inline void EndAwait()
+    {
+        state.store(false);
+        std::error_code ec;
+        socket.close(ec);
+    }
 
   private:
+    std::thread AwaitThread;
+    std::thread ScanThread;
+
     unsigned short discovery_port;
 
     asio::io_context io_context;

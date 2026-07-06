@@ -63,6 +63,11 @@ struct OmniInstanceRegistry
         ActivateInstance(DeviceMap::C0, nullptr);
     }
 
+    ~OmniInstanceRegistry()
+    {
+        delete InstanceProbe;
+    }
+
     std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept
     {
         return &AllInstances;
