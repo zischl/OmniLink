@@ -1,5 +1,5 @@
-#ifndef NETENCODER_H
-#define NETENCODER_H
+#ifndef BYTESTREAM_H
+#define BYTESTREAM_H
 
 #pragma once
 #include <stdint.h>
@@ -64,7 +64,10 @@ class ByteStream
         Dest[7] = static_cast<uint8_t>(Value & 0xFF);
     }
 
-    static inline void WriteU8(uint8_t Value, std::vector<uint8_t>& Dest) { Dest.push_back(Value); }
+    static inline void WriteU8Ex(uint8_t Value, std::vector<uint8_t>& Dest)
+    {
+        Dest.push_back(Value);
+    }
 
     static inline void WriteU16Ex(uint16_t Value, std::vector<uint8_t>& Dest)
     {
@@ -120,19 +123,17 @@ class ByteStreamReader : private ByteStream
 
     bool SafeReadU16(uint16_t& Dest);
 
-    void ReadString(std::string& Dest);
+    void ReadString(std::string& Dest, uint32_t Len);
 
-    void SafeReadString(std::string& Dest);
+    bool SafeReadString(std::string& Dest, uint32_t Len);
 
-    void ReadString(std::vector<char>& Dest);
+    void ReadString(std::vector<char>& Dest, uint32_t Len);
 
-    void SafeReadString(std::vector<char>& Dest);
+    bool SafeReadString(std::vector<char>& Dest, uint32_t Len);
 
-    void ReadString(char* Dest);
+    bool ReadString(char* Dest, uint32_t Len, uint32_t MaxLen);
 
-    void ReadString(char* Dest, uint32_t MaxLen);
-
-    void ReadString(char8_t* Dest, uint32_t MaxLen);
+    bool ReadString(char8_t* Dest, uint32_t Len, uint32_t MaxLen);
 
     void ReadBytes(uint8_t* Dest, uint32_t Len);
 
