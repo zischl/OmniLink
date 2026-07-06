@@ -37,7 +37,7 @@ struct ConnectionRequest
 {
     DeviceMap DeviceID;
     char OmniReqKey[32];
-    bool Verified;
+    bool Trusted;
 
     static ConnectionRequest Deserialize(ByteStreamReader& reader)
     {
@@ -47,7 +47,13 @@ struct ConnectionRequest
         reader.ReadU8Ex(DevId);
         obj.DeviceID = DeviceMap(DevId);
 
-        reader.ReadString(obj.OmniReqKey);
+        uint32_t KeyLen;
+        reader.ReadU32Ex(KeyLen);
+        reader.ReadString(obj.OmniReqKey, KeyLen, 32);
+
+        uint8_t trust = 0;
+        reader.ReadU8Ex(trust);
+        obj.Trusted = (bool)trust;
 
         return obj;
     }
@@ -56,8 +62,10 @@ struct ConnectionRequest
     {
         ByteVecStreamEx NetWriter{sizeof(ConnectionRequest)};
         NetWriter.WriteU8Ex(obj.DeviceID);
-        NetWriter.SafeWriteString(obj.OmniReqKey, 32);
-
+        const uint32_t KeyLen = static_cast<uint32_t>(strnlen(obj.OmniReqKey, 32));
+        NetWriter.WriteU32Ex(KeyLen);
+        NetWriter.SafeWriteString(std::string_view(obj.OmniReqKey, KeyLen), 32);
+        NetWriter.WriteU8Ex(obj.Trusted);
         return NetWriter.Data;
     }
 };
@@ -92,17 +100,14 @@ struct WindowCreationData
     {
         NameLen = static_cast<uint32_t>((std::min)(TitleLen, size_t{63}));
 
-        std::copy_n(Title, NameLen, WindowName);
-        WindowName[NameLen] = '\0';
+        std::transform(Title, Title + NameLen, WindowName, [](char c) {
+            return static_cast<char8_t>(c);
+        });
+
+        WindowName[NameLen] = u8'\0';
     }
 
-    void SetTitle(std::string_view title)
-    {
-        NameLen = static_cast<uint32_t>((std::min)(title.length(), size_t{63}));
-
-        std::copy_n(title.data(), NameLen, WindowName);
-        WindowName[NameLen] = '\0';
-    }
+    void SetTitle(std::string_view title) { SetTitle(title.data(), title.length()); }
 
     std::u8string GetTitleU8() const { return std::u8string(WindowName); }
 
@@ -111,7 +116,8 @@ struct WindowCreationData
         WindowCreationData obj;
 
         reader.ReadU32Ex(obj.NameLen);
-        reader.ReadString(obj.WindowName, 64);
+        obj.NameLen = (std::min)(obj.NameLen, uint32_t{63});
+        reader.ReadString(obj.WindowName, obj.NameLen, 64);
         reader.ReadU32Ex(obj.Width);
         reader.ReadU32Ex(obj.Height);
 
@@ -122,7 +128,7 @@ struct WindowCreationData
     {
         ByteVecStreamEx NetWriter{76};
         NetWriter.WriteU32Ex(obj.NameLen);
-        NetWriter.WriteU8String(obj.WindowName);
+        NetWriter.WriteBytes(reinterpret_cast<const uint8_t*>(obj.WindowName), obj.NameLen);
         NetWriter.WriteU32Ex(obj.Width);
         NetWriter.WriteU32Ex(obj.Height);
         return NetWriter.Data;
@@ -218,9 +224,7 @@ struct OmniNetCommand
         writer.WriteU8Ex(static_cast<uint8_t>(obj.CommandType));
         writer.WriteU32Ex(obj.ArgTypeIndex);
         writer.WriteU32Ex(payloadLen);
-
-        writer.Data.insert(writer.Data.end(), obj.Args.begin(), obj.Args.end());
-        writer.CurrentLength += payloadLen;
+        writer.WriteBytes(obj.Args.data(), payloadLen);
 
         return writer.Data;
     }
@@ -233,16 +237,13 @@ struct OmniNetCommand
         out.clear();
         out.reserve(totalSize);
 
-        ByteVecStreamEx writer{totalSize};
-
+        ByteStreamEx writer{totalSize, out.data()};
         writer.WriteU8Ex(static_cast<uint8_t>(obj.CommandType));
         writer.WriteU32Ex(obj.ArgTypeIndex);
         writer.WriteU32Ex(payloadLen);
-
-        writer.Data.insert(writer.Data.end(), obj.Args.begin(), obj.Args.end());
-        writer.CurrentLength += payloadLen;
-
-        out = std::move(writer.Data);
+        writer.WriteString(
+            std::string_view(reinterpret_cast<const char*>(obj.Args.data()), payloadLen)
+        );
     }
 
     static OmniNetCommand Deserialize(ByteStreamReader& Reader)
