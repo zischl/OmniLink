@@ -1,175 +1,171 @@
-
 #ifndef WINCAP_H
 #define WINCAP_H
 
-
+#include "CaptureTypes.h"
 #pragma once
-#include <OmniLogger.h>
+#include <functional>
+#include <mutex>
 
+#include <Windows.h>
 #include <d3d11.h>
 #include <dxgi1_5.h>
-#include <Windows.h>
-#include <winrt/windows.graphics.capture.h>
 #include <windows.graphics.capture.interop.h>
-#include <winrt/Windows.Foundation.h>
 #include <windows.graphics.directx.direct3d11.interop.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/windows.graphics.capture.h>
+#include <wrl/client.h>
 
 #pragma comment(lib, "windowsapp.lib")
 
-#include <wrl/client.h>
-
-
-
-
 using Microsoft::WRL::ComPtr;
 
-class DXGICapture {
-private:
-	HRESULT hr;
+// DXGI Screen Capture class, technically... it's not necessary to ReleaseFrame() anymore with this
+// design since it's ComPtr plus each frame aquisition already releases the frame.
+class DXGICapture
+{
+  private:
+    HRESULT hr;
 
-	ComPtr<IDXGIOutputDuplication> DXGIOutDuplication;
+    ComPtr<IDXGIOutputDuplication> DXGIOutDuplication;
 
-	DXGI_OUTDUPL_FRAME_INFO frameinfo;
-	ComPtr<IDXGIResource> framepixeldata = nullptr;
-	ComPtr<ID3D11Texture2D> DXGIComBuffer = nullptr;
-	bool CaptureState = false;
+    DXGI_OUTDUPL_FRAME_INFO FrameInfo;
+    ComPtr<IDXGIResource> FramePixelData = nullptr;
 
+    // Returned by GetBuffer, which is where the latest frames are stored
+    ComPtr<ID3D11Texture2D> DXGIComBuffer = nullptr;
+    bool CaptureState = false;
 
-public:
-	ComPtr<IDXGIOutputDuplication> InitDXGI(ID3D11Device* D3D11Device);
+  public:
+    // Run this once and use GetBuffer, already aquires a frame once to get the Tex2D interface
+    ComPtr<IDXGIOutputDuplication> InitDXGI(ID3D11Device* D3D11Device);
 
-	ID3D11Texture2D* GetBuffer() const;
+    ID3D11Texture2D* GetBuffer() const;
 
-	inline HRESULT CaptureDXGI()
-	{
-		if (CaptureState)
-		{
-			DXGIOutDuplication->ReleaseFrame();
-			CaptureState = false;
-		}
+    // Blocks up to 33ms which is around min 30 fps waiting for a desktop update
+    // returns false on timeout.
+    bool AcquireFrame();
 
+    // Not really necessary to call but just in case it's needed to release resources.
+    void ReleaseFrame();
 
-		hr = DXGIOutDuplication->AcquireNextFrame(0, &frameinfo, &framepixeldata);
-
-		if (SUCCEEDED(hr))
-		{
-			CaptureState = true;
-		}
-
-		return hr;
-	}
-
-	inline void AcquireFrame() {
-		CaptureDXGI();
-	}
-
-	inline void ReleaseFrame() {
-		// Released on next acquire or explicitly here if preferred
-		if (CaptureState) {
-			DXGIOutDuplication->ReleaseFrame();
-			CaptureState = false;
-		}
-	}
+    static constexpr FrameAquisition FrameAqMode = FrameAquisition::Polling;
 };
 
+// This class will be the base class for WGC Screen Capture and later on WGC Window Capture
+class WGCapture
+{
+  public:
+    winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice D3DDevice_WGC{nullptr};
 
-class WGCapture {
-public:
+    ID3D11DeviceContext* D3D11Context = nullptr;
 
-	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice D3DDevice_WGC{ nullptr };
-	
-	ID3D11DeviceContext* D3D11Context = nullptr;
+    // Fighting between two shitty wrappers
+    inline void SetWrappedD3D11Device(ID3D11Device* D3D11DevicePtr)
+    {
+        ComPtr<ID3D11Device> ComID3D11Device = D3D11DevicePtr;
+        ComPtr<IDXGIDevice> DXGIDevice;
+        ComID3D11Device.As(&DXGIDevice);
 
-	inline void SetWrappedD3D11Device(ID3D11Device* D3D11DevicePtr) {
-		ComPtr< ID3D11Device> ComID3D11Device = D3D11DevicePtr;
-		ComPtr<IDXGIDevice> DXGIDevice;
-		ComID3D11Device.As(&DXGIDevice);
+        winrt::com_ptr<IInspectable> inspectableSurface;
+        if (SUCCEEDED(
+                CreateDirect3D11DeviceFromDXGIDevice(DXGIDevice.Get(), inspectableSurface.put())
+            )) {
+            D3DDevice_WGC =
+                inspectableSurface
+                    .as<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>();
+        }
+    }
 
-		winrt::com_ptr<IInspectable> inspectableSurface;
-		if (SUCCEEDED(CreateDirect3D11DeviceFromDXGIDevice(DXGIDevice.Get(), inspectableSurface.put())))
-		{
-			D3DDevice_WGC = inspectableSurface.as<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>();
-		}
+    inline HMONITOR GetActiveMonitor()
+    {
+        HWND WindowHandle = GetForegroundWindow();
+        HMONITOR ActiveMonitor = MonitorFromWindow(WindowHandle, MONITOR_DEFAULTTONEAREST);
+        return ActiveMonitor;
+    }
 
-	}
+    // So what if i'm still on classics..
+    inline void GetRoActivationFactory(void** WGCInterop)
+    {
+        HSTRING ClassName;
 
-	inline HMONITOR GetActiveMonitor() {
-		HWND WindowHandle = GetForegroundWindow();
-		HMONITOR ActiveMonitor = MonitorFromWindow(WindowHandle, MONITOR_DEFAULTTONEAREST);
-		return ActiveMonitor;
-	}
+        winrt::check_hresult(WindowsCreateString(
+            L"Windows.Graphics.Capture.GraphicsCaptureItem",
+            wcslen(L"Windows.Graphics.Capture.GraphicsCaptureItem"),
+            &ClassName
+        ));
 
-	inline void GetRoActivationFactory(void** WGCInterop) {
-		HSTRING ClassName;
+        winrt::check_hresult(
+            RoGetActivationFactory(ClassName, __uuidof(IGraphicsCaptureItemInterop), WGCInterop)
+        );
+    }
 
-		winrt::check_hresult(
-			WindowsCreateString(
-				L"Windows.Graphics.Capture.GraphicsCaptureItem",
-				wcslen(L"Windows.Graphics.Capture.GraphicsCaptureItem"),
-				&ClassName
-			)
-		);
+    void GetActiveMonitorCaptureItem(
+        winrt::Windows::Graphics::Capture::GraphicsCaptureItem& CaptureItem
+    );
 
-		winrt::check_hresult
-		(
-			RoGetActivationFactory
-			(
-				ClassName,
-				__uuidof(IGraphicsCaptureItemInterop),
-				WGCInterop
-			)
-		);
-	}
-
-	void GetActiveMonitorCaptureItem(winrt::Windows::Graphics::Capture::GraphicsCaptureItem& CaptureItem);
-
-	void CreateWGCBuffer(ID3D11Device* D3D11Device, ID3D11Texture2D** Buffer);
-	
+    // Only needed in copy based WGScreenCapture, otherwise the resource's D3DTexture2D interface
+    // can be directly accessed
+    void
+    CreateWGCBuffer(ID3D11Device* D3D11Device, ID3D11Texture2D** Buffer, UINT Width, UINT Height);
 };
 
-class WGScreenCapture : public WGCapture{
-private:
-	HRESULT hr = S_OK;
+// This class will be handling screen capture based on WGC Copy Based, not optimized for networking,
+// best for testing purposes, Create a session, Start and and Setup Buffer, Use AcquireFrame
+class WGScreenCapture : public WGCapture
+{
+  private:
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
 
-	winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{ NULL };
+    std::mutex FrameMutex;
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame LatestFrame{nullptr};
+    bool FrameAvailability = false;
 
-	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{ NULL };
+    ID3D11Texture2D* WBuffer = nullptr;
 
-	winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{ nullptr };
+  public:
+    WGScreenCapture(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11Context_);
+    ~WGScreenCapture();
 
-	std::atomic_bool WriteState{ false };
+    void CreateMonitorCapSession(ID3D11Texture2D* Buffer, UINT Width, UINT Height);
 
-	winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame Frame{ nullptr };
-	winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame ValidFrame{ nullptr };
+    // Copies the latest WGC frame into WBuffer on the calling thread.
+    // Returns true if a new frame was available and successfully copied.
+    bool AcquireFrame();
 
-	ID3D11Texture2D* WBuffer = nullptr;
+    void StartSession();
+    void CloseSession();
+};
 
-	winrt::com_ptr<Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess> _SurfaceInterface;;
+// Optimised WGC screen capture with no mutex, no copies, no states, no extra threads
+// Callback accepted in session creation which receives ID3D11Texture2D*
+// Do release that texture after use which frees up WGC Pool Slot for a new frame
+class WGScreenCaptureEx : public WGCapture
+{
+  public:
+    static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
 
-	ID3D11Texture2D* _SurfaceTexture = nullptr;
+    using FrameCallback = std::function<void(ID3D11Texture2D*)>;
 
+    explicit WGScreenCaptureEx(ID3D11Device* D3D11DevicePtr);
 
-public:
-	WGScreenCapture(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11Context_);
+    // Registers the callback, builds the 3 slot frame pool, and
+    // creates the capture session. Call StartSession() to.. uh... start.
+    // And.. CloseSession() to.. well.. close and cleanup
+    // 3 slots designed each for processing state, ready state and latest frame capture
+    // DO EFFING REMEMBER TO RELEASE THE TEXTURE2D WHEN DONE USING
+    void CreateMonitorCapSession(UINT Width, UINT Height, FrameCallback OnFrameCallback);
 
-	void CreateMonitorCapSession(ID3D11Texture2D* Buffer, UINT Width, UINT Height);
+    void StartSession();
+    void CloseSession();
 
-	inline void WriteStateLock() {
-		WriteState.store(true);
-	}
+  private:
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
 
-	inline void WriteStateUnlock() {
-		WriteState.store(false);
-	}
-
-	inline void AcquireFrame() { WriteStateLock(); }
-	inline void ReleaseFrame() { WriteStateUnlock(); }
-
-	void StartSession();
-
-	void CloseSession();
-
-
+    FrameCallback OnFrameArrived;
 };
 
 #endif
