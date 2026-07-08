@@ -49,6 +49,7 @@ class DXGICapture
     void ReleaseFrame();
 
     static constexpr FrameAquisition FrameAqMode = FrameAquisition::Polling;
+    static constexpr CaptureAPI Type = CaptureAPI::DXGI;
 };
 
 // This class will be the base class for WGC Screen Capture and later on WGC Window Capture
@@ -145,6 +146,7 @@ class WGScreenCaptureEx : public WGCapture
 {
   public:
     static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
+    static constexpr CaptureAPI Type = CaptureAPI::WGC;
 
     using FrameCallback = std::function<void(ID3D11Texture2D*)>;
 

@@ -2,5 +2,6 @@
 
 PipeWireCap::PipeWireCap() {}
 PipeWireCap::~PipeWireCap() {}
-void PipeWireCap::Start() {}
-void PipeWireCap::Stop() {}
+void PipeWireCap::SetupCapturePipeline(uint32_t, uint32_t, FrameCallback) {}
+void PipeWireCap::StartSession() {}
+void PipeWireCap::CloseSession() {}
