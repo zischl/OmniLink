@@ -40,8 +40,13 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
         );
     }
 
-    void
-    Start(CaptureSource* Source_, EncoderType* Encoder_, session* Target_, DeviceMap TargetDevice_)
+    void Start(
+        CaptureSource* Source_,
+        EncoderType* Encoder_,
+        session* Target_,
+        DeviceMap TargetDevice_,
+        const StreamConfig& Config = {}
+    )
     {
         Source = Source_;
         Encoder = Encoder_;
@@ -50,7 +55,7 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
 
         if constexpr (CaptureSource::Type == CaptureAPI::WGC) {
             Source->CreateMonitorCapSession(
-                1920, 1080, [OmniEncode = Encoder, OmniNet = Target](auto* Tex2D) {
+                Config.Width, Config.Height, [OmniEncode = Encoder, OmniNet = Target](auto* Tex2D) {
                     if constexpr (requires { OmniEncode->ResolveCachedResource(Tex2D); }) {
                         OmniEncode->ResolveCachedResource(Tex2D);
                     }
@@ -68,7 +73,7 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
             Source->StartSession();
         } else if constexpr (CaptureSource::Type == CaptureAPI::PipeWire) {
             Source->SetupCapturePipeline(
-                1920, 1080, [OmniEncode = Encoder, OmniNet = Target](auto* frame) {
+                Config.Width, Config.Height, [OmniEncode = Encoder, OmniNet = Target](auto* frame) {
                     OmniEncode->Encode();
                     OmniNet->ChunkedSend(
                         reinterpret_cast<char*>(OmniEncode->NVBitstreamLock.bitstreamBufferPtr),
@@ -99,4 +104,3 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
         }
     }
 };
-

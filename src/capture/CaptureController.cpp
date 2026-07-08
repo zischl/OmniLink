@@ -4,45 +4,52 @@
 #include <utility>
 
 #if defined(_WIN32)
-OmniStreamController::StreamID OmniStreamController::AddStream(ID3D11Device* D3D11Device,
-                                                               ID3D11DeviceContext* D3D11Context,
-                                                               session* NetSession,
-                                                               DeviceMap TargetID,
-                                                               CaptureMode Mode)
+OmniStreamController::StreamID OmniStreamController::AddStream(
+    ID3D11Device* D3D11Device,
+    ID3D11DeviceContext* D3D11Context,
+    session* NetSession,
+    DeviceMap TargetID,
+    CaptureMode Mode,
+    const StreamConfig& Config
+)
 {
     StreamID id = StreamCount++;
 
     if (Mode == CaptureMode::WGC) {
-        ScreenCaptureWGC* WGSCapture = new ScreenCaptureWGC(D3D11Device, D3D11Context);
-        ID3D11Texture2D* CaptureBuffer = nullptr;
-        WGSCapture->CreateWGCBuffer(D3D11Device, &CaptureBuffer);
-        WGSCapture->CreateMonitorCapSession(CaptureBuffer, 1920, 1080);
-        WGSCapture->StartSession();
+        ScreenCaptureWGC* WGSCapture = new ScreenCaptureWGC(D3D11Device);
 
-        NvencSession* Encoder =
-            new NvencSession(D3D11Device, NvEncodeAPI.NVFunctions, CaptureBuffer, 1920, 1080);
+        CachedPoolNvencSession* Encoder = new CachedPoolNvencSession(
+            D3D11Device, NvEncodeAPI.NVFunctions, Config.Width, Config.Height, 3
+        );
 
-        Streams.try_emplace(id, std::in_place_type<EncodeStream<ScreenCaptureWGC>>);
-        std::get<EncodeStream<ScreenCaptureWGC>>(Streams[id])
-            .Start(WGSCapture, Encoder, NetSession, TargetID);
+        Streams.try_emplace(
+            id, std::in_place_type<EncodeStream<ScreenCaptureWGC, CachedPoolNvencSession>>
+        );
+        std::get<EncodeStream<ScreenCaptureWGC, CachedPoolNvencSession>>(Streams[id])
+            .Start(WGSCapture, Encoder, NetSession, TargetID, Config);
 
     } else if (Mode == CaptureMode::DXGI) {
         ScreenCaptureDXGI* DXGISCapture = new ScreenCaptureDXGI();
         DXGISCapture->InitDXGI(D3D11Device);
         ID3D11Texture2D* CaptureBuffer = DXGISCapture->GetBuffer();
 
-        NvencSession* Encoder =
-            new NvencSession(D3D11Device, NvEncodeAPI.NVFunctions, CaptureBuffer, 1920, 1080);
+        StaticNvencSession* Encoder = new StaticNvencSession(
+            D3D11Device, NvEncodeAPI.NVFunctions, CaptureBuffer, Config.Width, Config.Height
+        );
 
-        Streams.try_emplace(id, std::in_place_type<EncodeStream<ScreenCaptureDXGI>>);
-        std::get<EncodeStream<ScreenCaptureDXGI>>(Streams[id])
-            .Start(DXGISCapture, Encoder, NetSession, TargetID);
+        Streams.try_emplace(
+            id, std::in_place_type<EncodeStream<ScreenCaptureDXGI, StaticNvencSession>>
+        );
+        std::get<EncodeStream<ScreenCaptureDXGI, StaticNvencSession>>(Streams[id])
+            .Start(DXGISCapture, Encoder, NetSession, TargetID, Config);
     }
 
     return id;
 }
 #elif defined(__linux__)
-StreamID CaptureController::AddStream(session* NetSession, DeviceMap TargetID, CaptureMode Mode)
+StreamID OmniStreamController::AddStream(
+    session* NetSession, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config
+)
 {
     StreamID id = StreamCount++;
 
@@ -64,7 +71,8 @@ void OmniStreamController::RemoveStream(size_t StreamID)
                 if (stream.Encoder)
                     delete stream.Encoder;
             },
-            iter->second);
+            iter->second
+        );
         Streams.erase(iter);
     }
 }
@@ -80,7 +88,8 @@ void OmniStreamController::StopAll()
                 if (stream.Encoder)
                     delete stream.Encoder;
             },
-            variant_stream);
+            variant_stream
+        );
     }
     Streams.clear();
     StreamCount = 0;
