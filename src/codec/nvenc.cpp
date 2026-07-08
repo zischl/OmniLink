@@ -34,8 +34,8 @@ void NVENCODER::LoadNvEncodeAPI()
     }
 
     NVFunctions.version = NV_ENCODE_API_FUNCTION_LIST_VER;
-    status = NvEncodeAPICreateInstance(&NVFunctions);
-    if (status != NV_ENC_SUCCESS) {
+    Status = NvEncodeAPICreateInstance(&NVFunctions);
+    if (Status != NV_ENC_SUCCESS) {
         Logger::log("Encode API Function Filling Failed -_- \n");
     }
 }
@@ -48,7 +48,8 @@ void NVENCODER::GetSupportedCodecGUIDs(void* NVEncoder, NV_ENCODE_API_FUNCTION_L
     NVFunctions_.nvEncGetEncodeGUIDCount(NVEncoder, &NvencGUIDCount);
     std::vector<GUID> NvencGUIDs(NvencGUIDCount);
     status = NVFunctions_.nvEncGetEncodeGUIDs(
-        NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount);
+        NVEncoder, NvencGUIDs.data(), NvencGUIDCount, &NvencGUIDCount
+    );
     if (status != NV_ENC_SUCCESS) {
         Logger::log("RIP Encode GUIDS \n");
     }
@@ -76,38 +77,41 @@ void NVENCODER::GetAvailablePresetGUIDs(void* NVEncoder)
 void NVENCODER::GetAvailableProfileGUIDs(void* NVEncoder, GUID NvencCodecGUID)
 {
 
-    NVENCSTATUS status;
+    NVENCSTATUS Status;
 
     uint32_t NvenvProfileGUIDCount;
     GUID NvProfileGUIDs;
     NVFunctions.nvEncGetEncodeProfileGUIDCount(NVEncoder, NvencCodecGUID, &NvenvProfileGUIDCount);
-    status = NVFunctions.nvEncGetEncodeProfileGUIDs(
-        NVEncoder, NvencCodecGUID, &NvProfileGUIDs, NvenvProfileGUIDCount, &NvenvProfileGUIDCount);
-    if (status != NV_ENC_SUCCESS) {
-        Logger::log(("RIP Encode Profile GUID \n" + std::to_string(status)).c_str());
+    Status = NVFunctions.nvEncGetEncodeProfileGUIDs(
+        NVEncoder, NvencCodecGUID, &NvProfileGUIDs, NvenvProfileGUIDCount, &NvenvProfileGUIDCount
+    );
+    if (Status != NV_ENC_SUCCESS) {
+        Logger::log(("RIP Encode Profile GUID \n" + std::to_string(Status)).c_str());
     }
 }
 
 void NVENCODER::GetSupportedInputFormats(void* NVEncoder, GUID NvencCodecGUID)
 {
 
-    NVENCSTATUS status;
+    NVENCSTATUS Status;
 
     uint32_t NvenvInputFormatCount = 0;
-    status =
+    Status =
         NVFunctions.nvEncGetInputFormatCount(NVEncoder, NvencCodecGUID, &NvenvInputFormatCount);
-    if (status != NV_ENC_SUCCESS) {
-        Logger::log(("RIP Encode Input Format Count \n" + std::to_string(status)).c_str());
+    if (Status != NV_ENC_SUCCESS) {
+        Logger::log(("RIP Encode Input Format Count \n" + std::to_string(Status)).c_str());
     }
 
     std::vector<NV_ENC_BUFFER_FORMAT> NvBufferFormats(NvenvInputFormatCount);
-    status = NVFunctions.nvEncGetInputFormats(NVEncoder,
-                                              NvencCodecGUID,
-                                              NvBufferFormats.data(),
-                                              NvenvInputFormatCount,
-                                              &NvenvInputFormatCount);
-    if (status != NV_ENC_SUCCESS) {
-        Logger::log(("RIP Encode Input Formats \n" + std::to_string(status)).c_str());
+    Status = NVFunctions.nvEncGetInputFormats(
+        NVEncoder,
+        NvencCodecGUID,
+        NvBufferFormats.data(),
+        NvenvInputFormatCount,
+        &NvenvInputFormatCount
+    );
+    if (Status != NV_ENC_SUCCESS) {
+        Logger::log(("RIP Encode Input Formats \n" + std::to_string(Status)).c_str());
     }
 
     for (auto fmt : NvBufferFormats) {
@@ -115,11 +119,9 @@ void NVENCODER::GetSupportedInputFormats(void* NVEncoder, GUID NvencCodecGUID)
     }
 }
 
-NvencSession::NvencSession(void* D3DDevice,
-                           NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
-                           ID3D11Texture2D* inputResource,
-                           UINT encodeWidth,
-                           UINT encodeHeight)
+NvencSession::NvencSession(
+    void* D3DDevice, NV_ENCODE_API_FUNCTION_LIST& NVFunctions_, UINT EncodeWidth, UINT EncodeHeight
+)
     : NVFunctions(NVFunctions_)
 {
     OpenNvEncSession(D3DDevice);
@@ -129,11 +131,11 @@ NvencSession::NvencSession(void* D3DDevice,
     LoadDefaultInitParams(NvInitParams, NvInitConfig);
     NVEncoderInit(NvInitParams);
 
-    NvencResourceRegConfig InputResourceConfig = {NvInitConfig.Dimensions,
-                                                  NvInitConfig.NvencBufferFormat};
-    RegisterResource(inputResource, InputResourceConfig);
+    ResourceConfig = {NvInitConfig.Dimensions, NvInitConfig.NvencBufferFormat};
     CreateBitStream();
 }
+
+NvencSession::~NvencSession() {}
 
 void NvencSession::OpenNvEncSession(void* D3DDevice)
 {
@@ -142,16 +144,17 @@ void NvencSession::OpenNvEncSession(void* D3DDevice)
     NVSessionParams.apiVersion = NVENCAPI_VERSION;
     NVSessionParams.device = D3DDevice;
     NVSessionParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;
-    status = NVFunctions.nvEncOpenEncodeSessionEx(&NVSessionParams, &NVEncoder);
+    Status = NVFunctions.nvEncOpenEncodeSessionEx(&NVSessionParams, &NVEncoder);
 
-    if (status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
+    if (Status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
         Logger::log("Encoder did not feel like coming home. Prolly \n");
     }
 }
 
-void NvencSession::LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams,
-                                         NvencInitConfig& config)
+void NvencSession::LoadDefaultInitParams(
+    NV_ENC_INITIALIZE_PARAMS& NvInitParams, NvencInitConfig& config
+)
 {
 
     NVENCODER::GetSupportedCodecGUIDs(NVEncoder, NVFunctions);
@@ -160,12 +163,14 @@ void NvencSession::LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams,
     NVPresetConfig.version = NV_ENC_PRESET_CONFIG_VER;
     NVPresetConfig.presetCfg.version = NV_ENC_CONFIG_VER;
 
-    status = NVFunctions.nvEncGetEncodePresetConfigEx(NVEncoder,
-                                                      config.NvencCodecGUID,
-                                                      config.NvencPresetGUID,
-                                                      config.NvencTuningInfo,
-                                                      &NVPresetConfig);
-    if (status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
+    Status = NVFunctions.nvEncGetEncodePresetConfigEx(
+        NVEncoder,
+        config.NvencCodecGUID,
+        config.NvencPresetGUID,
+        config.NvencTuningInfo,
+        &NVPresetConfig
+    );
+    if (Status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
         Logger::log("Encoder did not feel like giving me the preset config \n");
     }
@@ -218,28 +223,48 @@ void NvencSession::LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams,
 
 void NvencSession::NVEncoderInit(NV_ENC_INITIALIZE_PARAMS& NvInitParams)
 {
-    status = NVFunctions.nvEncInitializeEncoder(NVEncoder, &NvInitParams);
-    if (status != NV_ENC_SUCCESS) {
+    Status = NVFunctions.nvEncInitializeEncoder(NVEncoder, &NvInitParams);
+    if (Status != NV_ENC_SUCCESS) {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-        Logger::log((" RIP Encoder Init " + std::to_string(status) + "\n").c_str());
+        Logger::log((" RIP Encoder Init " + std::to_string(Status) + "\n").c_str());
     }
 }
 
-void NvencSession::RegisterResource(ID3D11Texture2D* inputResource, NvencResourceRegConfig& Config)
+NV_ENC_REGISTERED_PTR
+NvencSession::RegisterResource(ID3D11Texture2D* inputResource, const NvencResourceRegConfig& config)
 {
-    NVRegisterResource.version = NV_ENC_REGISTER_RESOURCE_VER;
-    NVRegisterResource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
-    NVRegisterResource.resourceToRegister = inputResource;
-    NVRegisterResource.width = Config.Dimensions.Width;
-    NVRegisterResource.height = Config.Dimensions.Height;
-    NVRegisterResource.bufferFormat = Config.NvencBufferFormat;
-    NVRegisterResource.pitch = Config.Dimensions.Width * 4;
+    NV_ENC_REGISTER_RESOURCE regParam = {};
+    regParam.version = NV_ENC_REGISTER_RESOURCE_VER;
+    regParam.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
+    regParam.resourceToRegister = inputResource;
+    regParam.width = config.Dimensions.Width;
+    regParam.height = config.Dimensions.Height;
+    regParam.bufferFormat = config.NvencBufferFormat;
+    regParam.pitch = config.Dimensions.Width * 4;
 
-    status = NVFunctions.nvEncRegisterResource(NVEncoder, &NVRegisterResource);
-    if (status != NV_ENC_SUCCESS) {
+    Status = NVFunctions.nvEncRegisterResource(NVEncoder, &regParam);
+    if (Status != NV_ENC_SUCCESS) {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-        Logger::log(("RIP Encoder Input Resource Marriage \n" + std::to_string(status)).c_str());
+        Logger::log(("RIP Encoder Input Resource Marriage \n" + std::to_string(Status)).c_str());
+        return nullptr;
     }
+    return regParam.registeredResource;
+}
+
+void NvencSession::UnregisterResource(NV_ENC_REGISTERED_PTR registeredHandle)
+{
+    if (registeredHandle) {
+        Status = NVFunctions.nvEncUnregisterResource(NVEncoder, registeredHandle);
+        NVCHECK(Status, "Nvenc Input Resource Failed To Divorce");
+    }
+}
+
+NV_ENC_REGISTERED_PTR NvencSession::SwapResource(
+    NV_ENC_REGISTERED_PTR oldHandle, ID3D11Texture2D* newTex, const NvencResourceRegConfig& config
+)
+{
+    UnregisterResource(oldHandle);
+    return RegisterResource(newTex, config);
 }
 
 void NvencSession::CreateBitStream()
@@ -247,9 +272,9 @@ void NvencSession::CreateBitStream()
 
     NVOutputBufferDesc.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
 
-    status = NVFunctions.nvEncCreateBitstreamBuffer(NVEncoder, &NVOutputBufferDesc);
-    if (status != NV_ENC_SUCCESS) {
-        Logger::log(("RIP Encode Output Stream Buffer \n" + std::to_string(status)).c_str());
+    Status = NVFunctions.nvEncCreateBitstreamBuffer(NVEncoder, &NVOutputBufferDesc);
+    if (Status != NV_ENC_SUCCESS) {
+        Logger::log(("RIP Encode Output Stream Buffer \n" + std::to_string(Status)).c_str());
     }
     NvencOutput = NVOutputBufferDesc.bitstreamBuffer;
 }
@@ -260,10 +285,10 @@ void NvencSession::Encode()
     NV_ENC_MAP_INPUT_RESOURCE NVInputResource = {};
     NVInputResource.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
     NVInputResource.registeredResource = NVRegisterResource.registeredResource;
-    status = NVFunctions.nvEncMapInputResource(NVEncoder, &NVInputResource);
-    if (status != NV_ENC_SUCCESS) {
+    Status = NVFunctions.nvEncMapInputResource(NVEncoder, &NVInputResource);
+    if (Status != NV_ENC_SUCCESS) {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-        Logger::log(("RIP Input Resource Map \n" + std::to_string(status)).c_str());
+        Logger::log(("RIP Input Resource Map \n" + std::to_string(Status)).c_str());
     }
 
     NV_ENC_PIC_PARAMS NvencPicParams = {};
@@ -277,24 +302,24 @@ void NvencSession::Encode()
     NvencPicParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
     NvencPicParams.completionEvent = nullptr;
 
-    status = NVFunctions.nvEncEncodePicture((void*)NVEncoder, &NvencPicParams);
+    Status = NVFunctions.nvEncEncodePicture((void*)NVEncoder, &NvencPicParams);
     NVFunctions.nvEncUnmapInputResource(NVEncoder, NVInputResource.mappedResource);
-    if (status == NV_ENC_SUCCESS) {
+    if (Status == NV_ENC_SUCCESS) {
 
         NVBitstreamLock = {};
         NVBitstreamLock.version = NV_ENC_LOCK_BITSTREAM_VER;
         NVBitstreamLock.outputBitstream = NvencOutput;
         NVBitstreamLock.doNotWait = false;
 
-        status = NVFunctions.nvEncLockBitstream(NVEncoder, &NVBitstreamLock);
-        if (status != NV_ENC_SUCCESS) {
+        Status = NVFunctions.nvEncLockBitstream(NVEncoder, &NVBitstreamLock);
+        if (Status != NV_ENC_SUCCESS) {
             Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-            Logger::log(("\n RIP Output Lock " + std::to_string(status)).c_str());
+            Logger::log(("\n RIP Output Lock " + std::to_string(Status)).c_str());
         }
 
     } else {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
-        Logger::log(("\n RIP Encoding " + std::to_string(status)).c_str());
+        Logger::log(("\n RIP Encoding " + std::to_string(Status)).c_str());
     }
 }
 
@@ -305,15 +330,104 @@ void NvencSession::NVUnlockBitStream()
 
 void NvencSession::NVCleanup()
 {
+    if (NvencOutput) {
+        Status = NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
+        NVCHECK(Status, "Nvenc Bit Stream Buffer Could Not Be Destroyed");
+        NvencOutput = nullptr;
+    }
 
-    status = NVFunctions.nvEncUnregisterResource(NVEncoder, NVRegisterResource.registeredResource);
-    NVCHECK(status, "Nvenc Input Resource Failed To Unregister");
+    if (NVEncoder) {
+        Status = NVFunctions.nvEncDestroyEncoder(NVEncoder);
+        NVCHECK(Status, "Nv Encoder Could Not Be Destroyed");
+        NVEncoder = nullptr;
+    }
+}
 
-    status = NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
-    NVCHECK(status, "Nvenc Bit Stream Buffer Could Not Be Destroyed");
+StaticNvencSession::StaticNvencSession(
+    void* D3DDevice,
+    NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
+    ID3D11Texture2D* InputResource,
+    UINT EncodeWidth,
+    UINT EncodeHeight
+)
+    : NvencSession(D3DDevice, NVFunctions_, EncodeWidth, EncodeHeight)
+{
+    if (InputResource) {
+        NVRegisterResource.registeredResource = RegisterResource(InputResource, ResourceConfig);
+    }
+}
 
-    status = NVFunctions.nvEncDestroyEncoder(NVEncoder);
-    NVCHECK(status, "Nv Encoder Could Not Be Destroyed");
+StaticNvencSession::~StaticNvencSession()
+{
+    NVCleanup();
+}
+
+void StaticNvencSession::NVCleanup()
+{
+    if (NVRegisterResource.registeredResource) {
+        UnregisterResource(NVRegisterResource.registeredResource);
+        NVRegisterResource.registeredResource = nullptr;
+    }
+    NvencSession::NVCleanup();
+}
+
+CachedPoolNvencSession::CachedPoolNvencSession(
+    void* D3DDevice,
+    NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
+    UINT EncodeWidth,
+    UINT EncodeHeight,
+    size_t PoolSize
+)
+    : NvencSession(D3DDevice, NVFunctions_, EncodeWidth, EncodeHeight)
+{
+    PoolCache.resize(PoolSize);
+}
+
+CachedPoolNvencSession::~CachedPoolNvencSession()
+{
+    NVCleanup();
+}
+
+void CachedPoolNvencSession::NVCleanup()
+{
+    for (auto& slot : PoolCache) {
+        if (slot.NvRegisteredHandle) {
+            UnregisterResource(slot.NvRegisteredHandle);
+            slot.NvRegisteredHandle = nullptr;
+            slot.D3DTexture.Reset();
+            slot.SurfaceRawPtr = nullptr;
+        }
+    }
+    NVRegisterResource.registeredResource = nullptr;
+    NvencSession::NVCleanup();
+}
+
+void CachedPoolNvencSession::ResolveCachedResource(ID3D11Texture2D* newTex)
+{
+    IUnknown* TextureID = nullptr;
+    newTex->QueryInterface(IID_IUnknown, reinterpret_cast<void**>(&TextureID));
+    TextureID->Release();
+
+    // Cache lookup
+    for (auto& Slot : PoolCache) {
+        if (Slot.SurfaceRawPtr == TextureID) {
+            NVRegisterResource.registeredResource = Slot.NvRegisteredHandle;
+            return;
+        }
+    }
+
+    // Cache missed, get packing and register
+    for (auto& Slot : PoolCache) {
+        if (!Slot.SurfaceRawPtr) {
+            Slot.SurfaceRawPtr = TextureID;
+            Slot.D3DTexture = newTex;
+            Slot.NvRegisteredHandle = RegisterResource(newTex, ResourceConfig);
+            NVRegisterResource.registeredResource = Slot.NvRegisteredHandle;
+            return;
+        }
+    }
+
+    Logger::log("ResolveCachedResource: pool cache full — frame dropped\n");
 }
 
 static void NvencOutputTest(NV_ENC_LOCK_BITSTREAM& NVBitstreamLock, const char* baseName)
@@ -326,19 +440,21 @@ static void NvencOutputTest(NV_ENC_LOCK_BITSTREAM& NVBitstreamLock, const char* 
     }
 
     char fileName[512];
-    std::snprintf(fileName,
-                  sizeof(fileName),
-                  "%s_%llu.h264",
-                  baseName,
-                  static_cast<unsigned long long>(frameIndex++));
+    std::snprintf(
+        fileName,
+        sizeof(fileName),
+        "%s_%llu.h264",
+        baseName,
+        static_cast<unsigned long long>(frameIndex++)
+    );
 
     FILE* outFile = std::fopen(fileName, "wb");
     if (outFile) {
         std::fwrite(
-            NVBitstreamLock.bitstreamBufferPtr, 1, NVBitstreamLock.bitstreamSizeInBytes, outFile);
+            NVBitstreamLock.bitstreamBufferPtr, 1, NVBitstreamLock.bitstreamSizeInBytes, outFile
+        );
         std::fclose(outFile);
     } else {
         Logger::log("Failed to open output file\n");
     }
 }
-
