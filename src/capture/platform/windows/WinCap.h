@@ -170,4 +170,45 @@ class WGScreenCaptureEx : public WGCapture
     FrameCallback OnFrameArrived;
 };
 
+// Same as WGScreenCaptureEx on optimizations but mainly for displaying to a Render Target View
+// while utilizing an SRV Cache.
+class WGScreenCaptureRTV : public WGCapture
+{
+  public:
+    static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
+    static constexpr CaptureAPI Type = CaptureAPI::WGC;
+
+    WGScreenCaptureRTV(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11ContextPtr);
+    ~WGScreenCaptureRTV();
+
+    void CreateMonitorCapSession(
+        UINT Width,
+        UINT Height,
+        ID3D11RenderTargetView* RenderTargetView,
+        IDXGISwapChain* Swapchain,
+        const float ClearColor[4]
+    );
+
+    void StartSession();
+    void CloseSession();
+
+  private:
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
+
+    ID3D11Device* D3D11Device = nullptr;
+    ID3D11DeviceContext* D3D11Context = nullptr;
+    ID3D11RenderTargetView* RTV = nullptr;
+    IDXGISwapChain* SwapChain = nullptr;
+    float ClearCol[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+
+    struct SRVCacheSlot
+    {
+        IUnknown* SurfacePtr = nullptr;
+        ComPtr<ID3D11ShaderResourceView> TextureView = nullptr;
+    };
+    std::array<SRVCacheSlot, 3> SRVCache;
+};
+
 #endif

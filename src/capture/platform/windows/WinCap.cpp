@@ -292,3 +292,154 @@ void WGScreenCaptureEx::CloseSession()
         FramePool = nullptr;
     }
 }
+
+// WGScreenCaptureRTV
+
+WGScreenCaptureRTV::WGScreenCaptureRTV(
+    ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11ContextPtr
+)
+{
+    winrt::init_apartment(winrt::apartment_type::multi_threaded);
+    SetWrappedD3D11Device(D3D11DevicePtr);
+    D3D11Device = D3D11DevicePtr;
+    D3D11Context = D3D11ContextPtr;
+}
+
+WGScreenCaptureRTV::~WGScreenCaptureRTV()
+{
+    CloseSession();
+}
+
+void WGScreenCaptureRTV::CreateMonitorCapSession(
+    UINT Width,
+    UINT Height,
+    ID3D11RenderTargetView* RenderTargetView,
+    IDXGISwapChain* Swapchain,
+    const float ClearColor[4]
+)
+{
+    RTV = RenderTargetView;
+    SwapChain = Swapchain;
+    if (ClearColor != nullptr) {
+        memcpy(ClearCol, ClearColor, sizeof(ClearCol));
+    }
+
+    GetActiveMonitorCaptureItem(CaptureItem);
+
+    NullCheck(D3DDevice_WGC, "WGScreenCaptureRTV: D3DDevice not set\n");
+    NullCheck(CaptureItem, "WGScreenCaptureRTV: CaptureItem creation failed\n");
+
+    winrt::SizeInt32 Dims;
+    Dims.Width = static_cast<int32_t>(Width);
+    Dims.Height = static_cast<int32_t>(Height);
+
+    FramePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(
+        D3DDevice_WGC, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 3, Dims
+    );
+
+    NullCheck(FramePool, "WGScreenCaptureRTV: FramePool creation failed\n");
+
+    // Cache pool tests revealed up to 10.7 times faster SRV cache retrieval
+    FramePool.FrameArrived([this](auto& Pool, auto&) {
+        // auto start = std::chrono::steady_clock::now();
+
+        auto frame = Pool.TryGetNextFrame();
+        if (!frame)
+            return;
+
+        auto access =
+            frame.Surface()
+                .as<Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess>();
+        ID3D11Texture2D* tex = nullptr;
+        if (SUCCEEDED(access->GetInterface(IID_PPV_ARGS(&tex)))) {
+            IUnknown* TextureID = nullptr;
+            if (SUCCEEDED(
+                    tex->QueryInterface(IID_IUnknown, reinterpret_cast<void**>(&TextureID))
+                )) {
+                TextureID->Release();
+            }
+
+            ID3D11ShaderResourceView* TextureView = nullptr;
+
+            // Gimme cache hits !
+            for (const auto& Slot : SRVCache) {
+                if (Slot.SurfacePtr == TextureID && Slot.TextureView != nullptr) {
+                    TextureView = Slot.TextureView.Get();
+
+                    /* auto end = std::chrono::steady_clock::now();
+                    std::chrono::duration<double> elapsed = end - start;
+                    std::cout << "Time elapsed Cache Hit: " << elapsed.count() << " seconds\n"; */
+
+                    break;
+                }
+            }
+
+            // Cache missed, create SRV and cache it
+            if (TextureView == nullptr) {
+                D3D11_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+                SrvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+                SrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+                SrvDesc.Texture2D.MostDetailedMip = 0;
+                SrvDesc.Texture2D.MipLevels = 1;
+
+                ComPtr<ID3D11ShaderResourceView> NewTextureView;
+                if (SUCCEEDED(D3D11Device->CreateShaderResourceView(
+                        tex, &SrvDesc, NewTextureView.GetAddressOf()
+                    ))) {
+                    TextureView = NewTextureView.Get();
+
+                    for (auto& Slot : SRVCache) {
+                        if (Slot.SurfacePtr == nullptr) {
+                            Slot.SurfacePtr = TextureID;
+                            Slot.TextureView = std::move(NewTextureView);
+                            break;
+                        }
+                    }
+                }
+
+                /* auto end = std::chrono::steady_clock::now();
+                std::chrono::duration<double> elapsed = end - start;
+                std::cout << "Time elapsed Cache Miss: " << elapsed.count() << " seconds\n"; */
+            }
+
+            if (TextureView != nullptr && RTV != nullptr && SwapChain != nullptr) {
+                D3D11Context->PSSetShaderResources(0, 1, &TextureView);
+                D3D11Context->ClearRenderTargetView(RTV, ClearCol);
+                D3D11Context->OMSetRenderTargets(1, &RTV, nullptr);
+                D3D11Context->Draw(4, 0);
+                SwapChain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+            }
+
+            tex->Release();
+        }
+    });
+
+    Session = FramePool.CreateCaptureSession(CaptureItem);
+    Session.IsCursorCaptureEnabled(false);
+
+    NullCheck(Session, "WGScreenCaptureRTV: CaptureSession creation failed\n");
+}
+
+void WGScreenCaptureRTV::StartSession()
+{
+    NullCheck(Session, "WGScreenCaptureRTV: Session not initialized before StartSession\n");
+    if (Session) {
+        Session.StartCapture();
+    }
+}
+
+void WGScreenCaptureRTV::CloseSession()
+{
+    if (Session) {
+        Session.Close();
+        Session = nullptr;
+    }
+    if (FramePool) {
+        FramePool.Close();
+        FramePool = nullptr;
+    }
+    for (auto& Slot : SRVCache) {
+        Slot.SurfacePtr = nullptr;
+        Slot.TextureView = nullptr;
+    }
+}
