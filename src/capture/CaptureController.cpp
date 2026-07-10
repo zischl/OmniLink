@@ -7,7 +7,7 @@
 OmniStreamController::StreamID OmniStreamController::AddStream(
     ID3D11Device* D3D11Device,
     ID3D11DeviceContext* D3D11Context,
-    session* NetSession,
+    OmniNetSession<OmniMTU>* NetSession,
     DeviceMap TargetID,
     CaptureMode Mode,
     const StreamConfig& Config
@@ -48,7 +48,7 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
 }
 #elif defined(__linux__)
 StreamID OmniStreamController::AddStream(
-    session* NetSession, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config
+    session<OmniMTU>* NetSession, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config
 )
 {
     StreamID id = StreamCount++;

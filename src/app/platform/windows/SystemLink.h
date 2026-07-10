@@ -13,7 +13,7 @@
 #include <Windows.h>
 #include <vector>
 
-class session;
+template <uint32_t MTU> class OmniNetSession;
 
 using NetworkPacketHandlerFn = void (*)(CHAR*, DWORD, uint8_t, void*);
 
@@ -34,10 +34,9 @@ struct OmniSystemLink
 
     OmniSystemLink(OmniRenderState& RenderState, std::vector<StreamWindow*>& ActiveWindows);
 
-    void SetupSystemLink(HINSTANCE hInstance,
-                         int nCmdShow,
-                         HWND WindowID,
-                         NetworkPacketHandlerFn PacketHandlerFn);
+    void SetupSystemLink(
+        HINSTANCE hInstance, int nCmdShow, HWND WindowID, NetworkPacketHandlerFn PacketHandlerFn
+    );
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
 
@@ -46,7 +45,7 @@ struct OmniSystemLink
     void SyncInputFilter();
 
     OmniStreamController::StreamID
-    AddCaptureStream(session* netSession, DeviceMap targetID, CaptureMode mode);
+    AddCaptureStream(OmniNetSession<OmniMTU>* netSession, DeviceMap targetID, CaptureMode mode);
 };
 
 #endif

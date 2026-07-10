@@ -145,7 +145,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
 
         InstanceRegistry.TransmitConnectionRequest(DeviceID);
 
-        std::unique_ptr<session> NetSession = SessionManager.Connect(
+        std::unique_ptr<OmniNetSession<OmniMTU>> NetSession = SessionManager.Connect(
             InstanceRegistry.UserInstance,
             InstanceRegistry.AllInstances[DeviceID],
             SystemLink.networkPacketHandler,
@@ -174,7 +174,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
 
     case NetLinkState::WAITING: {
 
-        std::unique_ptr<session> NetSession = SessionManager.Connect(
+        std::unique_ptr<OmniNetSession<OmniMTU>> NetSession = SessionManager.Connect(
             InstanceRegistry.UserInstance,
             InstanceRegistry.AllInstances[DeviceID],
             SystemLink.networkPacketHandler,
@@ -204,7 +204,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
         if (InstanceRegistry.ActiveInstances[DeviceID].InstanceSession) {
             InstanceRegistry.TransmitConnectionState(DeviceID);
         } else {
-            std::unique_ptr<session> NetSession = SessionManager.Connect(
+            std::unique_ptr<OmniNetSession<OmniMTU>> NetSession = SessionManager.Connect(
                 InstanceRegistry.UserInstance,
                 InstanceRegistry.AllInstances[DeviceID],
                 SystemLink.networkPacketHandler,

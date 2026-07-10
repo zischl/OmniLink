@@ -63,10 +63,7 @@ struct OmniInstanceRegistry
         ActivateInstance(DeviceMap::C0, nullptr);
     }
 
-    ~OmniInstanceRegistry()
-    {
-        delete InstanceProbe;
-    }
+    ~OmniInstanceRegistry() { delete InstanceProbe; }
 
     std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances() noexcept
     {
@@ -110,7 +107,8 @@ struct OmniInstanceRegistry
         OpenSlotMask |= (1 << static_cast<uint8_t>(slot));
     }
 
-    inline void ActivateInstance(DeviceMap DeviceID, std::unique_ptr<session> NetSession)
+    inline void
+    ActivateInstance(DeviceMap DeviceID, std::unique_ptr<OmniNetSession<OmniMTU>> NetSession)
     {
         ActiveInstances[DeviceID] = OmniActiveInstance(AllInstances[DeviceID]);
         ActiveInstances[DeviceID].InstanceSession = std::move(NetSession);

@@ -35,7 +35,7 @@ struct OmniStreamController
     StreamID AddStream(
         ID3D11Device* D3D11Device,
         ID3D11DeviceContext* D3D11Context,
-        session* NetSession,
+        OmniNetSession<OmniMTU>* NetSession,
         DeviceMap TargetID,
         CaptureMode Mode,
         const StreamConfig& Config = {}

@@ -16,11 +16,12 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
 {
     CaptureSource* Source = nullptr;
     EncoderType* Encoder = nullptr;
-    session* Target = nullptr;
+    OmniNetSession<OmniMTU>* Target = nullptr;
     DeviceMap TargetDevice;
     AsyncWorker::Uncached Worker;
 
-    static void CaptureSend(session* OmniNet, CaptureSource* Source, EncoderType* OmniEncode)
+    static void
+    CaptureSend(OmniNetSession<OmniMTU>* OmniNet, CaptureSource* Source, EncoderType* OmniEncode)
     {
         if constexpr (requires { Source->AcquireFrame(); }) {
             if (!Source->AcquireFrame())
@@ -43,7 +44,7 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
     void Start(
         CaptureSource* Source_,
         EncoderType* Encoder_,
-        session* Target_,
+        OmniNetSession<OmniMTU>* Target_,
         DeviceMap TargetDevice_,
         const StreamConfig& Config = {}
     )
@@ -85,9 +86,9 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
             Source->StartSession();
         } else {
             Worker.StartSpinThread(
-                [](session* OmniNet, CaptureSource* Source, EncoderType* OmniEncode) {
-                    CaptureSend(OmniNet, Source, OmniEncode);
-                },
+                [](OmniNetSession<OmniMTU>* OmniNet,
+                   CaptureSource* Source,
+                   EncoderType* OmniEncode) { CaptureSend(OmniNet, Source, OmniEncode); },
                 Target,
                 Source,
                 Encoder

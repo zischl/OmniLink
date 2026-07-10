@@ -3,16 +3,16 @@
 
 #include <codecvt>
 
-OmniSystemLink::OmniSystemLink(OmniRenderState& RenderState,
-                               std::vector<StreamWindow*>& ActiveWindows)
+OmniSystemLink::OmniSystemLink(
+    OmniRenderState& RenderState, std::vector<StreamWindow*>& ActiveWindows
+)
     : RenderState(RenderState), ActiveWindows(ActiveWindows)
 {
 }
 
-void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_,
-                                     int nCmdShow_,
-                                     HWND WindowID_,
-                                     NetworkPacketHandlerFn PacketHandlerFn)
+void OmniSystemLink::SetupSystemLink(
+    HINSTANCE hInstance_, int nCmdShow_, HWND WindowID_, NetworkPacketHandlerFn PacketHandlerFn
+)
 {
     hInstance = hInstance_;
     nCmdShow = nCmdShow_;
@@ -47,8 +47,9 @@ void OmniSystemLink::SyncInputFilter()
 }
 
 OmniStreamController::StreamID
-OmniSystemLink::AddCaptureStream(session* netSession, DeviceMap targetID, CaptureMode mode)
+OmniSystemLink::AddCaptureStream(OmniNetSession<OmniMTU>* netSession, DeviceMap targetID, CaptureMode mode)
 {
     return StreamController.AddStream(
-        RenderState.Device, RenderState.Context, netSession, targetID, mode);
+        RenderState.Device, RenderState.Context, netSession, targetID, mode
+    );
 }

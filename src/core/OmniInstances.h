@@ -2,7 +2,9 @@
 #define OMNIINSTANCES_H
 
 #pragma once
+#include "OmniConfig.h"
 #include "OmniEnums.h"
+
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -14,7 +16,7 @@
 
 #define OmniDevNameLen 31
 
-class session;
+template <uint32_t MTU> class OmniNetSession;
 
 struct OmniIP
 {
@@ -52,16 +54,15 @@ struct OmniInstance
 
 struct OmniActiveInstance : OmniInstance
 {
-    std::unique_ptr<session> InstanceSession;
+    std::unique_ptr<OmniNetSession<OmniMTU>> InstanceSession;
     uint16_t port = 62485;
     uint32_t ActiveFlags = FeatureFlags::fInactive;
 
     OmniActiveInstance() {}
 
-    OmniActiveInstance(char* InstanceName_,
-                       char* IPv4_String_,
-                       uint32_t InstanceIP_,
-                       uint8_t DeviceID)
+    OmniActiveInstance(
+        char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_, uint8_t DeviceID
+    )
     {
         InstanceIP = InstanceIP_;
         strncpy(IPv4_String, IPv4_String_, 16);

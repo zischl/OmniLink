@@ -1,6 +1,7 @@
 #ifndef IOLINK_H
 #define IOLINK_H
 
+#include "OmniConfig.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -51,7 +52,7 @@ static constexpr std::array<Point, 9> PointCache = {{
     {65535, 0}      // LD1
 }};
 
-class session;
+template <uint32_t MTU> class OmniNetSession;
 
 extern std::atomic<bool> LockState;
 
@@ -79,7 +80,7 @@ class OmniIOCap
     std::atomic_bool InputLinkStatus = false;
 
     DeviceMap ActiveEdgeCondition;
-    session* ActiveSession = nullptr;
+    OmniNetSession<OmniMTU>* ActiveSession = nullptr;
 
     std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
         ConditionManager.conditions;
@@ -91,13 +92,15 @@ class OmniIOCap
     UINT RawInputSize;
 
     // Callback for window movement detection
-    static void CALLBACK WinMvEventProc(HWINEVENTHOOK hWinEventHook,
-                                        DWORD event,
-                                        HWND hwnd,
-                                        LONG idObject,
-                                        LONG idChild,
-                                        DWORD idEventThread,
-                                        DWORD dwmsEventTime);
+    static void CALLBACK WinMvEventProc(
+        HWINEVENTHOOK hWinEventHook,
+        DWORD event,
+        HWND hwnd,
+        LONG idObject,
+        LONG idChild,
+        DWORD idEventThread,
+        DWORD dwmsEventTime
+    );
 
   public:
     OmniIOCap();
@@ -161,7 +164,7 @@ class OmniIOCap
 
     void WindowMoveListener(bool state = false);
 
-    inline void SetActiveSession(session* target) { ActiveSession = target; }
+    inline void SetActiveSession(OmniNetSession<OmniMTU>* target) { ActiveSession = target; }
 };
 
 class OmniSynth
