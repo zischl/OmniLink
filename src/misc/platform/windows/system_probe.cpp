@@ -11,8 +11,10 @@
 
 Device::MonitorRes Device::GetMonitorResolution()
 {
-    return MonitorRes{static_cast<uint32_t>(GetSystemMetrics(SM_CXSCREEN)),
-                      static_cast<uint32_t>(GetSystemMetrics(SM_CYSCREEN))};
+    return MonitorRes{
+        static_cast<uint32_t>(GetSystemMetrics(SM_CXSCREEN)),
+        static_cast<uint32_t>(GetSystemMetrics(SM_CYSCREEN))
+    };
 }
 
 void Device::RetrieveUserName(char (&CharArray)[MAX_UNLEN])
@@ -50,7 +52,7 @@ void Device::RetrieveLocalIP(uint32_t& LocalIP, const int index)
 
     std::vector<sockaddr_in> LocalIPs;
 
-    sessions::GetLocals(4, &LocalIPs);
+    OmniNetContext::GetLocals(4, &LocalIPs);
     if (index >= 0 && index < static_cast<int>(LocalIPs.size())) {
         LocalIP = htonl(LocalIPs[index].sin_addr.S_un.S_addr);
         return;
