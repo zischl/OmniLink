@@ -679,7 +679,7 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
     ImGui::PushStyleColor(ImGuiCol_CheckMark, EV_ACCENT);
 
     ImGui::SetWindowFontScale(12.5f / 18.0f);
-    ImGui::Checkbox("Trust this device permanently", &request.Verified);
+    ImGui::Checkbox("Trust this device permanently", &request.Trusted);
     ImGui::SetWindowFontScale(1.0f);
 
     ImGui::PopStyleColor(3);

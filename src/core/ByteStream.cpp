@@ -221,10 +221,7 @@ bool ByteStreamEx::SafeWriteString(const std::string_view& String, uint32_t MaxL
 
     uint32_t StringLength = static_cast<uint32_t>(String.size());
     if (StringLength > MaxLen) {
-        Logger::log(
-            "ByteStreamEx::SafeWriteString : String length exceeds maximum allowed "
-            "length of the buffer for encoding."
-        );
+        Logger::log("ByteStreamEx::SafeWriteString : String length exceeds maximum allowed ");
         return false;
     }
 
@@ -275,10 +272,7 @@ void ByteVecStreamEx::WriteU64Ex(uint64_t Value)
 void ByteVecStreamEx::WriteString(const std::string_view& String)
 {
     if (String.size() > UINT32_MAX) {
-        Logger::log(
-            "ByteVecStreamEx::WriteString : String length exceeds maximum allowed length "
-            "for encoding."
-        );
+        Logger::log("ByteVecStreamEx::WriteString : String length exceeds maximum allowed length ");
         return;
     }
 
