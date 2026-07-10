@@ -117,7 +117,7 @@ template <typename ContextType, typename Header, uint32_t PoolSize> struct IOCon
 
 } // namespace OmniNet
 
-class sessions
+class OmniNetContext
 {
   private:
     int WSResult;
@@ -126,7 +126,7 @@ class sessions
   public:
     WSADATA wsaData;
 
-    sessions();
+    OmniNetContext();
 
     static void GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer);
 
@@ -246,7 +246,7 @@ class sessions
     };
 };
 
-class session
+template <uint32_t MTU = 1450> class OmniNetSession
 {
   private:
     int WSResult;
@@ -255,8 +255,6 @@ class session
     SOCKET socketR;
     HANDLE IOCPHandle = NULL;
     std::thread WorkerThread;
-
-    const int MTU;
 
     // Usual send queue and header pools
     uint32_t SPoolHead = 0;
@@ -270,7 +268,7 @@ class session
     OmniNet::FrameCompletionToken STokenPool[STOKEN_POOL_SIZE];
 
     // Lonely Recv pool, don't care about headers, head is built in
-    OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, 256, 1450> RecvPool;
+    OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, 256, MTU> RecvPool;
 
     typedef std::chrono::steady_clock Clock;
     typedef std::chrono::time_point<Clock> TimePoint;
@@ -300,26 +298,131 @@ class session
     }
 
   public:
-    session(
-        PCSTR Local_IP,
-        PCSTR IP,
-        unsigned short port,
-        int MTU_Size,
-        void* Context,
-        ULONG_PTR CompletionKey
-    );
-    ~session();
+    OmniNetSession(
+        PCSTR Local_IP, PCSTR IP, unsigned short port, void* Context, ULONG_PTR CompletionKey
+    )
+    {
+        PreSetBufferMTU();
+        address = OmniNetContext::CreateAddress(IP, port);
+        socketR = OmniNetContext::CreateSocket();
+        OmniNetContext::BindReceiver(Local_IP, port, socketR);
+        OmniNetContext::ConnectSesssion(address, socketR);
+
+        IOCPHandle = OmniNetContext::CreateIOCP();
+
+        WorkerThread = OmniNetContext::StartCompletionPortHandlerThread(
+            IOCPHandle, socketR, &RecvPool, &OnIOCompletion, Context
+        );
+
+        OmniNetContext::BindIOCP(IOCPHandle, socketR, CompletionKey);
+
+        OmniNetContext::PostWSARecv(socketR, RecvPool);
+    }
+
+    ~OmniNetSession()
+    {
+        if (IOCPHandle) {
+            PostQueuedCompletionStatus(IOCPHandle, 0, 0, nullptr);
+        }
+        if (WorkerThread.joinable()) {
+            WorkerThread.join();
+        }
+        if (IOCPHandle) {
+            CloseHandle(IOCPHandle);
+        }
+        closesocket(socketR);
+    }
 
     void (*OnIOCompletion)(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) =
         nullptr;
 
     // Zero Copy send
-    void SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header);
+    void SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header)
+    {
+        while (SPoolInflight.load(std::memory_order_acquire) >= 256) {
+            _mm_pause();
+        }
+
+        CHeaderPool[SPoolHead].PacketType = header.PacketType;
+        CHeaderPool[SPoolHead].Target = header.Target;
+        CHeaderPool[SPoolHead].Flags = header.Flags;
+
+        TransmitPool[SPoolHead].TransmitBuffer[1].buf =
+            reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
+        TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
+        TransmitPool[SPoolHead].TransmitBuffer[0].len = packet_size;
+        TransmitPool[SPoolHead].Token = nullptr;
+
+        SPoolInflight.fetch_add(1, std::memory_order_release);
+        WSASend(
+            socketR,
+            TransmitPool[SPoolHead].TransmitBuffer,
+            2,
+            NULL,
+            0,
+            &TransmitPool[SPoolHead].OVStruct,
+            NULL
+        );
+
+        SPoolHead = (SPoolHead + 1) & 255;
+    }
 
     // Zero-copy chunked send so.. data must remain valid until OnComplete() fires,
     // which happens inside the IOCP thread after the kernel has sent every chunk.
     // OnComplete is optional tho
-    void ChunkedSend(CHAR* data, int data_size, std::function<void()> OnComplete);
+    void ChunkedSend(CHAR* data, int data_size, std::function<void()> OnComplete)
+    {
+        const uint32_t TokenIndex =
+            STokenHead.fetch_add(1, std::memory_order_relaxed) & (STOKEN_POOL_SIZE - 1);
+        OmniNet::FrameCompletionToken& token = STokenPool[TokenIndex];
+
+        while (token.PendingChunks.load(std::memory_order_acquire) != 0) {
+            _mm_pause();
+        }
+        token.OnComplete = std::move(OnComplete);
+
+        const int TotalMTUSlicesSize = data_size - (data_size % MTU);
+
+        const int ChunkCount = (data_size + MTU - 1) / MTU;
+
+        token.PendingChunks.store(ChunkCount, std::memory_order_release);
+
+        auto PostChunk = [&](CHAR* buf, int len, OmniNet::PacketType type) {
+            while (SPoolInflight.load(std::memory_order_acquire) >= 256) {
+                _mm_pause();
+            }
+            CHeaderPool[SPoolHead].PacketType = type;
+            CHeaderPool[SPoolHead].Target = 0;
+            TransmitPool[SPoolHead].TransmitBuffer[0].buf = buf;
+            TransmitPool[SPoolHead].TransmitBuffer[0].len = len;
+            TransmitPool[SPoolHead].Token = &token;
+
+            SPoolInflight.fetch_add(1, std::memory_order_release);
+            WSASend(
+                socketR,
+                TransmitPool[SPoolHead].TransmitBuffer,
+                2,
+                NULL,
+                0,
+                &TransmitPool[SPoolHead].OVStruct,
+                NULL
+            );
+
+            SPoolHead = (SPoolHead + 1) & 255;
+        };
+
+        PostChunk(data, MTU, OmniNet::ChunkStart);
+
+        for (int offset = MTU; offset < TotalMTUSlicesSize - MTU; offset += MTU)
+            PostChunk(data + offset, MTU, OmniNet::ChunkData);
+
+        const OmniNet::PacketType penultimateType =
+            (TotalMTUSlicesSize != data_size) ? OmniNet::ChunkData : OmniNet::ChunkEnd;
+        PostChunk(data + TotalMTUSlicesSize - MTU, MTU, penultimateType);
+
+        if (TotalMTUSlicesSize != data_size)
+            PostChunk(data + TotalMTUSlicesSize, data_size % MTU, OmniNet::ChunkEnd);
+    }
 };
 
 #endif

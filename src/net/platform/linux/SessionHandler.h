@@ -1,10 +1,11 @@
 #pragma once
 #include <string>
 
-class session {
-public:
-    session();
-    ~session();
-    void Connect(const std::string& host, int port);
-    void Disconnect();
+template <uint32_t MTU = 1450> class OmniNetSession
+{
+  public:
+    OmniNetSession() {}
+    ~OmniNetSession() {}
+    void Connect(const std::string& host, int port) {}
+    void Disconnect() {}
 };

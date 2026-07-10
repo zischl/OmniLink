@@ -2,12 +2,12 @@
 #include "OmniLogger.h"
 #include <cstddef>
 
-sessions::sessions()
+OmniNetContext::OmniNetContext()
 {
     WinsockInit();
 }
 
-int sessions::WinsockInit()
+int OmniNetContext::WinsockInit()
 {
     int wsResult;
     wsResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -17,7 +17,7 @@ int sessions::WinsockInit()
     return 0;
 }
 
-sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port)
+sockaddr_in OmniNetContext::CreateAddress(PCSTR IP, unsigned short port)
 {
     sockaddr_in address;
     address.sin_family = AF_INET;
@@ -26,7 +26,7 @@ sockaddr_in sessions::CreateAddress(PCSTR IP, unsigned short port)
     return address;
 }
 
-SOCKET sessions::CreateSocket()
+SOCKET OmniNetContext::CreateSocket()
 {
     SOCKET socketR = INVALID_SOCKET;
 
@@ -38,7 +38,7 @@ SOCKET sessions::CreateSocket()
     return socketR;
 }
 
-void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
+void OmniNetContext::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
 {
     int WSResult;
 
@@ -116,7 +116,7 @@ void sessions::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
     return;
 }
 
-void sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
+void OmniNetContext::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
 {
     int WSResult = 0;
 
@@ -133,7 +133,7 @@ void sessions::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
     }
 }
 
-void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR)
+void OmniNetContext::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR)
 {
 
     int WSResult = 0;
@@ -143,7 +143,7 @@ void sessions::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR
         OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
     }
 }
-HANDLE sessions::CreateIOCP(DWORD MaxThreads)
+HANDLE OmniNetContext::CreateIOCP(DWORD MaxThreads)
 {
     HANDLE IOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, MaxThreads);
     if (!IOCP) {
@@ -152,7 +152,7 @@ HANDLE sessions::CreateIOCP(DWORD MaxThreads)
     return IOCP;
 }
 
-bool sessions::BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKey)
+bool OmniNetContext::BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKey)
 {
     if (IOCP == NULL || Socket == INVALID_SOCKET)
         return false;
@@ -163,133 +163,4 @@ bool sessions::BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKey)
         return false;
     }
     return true;
-}
-
-session::session(
-    PCSTR Local_IP,
-    PCSTR IP,
-    unsigned short port,
-    int MTU_Size,
-    void* Context,
-    ULONG_PTR CompletionKey
-)
-    : MTU(MTU_Size)
-{
-
-    PreSetBufferMTU();
-    address = sessions::CreateAddress(IP, port);
-    socketR = sessions::CreateSocket();
-    sessions::BindReceiver(Local_IP, port, socketR);
-    sessions::ConnectSesssion(address, socketR);
-
-    IOCPHandle = sessions::CreateIOCP();
-
-    WorkerThread = sessions::StartCompletionPortHandlerThread(
-        IOCPHandle, socketR, &RecvPool, &OnIOCompletion, Context
-    );
-
-    sessions::BindIOCP(IOCPHandle, socketR, CompletionKey);
-
-    sessions::PostWSARecv(socketR, RecvPool);
-}
-
-session::~session()
-{
-    if (IOCPHandle) {
-        PostQueuedCompletionStatus(IOCPHandle, 0, 0, nullptr);
-    }
-    if (WorkerThread.joinable()) {
-        WorkerThread.join();
-    }
-    if (IOCPHandle) {
-        CloseHandle(IOCPHandle);
-    }
-    closesocket(socketR);
-}
-
-void session::SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header)
-{
-    while (SPoolInflight.load(std::memory_order_acquire) >= 256) {
-        _mm_pause();
-    }
-
-    CHeaderPool[SPoolHead].PacketType = header.PacketType;
-    CHeaderPool[SPoolHead].Target = header.Target;
-    CHeaderPool[SPoolHead].Flags = header.Flags;
-
-    TransmitPool[SPoolHead].TransmitBuffer[1].buf =
-        reinterpret_cast<CHAR*>(&CHeaderPool[SPoolHead]);
-    TransmitPool[SPoolHead].TransmitBuffer[0].buf = data;
-    TransmitPool[SPoolHead].TransmitBuffer[0].len = packet_size;
-    TransmitPool[SPoolHead].Token = nullptr;
-
-    SPoolInflight.fetch_add(1, std::memory_order_release);
-    WSASend(
-        socketR,
-        TransmitPool[SPoolHead].TransmitBuffer,
-        2,
-        NULL,
-        0,
-        &TransmitPool[SPoolHead].OVStruct,
-        NULL
-    );
-
-    SPoolHead = (SPoolHead + 1) & 255;
-}
-
-// Aquires a token while waiting with memory_order_aquire for pending chunks to hit 0
-// Calculates MTU Slices Size and total chunk count, defines Chunk Posting function
-// Fire !
-void session::ChunkedSend(CHAR* Data, int DataSize, std::function<void()> OnComplete)
-{
-    const uint32_t TokenIndex =
-        STokenHead.fetch_add(1, std::memory_order_relaxed) & (STOKEN_POOL_SIZE - 1);
-    OmniNet::FrameCompletionToken& token = STokenPool[TokenIndex];
-
-    while (token.PendingChunks.load(std::memory_order_acquire) != 0) {
-        _mm_pause();
-    }
-    token.OnComplete = std::move(OnComplete);
-
-    const int TotalMTUSlicesSize = DataSize - (DataSize % MTU);
-
-    const int ChunkCount = (DataSize + MTU - 1) / MTU;
-
-    token.PendingChunks.store(ChunkCount, std::memory_order_release);
-
-    auto PostChunk = [&](CHAR* buf, int len, OmniNet::PacketType type) {
-        while (SPoolInflight.load(std::memory_order_acquire) >= 256) {
-            _mm_pause();
-        }
-        CHeaderPool[SPoolHead].PacketType = type;
-        CHeaderPool[SPoolHead].Target = 0;
-        TransmitPool[SPoolHead].TransmitBuffer[0].buf = buf;
-        TransmitPool[SPoolHead].TransmitBuffer[0].len = len;
-        TransmitPool[SPoolHead].Token = &token;
-
-        SPoolInflight.fetch_add(1, std::memory_order_release);
-        WSASend(
-            socketR,
-            TransmitPool[SPoolHead].TransmitBuffer,
-            2,
-            NULL,
-            0,
-            &TransmitPool[SPoolHead].OVStruct,
-            NULL
-        );
-
-        SPoolHead = (SPoolHead + 1) & 255;
-    };
-
-    PostChunk(Data, MTU, OmniNet::ChunkStart);
-
-    for (int offset = MTU; offset < TotalMTUSlicesSize - MTU; offset += MTU)
-        PostChunk(Data + offset, MTU, OmniNet::ChunkData);
-
-    const OmniNet::PacketType penultimateType =
-        (TotalMTUSlicesSize != DataSize) ? OmniNet::ChunkData : OmniNet::ChunkEnd;
-    PostChunk(Data + TotalMTUSlicesSize - MTU, MTU, penultimateType);
-
-    if (TotalMTUSlicesSize != DataSize)
-        PostChunk(Data + TotalMTUSlicesSize, DataSize % MTU, OmniNet::ChunkEnd);
 }
