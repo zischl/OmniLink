@@ -16,19 +16,18 @@ class session;
 
 using NetworkPacketHandlerFn = void (*)(char*, uint32_t, uint8_t, void*);
 
-struct SystemLink
+struct OmniSystemLink
 {
     RenderState& render;
     CaptureController& capture;
     IOLink& input;
-    std::vector<StreamWindow*>& activeWindows;
+    std::vector<StreamWindow*> ActiveWindows;
 
     NetworkPacketHandlerFn networkPacketHandler = nullptr;
 
-    SystemLink(RenderState& renderState,
-               CaptureController& captureCtrl,
-               IOLink& inputLink,
-               std::vector<StreamWindow*>& windows);
+    OmniSystemLink(RenderState& renderState,
+                   CaptureController& captureCtrl,
+                   IOLink& inputLink);
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& info);
 

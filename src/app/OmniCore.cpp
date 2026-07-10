@@ -149,7 +149,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
             InstanceRegistry.UserInstance,
             InstanceRegistry.AllInstances[DeviceID],
             SystemLink.networkPacketHandler,
-            &ActiveWindows
+            &SystemLink.ActiveWindows
         );
 
         if (NetSession) {
@@ -178,7 +178,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
             InstanceRegistry.UserInstance,
             InstanceRegistry.AllInstances[DeviceID],
             SystemLink.networkPacketHandler,
-            &ActiveWindows
+            &SystemLink.ActiveWindows
         );
 
         if (NetSession) {
@@ -208,7 +208,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
                 InstanceRegistry.UserInstance,
                 InstanceRegistry.AllInstances[DeviceID],
                 SystemLink.networkPacketHandler,
-                &ActiveWindows
+                &SystemLink.ActiveWindows
             );
 
             if (NetSession) {

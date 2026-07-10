@@ -3,10 +3,8 @@
 
 #include <codecvt>
 
-OmniSystemLink::OmniSystemLink(
-    OmniRenderState& RenderState, std::vector<StreamWindow*>& ActiveWindows
-)
-    : RenderState(RenderState), ActiveWindows(ActiveWindows)
+OmniSystemLink::OmniSystemLink(OmniRenderState& RenderState)
+    : RenderState(RenderState)
 {
 }
 

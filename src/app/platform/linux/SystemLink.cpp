@@ -1,31 +1,29 @@
 #include "SystemLink.h"
 #include "LinuxForge.h"
 
-SystemLink::SystemLink(RenderState& renderState,
-                       CaptureController& captureCtrl,
-                       IOLink& inputLink,
-                       std::vector<StreamWindow*>& windows)
+OmniSystemLink::OmniSystemLink(RenderState& renderState,
+                               CaptureController& captureCtrl,
+                               IOLink& inputLink)
     : render(renderState)
     , capture(captureCtrl)
     , input(inputLink)
-    , activeWindows(windows)
 {
 }
 
-StreamWindow* SystemLink::CreateStreamWindow(const WindowCreationData& info)
+StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& info)
 {
     auto* window = new LinuxForge();
-    activeWindows.push_back(window);
+    ActiveWindows.push_back(window);
     window->Create();
     (void)info;
     return window;
 }
 
-void SystemLink::ToggleEdgeProbe() {}
+void OmniSystemLink::ToggleEdgeProbe() {}
 
-void SystemLink::SyncInputFilter() {}
+void OmniSystemLink::SyncInputFilter() {}
 
-CaptureController::StreamID SystemLink::AddCaptureStream(session* netSession,
+CaptureController::StreamID OmniSystemLink::AddCaptureStream(session* netSession,
                                                          DeviceMap targetID,
                                                          CaptureMode mode)
 {

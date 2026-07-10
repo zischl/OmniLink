@@ -8,11 +8,10 @@
 
 namespace {
 
-static void HandleFrame(std::vector<LinForge*>* Windows, CHAR* Buffer, DWORD BufferSize)
+static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)
 {
-    // zeroth window since i'm still implenting multi window creation
     OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
-    WinForge* target = Windows->at(header->Target);
+    StreamWindow* target = Windows->at(header->Target);
     target->SetBufferData(Buffer, BufferSize);
     target->SetRenderEvent();
 }
@@ -24,18 +23,21 @@ static void HandleCommand(CHAR* Buffer, DWORD BufferSize)
         OmniAPI::ExecuteNetCommand(*reinterpret_cast<CoreCommands*>(Buffer));
     } else {
 
-        ByteStreamReader Reader{static_cast<uint32_t>(BufferSize - 3),
-                                reinterpret_cast<uint8_t*>(Buffer)};
+        ByteStreamReader Reader{
+            static_cast<uint32_t>(BufferSize - 3), reinterpret_cast<uint8_t*>(Buffer)
+        };
 
         OmniNetCommand Payload = OmniNetCommand::Deserialize(Reader);
 
         OmniCommand command{Payload};
 
-        NetVariantDeserializer(command.Args,
-                               command.ArgTypeIndex,
-                               std::make_index_sequence<std::variant_size_v<FuncArgTypes>>(),
-                               Payload.Args.data(),
-                               Payload.Args.size());
+        NetVariantDeserializer(
+            command.Args,
+            command.ArgTypeIndex,
+            std::make_index_sequence<std::variant_size_v<FuncArgTypes>>(),
+            Payload.Args.data(),
+            Payload.Args.size()
+        );
 
         OmniAPI::ExecuteNetCommandWArgs(command);
     }
@@ -50,7 +52,7 @@ static void HandleInput(CHAR* Buffer)
 static void
 NetworkPacketHandler(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
 {
-    std::vector<WinForge*>* WinContext = reinterpret_cast<std::vector<WinForge*>*>(Context);
+    std::vector<StreamWindow*>* WinContext = reinterpret_cast<std::vector<StreamWindow*>*>(Context);
 
     switch (BufferHeader) {
     case OmniNet::PacketType::ChunkEnd:
@@ -84,7 +86,5 @@ void OmniLink::OmniMainLoop()
 
 void OmniLink::InitTrayIcon() {}
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd,
-                                                             UINT msg,
-                                                             WPARAM wParam,
-                                                             LPARAM lParam);
+extern IMGUI_IMPL_API LRESULT
+ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

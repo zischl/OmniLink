@@ -39,9 +39,8 @@ class OmniCore
     NVENCODER* NVENC = nullptr;
 
     DeviceMap SelectedInstance = DeviceMap::L1;
-    std::vector<StreamWindow*> ActiveWindows{};
 
-    OmniSystemLink SystemLink{RenderState, ActiveWindows};
+    OmniSystemLink SystemLink{RenderState};
 
     static DeviceMap ActiveIOProcTarget;
 

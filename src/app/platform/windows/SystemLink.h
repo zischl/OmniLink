@@ -24,7 +24,7 @@ struct OmniSystemLink
     OmniIOShield IOShield;
 
     OmniRenderState& RenderState;
-    std::vector<StreamWindow*>& ActiveWindows;
+    std::vector<StreamWindow*> ActiveWindows;
 
     HINSTANCE hInstance = nullptr;
     int nCmdShow = 0;
@@ -32,7 +32,7 @@ struct OmniSystemLink
 
     NetworkPacketHandlerFn networkPacketHandler = nullptr;
 
-    OmniSystemLink(OmniRenderState& RenderState, std::vector<StreamWindow*>& ActiveWindows);
+    OmniSystemLink(OmniRenderState& RenderState);
 
     void SetupSystemLink(
         HINSTANCE hInstance, int nCmdShow, HWND WindowID, NetworkPacketHandlerFn PacketHandlerFn
