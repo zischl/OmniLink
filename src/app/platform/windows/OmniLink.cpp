@@ -8,8 +8,6 @@
 #include <OmniLink.h>
 #include <memory>
 
-namespace {
-
 static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)
 {
     OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
@@ -51,14 +49,14 @@ static void HandleInput(CHAR* Buffer)
     OmniSynth::ProcInput(*Payload);
 }
 
-static void
-NetworkPacketHandler(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
+void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)
 {
-    std::vector<StreamWindow*>* WinContext = reinterpret_cast<std::vector<StreamWindow*>*>(Context);
+    std::vector<StreamWindow*>* WindowContext =
+        reinterpret_cast<std::vector<StreamWindow*>*>(Context);
 
     switch (BufferHeader) {
     case OmniNet::PacketType::ChunkEnd:
-        HandleFrame(WinContext, Buffer, BufferSize);
+        HandleFrame(WindowContext, Buffer, BufferSize);
         break;
     case OmniNet::Command: {
         HandleCommand(Buffer, BufferSize);
@@ -66,14 +64,11 @@ NetworkPacketHandler(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void*
     }
     case OmniNet::PacketType::ProcMouse:
     case OmniNet::PacketType::ProcKey: {
-        INPUT* Payload = reinterpret_cast<INPUT*>(Buffer);
-        OmniSynth::ProcInput(*Payload);
+        HandleInput(Buffer);
         break;
     }
     }
 };
-
-} // namespace
 
 OmniLink::OmniLink(HINSTANCE hInstance_, int nCmdShow_)
 {
@@ -131,7 +126,7 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 
     Logger::log("Instance Discovery Initialization Complete");
 
-    SystemLink.SetupSystemLink(hInstance, nCmdShow, hwnd, NetworkPacketHandler);
+    SystemLink.SetupSystemLink(hInstance, nCmdShow, hwnd);
 
     /// Input Capture Test Cases ///
 

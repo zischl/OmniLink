@@ -4,8 +4,9 @@
 #pragma once
 #include "OmniConfig.h"
 #include "OmniInstances.h"
-#include "OmniPackets.h"
 #include "SessionHandler.h"
+
+#include <cstdint>
 #include <memory>
 
 struct OmniSessionManager
@@ -13,11 +14,10 @@ struct OmniSessionManager
     OmniNetContext sessions;
     uint8_t SessionCount = 0;
 
-    template <typename PacketHandler, typename PacketContext>
+    template <void (*PacketHandler)(char*, uint32_t, uint8_t, void*), typename PacketContext>
     std::unique_ptr<OmniNetSession<OmniMTU>> Connect(
         const OmniActiveInstance& UserInstance,
         const OmniInstance& TargetInstance,
-        PacketHandler&& Handler,
         PacketContext* Context
     )
     {
@@ -30,7 +30,7 @@ struct OmniSessionManager
                 TargetInstance.DevMapIndex
             );
 
-        NetSession->OnIOCompletion = Handler;
+        NetSession->SessionStart<PacketHandler>(Context);
 
         return NetSession;
     }

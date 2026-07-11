@@ -11,7 +11,7 @@ static std::atomic<bool> PacketReceived{false};
 static std::string receivedData;
 static uint8_t receivedHeaderType = 0;
 
-inline void TestIOComplete(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
+inline void TestIOComplete(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)
 {
     // Excluding the header size as payload is Data+Header, not.. Header+Data
     receivedData = std::string(Buffer, BufferSize - 3);
@@ -28,7 +28,7 @@ void NetSessionTest()
     {
         // Bind to localhost port 62490 and connect to localhost port 62490 to test loopback
         OmniNetSession<OmniMTU> TestSession("127.0.0.1", "127.0.0.1", 62490, nullptr, 0);
-        TestSession.OnIOCompletion = TestIOComplete;
+        TestSession.SessionStart<TestIOComplete>(nullptr);
 
         std::string TestMsg = "Hello OmniLink Loopback!";
         OmniNet::OmniHeader Header;

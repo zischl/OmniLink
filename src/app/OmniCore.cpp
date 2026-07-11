@@ -4,6 +4,7 @@
 #include "OmniLogger.h"
 #include "OmniPackets.h"
 #include "OmniTypes.h"
+#include "SystemLink.h"
 #include "UIEvents.h"
 #include "system_probe_impl.h"
 #include <vector>
@@ -139,18 +140,15 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
     {
     case NetLinkState::FAILED:
     case NetLinkState::INACTIVE: {
-        if (!SystemLink.networkPacketHandler) {
-            return;
-        }
 
         InstanceRegistry.TransmitConnectionRequest(DeviceID);
 
-        std::unique_ptr<OmniNetSession<OmniMTU>> NetSession = SessionManager.Connect(
-            InstanceRegistry.UserInstance,
-            InstanceRegistry.AllInstances[DeviceID],
-            SystemLink.networkPacketHandler,
-            &SystemLink.ActiveWindows
-        );
+        std::unique_ptr<OmniNetSession<OmniMTU>> NetSession =
+            SessionManager.Connect<NetworkPacketHandler>(
+                InstanceRegistry.UserInstance,
+                InstanceRegistry.AllInstances[DeviceID],
+                &SystemLink.ActiveWindows
+            );
 
         if (NetSession) {
             InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
@@ -174,12 +172,12 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
 
     case NetLinkState::WAITING: {
 
-        std::unique_ptr<OmniNetSession<OmniMTU>> NetSession = SessionManager.Connect(
-            InstanceRegistry.UserInstance,
-            InstanceRegistry.AllInstances[DeviceID],
-            SystemLink.networkPacketHandler,
-            &SystemLink.ActiveWindows
-        );
+        std::unique_ptr<OmniNetSession<OmniMTU>> NetSession =
+            SessionManager.Connect<NetworkPacketHandler>(
+                InstanceRegistry.UserInstance,
+                InstanceRegistry.AllInstances[DeviceID],
+                &SystemLink.ActiveWindows
+            );
 
         if (NetSession) {
             InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));
@@ -204,12 +202,12 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
         if (InstanceRegistry.ActiveInstances[DeviceID].InstanceSession) {
             InstanceRegistry.TransmitConnectionState(DeviceID);
         } else {
-            std::unique_ptr<OmniNetSession<OmniMTU>> NetSession = SessionManager.Connect(
-                InstanceRegistry.UserInstance,
-                InstanceRegistry.AllInstances[DeviceID],
-                SystemLink.networkPacketHandler,
-                &SystemLink.ActiveWindows
-            );
+            std::unique_ptr<OmniNetSession<OmniMTU>> NetSession =
+                SessionManager.Connect<NetworkPacketHandler>(
+                    InstanceRegistry.UserInstance,
+                    InstanceRegistry.AllInstances[DeviceID],
+                    &SystemLink.ActiveWindows
+                );
 
             if (NetSession) {
                 InstanceRegistry.ActivateInstance(DeviceID, std::move(NetSession));

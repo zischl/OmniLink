@@ -1,6 +1,7 @@
 #ifndef SYSTEMLINK_H
 #define SYSTEMLINK_H
 
+#include <cstdint>
 #pragma once
 
 #include "CaptureController.h"
@@ -15,7 +16,9 @@
 
 template <uint32_t MTU> class OmniNetSession;
 
-using NetworkPacketHandlerFn = void (*)(CHAR*, DWORD, uint8_t, void*);
+using NetworkPacketHandlerFn = void(char*, uint32_t, uint8_t, void*);
+
+NetworkPacketHandlerFn NetworkPacketHandler;
 
 struct OmniSystemLink
 {
@@ -30,13 +33,9 @@ struct OmniSystemLink
     int nCmdShow = 0;
     HWND WindowID = nullptr;
 
-    NetworkPacketHandlerFn networkPacketHandler = nullptr;
-
     OmniSystemLink(OmniRenderState& RenderState);
 
-    void SetupSystemLink(
-        HINSTANCE hInstance, int nCmdShow, HWND WindowID, NetworkPacketHandlerFn PacketHandlerFn
-    );
+    void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
 

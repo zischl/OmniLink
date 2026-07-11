@@ -2,11 +2,7 @@
 #include "NetVariance.h"
 #include "OmniEnums.h"
 #include "OmniPackets.h"
-#include "SessionManager.h"
-
-#include <memory>
-
-namespace {
+#include <cstdint>
 
 static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)
 {
@@ -49,8 +45,7 @@ static void HandleInput(CHAR* Buffer)
     OmniSynth::ProcInput(*Payload);
 }
 
-static void
-NetworkPacketHandler(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context)
+void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)
 {
     std::vector<StreamWindow*>* WinContext = reinterpret_cast<std::vector<StreamWindow*>*>(Context);
 
@@ -65,9 +60,7 @@ NetworkPacketHandler(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void*
         break;
     }
     }
-};
-
-} // namespace
+}
 
 void OmniLink::OmniMain()
 {

@@ -1,6 +1,7 @@
 #ifndef SYSTEMLINK_H
 #define SYSTEMLINK_H
 
+#include <cstdint>
 #pragma once
 
 #include "CaptureController.h"
@@ -14,7 +15,9 @@
 
 class session;
 
-using NetworkPacketHandlerFn = void (*)(char*, uint32_t, uint8_t, void*);
+using NetworkPacketHandlerFn = void(char*, uint32_t, uint8_t, void*);
+
+NetworkPacketHandlerFn NetworkPacketHandler;
 
 struct OmniSystemLink
 {
@@ -23,11 +26,7 @@ struct OmniSystemLink
     IOLink& input;
     std::vector<StreamWindow*> ActiveWindows;
 
-    NetworkPacketHandlerFn networkPacketHandler = nullptr;
-
-    OmniSystemLink(RenderState& renderState,
-                   CaptureController& captureCtrl,
-                   IOLink& inputLink);
+    OmniSystemLink(RenderState& renderState, CaptureController& captureCtrl, IOLink& inputLink);
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& info);
 
@@ -35,9 +34,8 @@ struct OmniSystemLink
 
     void SyncInputFilter();
 
-    CaptureController::StreamID AddCaptureStream(session* netSession,
-                                                 DeviceMap targetID,
-                                                 CaptureMode mode);
+    CaptureController::StreamID
+    AddCaptureStream(session* netSession, DeviceMap targetID, CaptureMode mode);
 };
 
 #endif

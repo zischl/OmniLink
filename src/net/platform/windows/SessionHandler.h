@@ -140,17 +140,20 @@ class OmniNetContext
 
     static bool BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKey);
 
-    template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
+    template <
+        typename ContextType,
+        uint32_t PoolSize,
+        uint32_t ChunkSize,
+        void (*PacketHandlerFn)(char*, uint32_t, uint8_t, void*)>
     static std::thread StartCompletionPortHandlerThread(
         const HANDLE IOCP,
         const SOCKET socket,
         OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>* Pool,
-        void (**PacketHandlerFnPtr)(CHAR*, DWORD, uint8_t, void*),
         void* Ctx
     )
     {
 
-        std::thread StatusQueue([Pool, IOCP, socket, PacketHandlerFnPtr, Ctx]() {
+        std::thread StatusQueue([Pool, IOCP, socket, Ctx]() {
             void* Context = Ctx;
 
             while (true) {
@@ -189,14 +192,14 @@ class OmniNetContext
                         break;
                     case OmniNet::PacketType::ChunkEnd:
                         if (Pool->TryPushFinalChunk(BufferSize)) {
-                            (*PacketHandlerFnPtr)(
+                            PacketHandlerFn(
                                 &Pool->BufferPool[0], Pool->CurrentChunkUsage, BufferHeader, Context
                             );
                         }
                         Pool->ResetChunk();
                         break;
                     default:
-                        (*PacketHandlerFnPtr)(
+                        PacketHandlerFn(
                             Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Context
                         );
                         break;
@@ -273,7 +276,6 @@ template <uint32_t MTU = 1450> class OmniNetSession
     typedef std::chrono::steady_clock Clock;
     typedef std::chrono::time_point<Clock> TimePoint;
     typedef std::chrono::milliseconds Mlliseconds;
-    TimePoint start;
 
     inline void PreSetBufferMTU()
     {
@@ -310,10 +312,6 @@ template <uint32_t MTU = 1450> class OmniNetSession
 
         IOCPHandle = OmniNetContext::CreateIOCP();
 
-        WorkerThread = OmniNetContext::StartCompletionPortHandlerThread(
-            IOCPHandle, socketR, &RecvPool, &OnIOCompletion, Context
-        );
-
         OmniNetContext::BindIOCP(IOCPHandle, socketR, CompletionKey);
 
         OmniNetContext::PostWSARecv(socketR, RecvPool);
@@ -333,8 +331,14 @@ template <uint32_t MTU = 1450> class OmniNetSession
         closesocket(socketR);
     }
 
-    void (*OnIOCompletion)(CHAR* Buffer, DWORD BufferSize, uint8_t BufferHeader, void* Context) =
-        nullptr;
+    template <void (*PacketHandlerFn)(char*, uint32_t, uint8_t, void*)>
+    void SessionStart(void* Context)
+    {
+        WorkerThread = OmniNetContext::
+            StartCompletionPortHandlerThread<OmniNet::RECV_BUF, 256, MTU, PacketHandlerFn>(
+                IOCPHandle, socketR, &RecvPool, Context
+            );
+    }
 
     // Zero Copy send
     void SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header)
