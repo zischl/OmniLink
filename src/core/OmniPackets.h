@@ -145,6 +145,7 @@ struct HandshakeData
 
     uint32_t IP = 0;
     DeviceMap DeviceID = DeviceMap::END;
+    uint32_t Token = 0;
     uint8_t Key[32]{};
     MonitorRes Resolution;
 
@@ -158,6 +159,8 @@ struct HandshakeData
         reader.ReadU8Ex(DevId);
         obj.DeviceID = DeviceMap(DevId);
 
+        reader.ReadU32Ex(obj.Token);
+
         reader.ReadBytes(obj.Key, 32);
 
         reader.ReadU32Ex(obj.Resolution.Width);
@@ -168,13 +171,12 @@ struct HandshakeData
 
     static std::vector<uint8_t> Serialize(const HandshakeData& obj)
     {
-        ByteVecStreamEx NetWriter{45};
+        ByteVecStreamEx NetWriter{49};
 
         NetWriter.WriteU32Ex(obj.IP);
         NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.DeviceID));
-
+        NetWriter.WriteU32Ex(obj.Token);
         NetWriter.WriteBytes(obj.Key, 32);
-
         NetWriter.WriteU32Ex(obj.Resolution.Width);
         NetWriter.WriteU32Ex(obj.Resolution.Height);
 

@@ -31,6 +31,7 @@ struct OmniInstance
     char IPv4_String[16] = {};
     uint8_t DevMapIndex = 0;
     NetLinkState LinkState = NetLinkState::INACTIVE;
+    uint32_t HandshakeToken = 0;
 
     OmniInstance() {}
 
@@ -41,6 +42,8 @@ struct OmniInstance
         memset(InstanceName, 0, sizeof(InstanceName));
         InstanceIP = 0;
         memset(IPv4_String, 0, sizeof(IPv4_String));
+        LinkState = NetLinkState::INACTIVE;
+        HandshakeToken = 0;
     }
 
     void Edit(char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_, DeviceMap DeviceID)

@@ -18,7 +18,7 @@ struct NodeID
     bool operator==(const uint8_t* other) const { return std::equal(Bytes, Bytes + 12, other); }
 };
 
-inline NodeID GenerateLocalID()
+inline NodeID GenerateID()
 {
     static std::random_device RandomDevice;
     static std::mt19937 Generator(RandomDevice());

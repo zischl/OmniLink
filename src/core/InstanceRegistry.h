@@ -1,12 +1,12 @@
 #ifndef OmniInstanceReg_H
 #define OmniInstanceReg_H
 
+#pragma once
 #include "OmniConfig.h"
 #include "SessionHandler.h"
 #include <memory>
 #include <type_traits>
 #include <utility>
-#pragma once
 
 #include <bit>
 #include <mutex>
@@ -207,29 +207,54 @@ struct OmniInstanceRegistry
         }
     }
 
-    inline void TransmitConnectionRequest(DeviceMap DeviceID)
+    // Handshake token... going places
+    inline void TransmitConnectionRequest(DeviceMap DeviceID, uint32_t HandshakeToken)
     {
-        OmniPayloadBase Payload{PayloadType::LinkRequest, sizeof("lemme in"), "lemme in"};
+        OmniPayloadBase Payload{};
+        Payload.Type = PayloadType::LinkRequest;
+        Payload.PayloadLen = static_cast<uint16_t>(sizeof(uint32_t));
+
+        std::memcpy(Payload.Payload, &HandshakeToken, sizeof(uint32_t));
+
         InstanceProbe->SendCustomPayload(
             AllInstances[DeviceID].InstanceIP, OmniDiscoveryPort, Payload
         );
     }
 
+    // Yes.. all state transmissions have the HandshakeToken for validation
     inline void TransmitConnectionState(DeviceMap DeviceID)
     {
-        OmniPayloadBase Payload{
-            PayloadType::LinkResponse,
-            sizeof(NetLinkState),
-            static_cast<char>(AllInstances[DeviceID].LinkState)
-        };
+        uint32_t Token = AllInstances[DeviceID].HandshakeToken;
+        OmniPayloadBase Payload{};
+        Payload.Type = PayloadType::LinkResponse;
+        Payload.PayloadLen = static_cast<uint16_t>(sizeof(uint8_t) + sizeof(uint32_t));
+        Payload.Payload[0] = static_cast<char>(AllInstances[DeviceID].LinkState);
+
+        std::memcpy(Payload.Payload + 1, &Token, sizeof(uint32_t));
+
         InstanceProbe->SendCustomPayload(
             AllInstances[DeviceID].InstanceIP, OmniDiscoveryPort, Payload
         );
     }
 
-    inline void SetConnectionState(DeviceMap DeviceID, NetLinkState LinkState)
+    inline bool SetConnectionState(DeviceMap DeviceID, NetLinkState NewLinkState)
     {
-        AllInstances[DeviceID].LinkState = LinkState;
+        NetLinkState CurrentState = AllInstances[DeviceID].LinkState;
+        if (NewLinkState == NetLinkState::FAILED || NewLinkState == NetLinkState::INACTIVE) {
+            AllInstances[DeviceID].LinkState = NewLinkState;
+            return true;
+        }
+        if (NewLinkState > CurrentState) {
+            AllInstances[DeviceID].LinkState = NewLinkState;
+            return true;
+        }
+        Logger::log(
+            "Blocked State Transition {} -> {} for device {}",
+            static_cast<int>(CurrentState),
+            static_cast<int>(NewLinkState),
+            AllInstances[DeviceID].InstanceName
+        );
+        return false;
     }
 
     inline NetLinkState GetConnectionState(DeviceMap DeviceID)
@@ -240,6 +265,26 @@ struct OmniInstanceRegistry
     inline bool GetSessionState(DeviceMap DeviceID)
     {
         return ActiveInstances[DeviceID].InstanceSession != nullptr;
+    }
+
+    inline void SetHandshakeToken(DeviceMap DeviceID, uint32_t Token)
+    {
+        AllInstances[DeviceID].HandshakeToken = Token;
+    }
+
+    inline uint32_t GetHandshakeToken(DeviceMap DeviceID)
+    {
+        return AllInstances[DeviceID].HandshakeToken;
+    }
+
+    inline void ResetInstance(DeviceMap DeviceID)
+    {
+        if (ActiveInstances.count(DeviceID)) {
+            ActiveInstances[DeviceID].InstanceSession.reset();
+            ActiveInstances.erase(DeviceID);
+        }
+        AllInstances[DeviceID].LinkState = NetLinkState::INACTIVE;
+        AllInstances[DeviceID].HandshakeToken = 0;
     }
 };
 

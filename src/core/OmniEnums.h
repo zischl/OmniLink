@@ -19,7 +19,14 @@ enum FeatureFlags {
 
 enum FeatureTypes : uint8_t { ScreenLink, WindowLink, InputLink, AudioLink, ClipboardLink };
 
-enum NetLinkState : uint8_t { INACTIVE, FAILED, WAITING, LINKING, PENDING, LINKED };
+enum NetLinkState : uint8_t {
+    INACTIVE = 0,     // Air... Nothing...
+    FAILED = 1,       // Failed Air.. just like unemployed me
+    LINKING_INIT = 2, // OmniNetSession Creation Complete, About to send ConnectionRequest and State
+    LINKING_WAIT = 3, // OmniNetSession Creation Complete, Waiting for handshake
+    LINKING_ACK = 4,  // Requesting Handshake, Waiting for LINKED, or FAILED
+    LINKED = 5        // HandshakeData verified, Complete.. congrats, no longer air
+};
 
 enum DeviceMap : uint8_t { C0, L1, U1, R1, D1, LU1, RU1, RD1, LD1, END };
 
