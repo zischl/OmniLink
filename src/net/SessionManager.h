@@ -4,6 +4,7 @@
 #pragma once
 #include "OmniConfig.h"
 #include "OmniInstances.h"
+#include "OmniLogger.h"
 #include "SessionHandler.h"
 
 #include <cstdint>
@@ -29,6 +30,14 @@ struct OmniSessionManager
                 Context,
                 TargetInstance.DevMapIndex
             );
+
+        if (!NetSession->GetSessionState()) {
+            Logger::log(
+                "OmniNetSession setup failed for {} :: Bind or Connect Error :]",
+                TargetInstance.IPv4_String
+            );
+            return nullptr;
+        }
 
         NetSession->SessionStart<PacketHandler>(Context);
 

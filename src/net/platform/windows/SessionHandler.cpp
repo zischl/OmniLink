@@ -116,7 +116,7 @@ void OmniNetContext::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
     return;
 }
 
-void OmniNetContext::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
+bool OmniNetContext::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
 {
     int WSResult = 0;
 
@@ -128,20 +128,22 @@ void OmniNetContext::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
     WSResult = bind(socket, (sockaddr*)&local, sizeof(local));
     if (WSResult != 0) {
         WSResult = WSAGetLastError();
-        OutputDebugStringA((std::to_string(WSResult) + "\n").c_str());
-        OutputDebugStringA("Bind Failed Successfully\n");
+        Logger::log("BindReceiver failed: WSA error {}", WSResult);
+        return false;
     }
+    return true;
 }
 
-void OmniNetContext::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR)
+bool OmniNetContext::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR)
 {
-
     int WSResult = 0;
 
     WSResult = connect(socketR, (sockaddr*)&address, sizeof(address));
     if (WSResult != 0) {
-        OutputDebugStringA(("Connection Failed : " + std::to_string(WSResult) + "\n").c_str());
+        Logger::log("ConnectSesssion failed: WSA error {}", WSAGetLastError());
+        return false;
     }
+    return true;
 }
 HANDLE OmniNetContext::CreateIOCP(DWORD MaxThreads)
 {

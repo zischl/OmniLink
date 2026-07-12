@@ -134,7 +134,7 @@ class OmniNetContext
 
     static SOCKET CreateSocket();
 
-    static void ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR);
+    static bool ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR);
 
     static HANDLE CreateIOCP(DWORD MaxThreads = 1);
 
@@ -224,7 +224,7 @@ class OmniNetContext
         return StatusQueue;
     };
 
-    static void BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket);
+    static bool BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket);
 
     template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
     inline static void PostWSARecv(
@@ -253,6 +253,7 @@ template <uint32_t MTU = 1450> class OmniNetSession
 {
   private:
     int WSResult;
+    bool SessionState = false;
 
     sockaddr_in address;
     SOCKET socketR;
@@ -307,15 +308,22 @@ template <uint32_t MTU = 1450> class OmniNetSession
         PreSetBufferMTU();
         address = OmniNetContext::CreateAddress(IP, port);
         socketR = OmniNetContext::CreateSocket();
-        OmniNetContext::BindReceiver(Local_IP, port, socketR);
-        OmniNetContext::ConnectSesssion(address, socketR);
+
+        const bool BindState = OmniNetContext::BindReceiver(Local_IP, port, socketR);
+        const bool ConnectState = OmniNetContext::ConnectSesssion(address, socketR);
+
+        if (!BindState || !ConnectState) {
+            // No IOCP threads for useless sessions :]
+            return;
+        }
 
         IOCPHandle = OmniNetContext::CreateIOCP();
-
         OmniNetContext::BindIOCP(IOCPHandle, socketR, CompletionKey);
-
         OmniNetContext::PostWSARecv(socketR, RecvPool);
+        SessionState = true;
     }
+
+    bool GetSessionState() const { return SessionState; }
 
     ~OmniNetSession()
     {
