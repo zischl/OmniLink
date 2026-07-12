@@ -43,11 +43,13 @@ enum class PayloadType : uint8_t {
     LinkResponse = 0x06,
 };
 
+// Token's in here to avoid duplicate/stale/invalid events
 struct ProbeEvent
 {
     PayloadType Mode;
     NetLinkState LinkState;
     uint32_t InstanceIP;
+    uint32_t Token = 0;
 };
 
 #pragma pack(push, 1)
@@ -82,7 +84,7 @@ class OmniDiscovery
     std::atomic_bool state{true};
 
     uint32_t InstanceIP = 0;
-    const NodeID InstanceUUID = GenerateLocalID();
+    const NodeID InstanceUUID = GenerateID();
 
   public:
     OmniDiscovery(const std::string& InstanceName, uint32_t _LocalIP, uint16_t port);
@@ -137,14 +139,17 @@ class OmniDiscovery
 
             while (state.load()) {
                 try {
-                    size_t MsgLen =
-                        socket.receive_from(asio::buffer(&packet, sizeof(packet)), ResponseEndpoint);
+                    size_t MsgLen = socket.receive_from(
+                        asio::buffer(&packet, sizeof(packet)), ResponseEndpoint
+                    );
 
                     if (MsgLen >= sizeof(OmniDiscoveryPacket) && packet.Liss == 0x4F4D4E49) {
                         switch (packet.Type) {
                         case PayloadType::DiscoveryRequest: {
                             if (std::memcmp(
-                                    packet.Payload, OmniDiscoveryRequest, sizeof(OmniDiscoveryRequest)
+                                    packet.Payload,
+                                    OmniDiscoveryRequest,
+                                    sizeof(OmniDiscoveryRequest)
                                 ) == 0) {
                                 ResponseEndpoint.port(discovery_port);
 
@@ -161,7 +166,9 @@ class OmniDiscovery
                                     sizeof(OmniDiscoveryResponse)
                                 );
                                 memcpy(
-                                    ResponsePacket.UUID, InstanceUUID.Bytes, sizeof(ResponsePacket.UUID)
+                                    ResponsePacket.UUID,
+                                    InstanceUUID.Bytes,
+                                    sizeof(ResponsePacket.UUID)
                                 );
 
                                 socket.send_to(
@@ -179,9 +186,10 @@ class OmniDiscovery
                                         !(InstanceUUID == packet.UUID)) {
 
                                         instances[Addr] = ResponseEndpoint.address().to_string();
-                                        std::cout << "Instance Found At: " << ResponseEndpoint.address()
-                                                  << " : " << ResponseEndpoint.port() << " "
-                                                  << socket.local_endpoint().port() << "\n";
+                                        std::cout
+                                            << "Instance Found At: " << ResponseEndpoint.address()
+                                            << " : " << ResponseEndpoint.port() << " "
+                                            << socket.local_endpoint().port() << "\n";
                                         event = true;
 
                                         OmniDiscoveryPacket ResponsePacket{
@@ -207,7 +215,9 @@ class OmniDiscovery
                                 if (event) {
                                     Callback(
                                         ProbeEvent{
-                                            PayloadType::DiscoveryRequest, NetLinkState::INACTIVE, Addr
+                                            PayloadType::DiscoveryRequest,
+                                            NetLinkState::INACTIVE,
+                                            Addr
                                         }
                                     );
                                 }
@@ -218,7 +228,9 @@ class OmniDiscovery
 
                         case PayloadType::DiscoveryResponse: {
                             if (std::memcmp(
-                                    packet.Payload, OmniDiscoveryResponse, sizeof(OmniDiscoveryResponse)
+                                    packet.Payload,
+                                    OmniDiscoveryResponse,
+                                    sizeof(OmniDiscoveryResponse)
                                 ) == 0) {
                                 uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
                                 bool event = false;
@@ -232,9 +244,10 @@ class OmniDiscovery
                                     if (instances.find(Addr) == instances.end() &&
                                         !(InstanceUUID == packet.UUID)) {
                                         instances[Addr] = ResponseEndpoint.address().to_string();
-                                        std::cout << "Instance Found At: " << ResponseEndpoint.address()
-                                                  << " : " << ResponseEndpoint.port() << " "
-                                                  << socket.local_endpoint().port() << "\n";
+                                        std::cout
+                                            << "Instance Found At: " << ResponseEndpoint.address()
+                                            << " : " << ResponseEndpoint.port() << " "
+                                            << socket.local_endpoint().port() << "\n";
 
                                         OmniDiscoveryPacket ResponsePacket{
                                             PayloadType::IdentifyRequest,
@@ -261,7 +274,9 @@ class OmniDiscovery
                                 if (event) {
                                     Callback(
                                         ProbeEvent{
-                                            PayloadType::DiscoveryResponse, NetLinkState::INACTIVE, Addr
+                                            PayloadType::DiscoveryResponse,
+                                            NetLinkState::INACTIVE,
+                                            Addr
                                         }
                                     );
                                 }
@@ -289,7 +304,8 @@ class OmniDiscovery
                             packet.Payload[sizeof(packet.Payload) - 1] = '\0';
 
                             socket.send_to(
-                                asio::buffer(&ResponsePacket, sizeof(ResponsePacket)), ResponseEndpoint
+                                asio::buffer(&ResponsePacket, sizeof(ResponsePacket)),
+                                ResponseEndpoint
                             );
 
                             std::string AddrString = ResponseEndpoint.address().to_string();
@@ -347,14 +363,41 @@ class OmniDiscovery
 
                         case PayloadType::LinkRequest: {
                             uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
-                            Callback(ProbeEvent{PayloadType::LinkRequest, NetLinkState::LINKING, Addr});
+
+                            // Trust me, there's a token in here, 4 bytes :]
+                            uint32_t HandshakeToken = 0;
+                            if (packet.PayloadLen >= sizeof(uint32_t)) {
+                                std::memcpy(&HandshakeToken, packet.Payload, sizeof(uint32_t));
+                            }
+
+                            Callback(
+                                ProbeEvent{
+                                    PayloadType::LinkRequest,
+                                    NetLinkState::INACTIVE,
+                                    Addr,
+                                    HandshakeToken
+                                }
+                            );
                             break;
                         }
                         case PayloadType::LinkResponse: {
                             uint32_t Addr = ResponseEndpoint.address().to_v4().to_uint();
+
+                            // Trust me there's a NetLinkState + HandshakeToken in here
+                            // [ 1 byte + 4 bytes ]
                             NetLinkState LinkState = static_cast<NetLinkState>(packet.Payload[0]);
 
-                            Callback(ProbeEvent{PayloadType::LinkResponse, LinkState, Addr});
+                            uint32_t HandshakeToken = 0;
+                            if (packet.PayloadLen >= sizeof(uint8_t) + sizeof(uint32_t)) {
+                                std::memcpy(&HandshakeToken, packet.Payload + 1, sizeof(uint32_t));
+                            }
+
+                            Callback(
+                                ProbeEvent{
+                                    PayloadType::LinkResponse, LinkState, Addr, HandshakeToken
+                                }
+                            );
+                            break;
                         }
                         default:
                             break;
