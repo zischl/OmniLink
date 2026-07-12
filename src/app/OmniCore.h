@@ -19,8 +19,10 @@
 #include "nvenc.h"
 
 #include <array>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <random>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -43,6 +45,23 @@ class OmniCore
     OmniSystemLink SystemLink{RenderState};
 
     static DeviceMap ActiveIOProcTarget;
+
+    struct HandshakeRetryContext
+    {
+        DeviceMap DeviceID;
+        uint32_t Token;
+        int RetriesLeft;
+        std::chrono::steady_clock::time_point NextRetry;
+        bool Active = false;
+    };
+
+    std::unordered_map<DeviceMap, HandshakeRetryContext> HandshakeRetries;
+
+    static uint32_t GenerateHandshakeToken();
+
+    void HandleHandshakeRetries();
+
+    void FailHandshake(DeviceMap DeviceID, const char* reason);
 
   public:
     static DeviceMap SelectedTargetDevice;
@@ -96,12 +115,21 @@ class OmniCore
             CommandQThread = std::thread([this]() -> void {
                 while (AppState == OmniAppState::RUNNING) {
                     std::unique_lock<std::mutex> lock(CommandQMutex);
-                    CommandQCV.wait(lock, [this]() -> boolean {
-                        return !CommandBurstQ.empty() || !CommandBurstQWArgs.empty();
-                    });
+
+                    if (!HandshakeRetries.empty())
+                        CommandQCV.wait_for(lock, std::chrono::milliseconds(500), [this]() -> bool {
+                            return !CommandBurstQ.empty() || !CommandBurstQWArgs.empty() ||
+                                   AppState != OmniAppState::RUNNING;
+                        });
+                    else
+                        CommandQCV.wait(lock, [this]() -> bool {
+                            return !CommandBurstQ.empty() || !CommandBurstQWArgs.empty() ||
+                                   AppState != OmniAppState::RUNNING;
+                        });
 
                     ExecuteCommandQueue();
                     ExecuteCommandQueueWArgs();
+                    HandleHandshakeRetries();
                 }
             });
         }
