@@ -128,6 +128,8 @@ NvencSession::NvencSession(
 
     NV_ENC_INITIALIZE_PARAMS NvInitParams = {};
     NvencInitConfig NvInitConfig = {};
+    NvInitConfig.Dimensions.Width = EncodeWidth;
+    NvInitConfig.Dimensions.Height = EncodeHeight;
     LoadDefaultInitParams(NvInitParams, NvInitConfig);
     NVEncoderInit(NvInitParams);
 
