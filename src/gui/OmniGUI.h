@@ -69,48 +69,46 @@ class OmniGUI
 #define IC_X "\xEF\x80\x93"
 #define IC_MINUS "\xEF\x80\x94"
 
-    // Trust me, this was hell
-    static constexpr ImU32 COL_DEV_EMPTY = IM_COL32(0x29, 0x19, 0x3F, 255);
-    static constexpr ImU32 BG_CHILD_1 = IM_COL32(19, 21, 31, 255);
-    static constexpr ImVec4 TEXT_MUTED = ImVec4(0.239f, 0.220f, 0.333f, 1.0f);
-    static constexpr ImVec4 TEXT_ACTIVE = ImVec4(0.753f, 0.722f, 0.831f, 1.0f);
-    static constexpr ImVec4 BTN_HOVER_DARK = ImVec4(0.25f, 0.25f, 0.35f, 0.5f);
-    static constexpr ImVec4 BTN_HOVER_RED = ImVec4(0.70f, 0.15f, 0.15f, 0.8f);
+    // Welcome to HELL
+    static constexpr ImU32 COL_BG_CHILD_1 = IM_COL32(19, 21, 31, 255);
+    static constexpr ImU32 COL_TITLE_BG = IM_COL32(8, 9, 14, 255);
+    static constexpr ImVec4 COL4_TEXT_MUTED = ImVec4(0.239f, 0.220f, 0.333f, 1.0f);
+    static constexpr ImVec4 COL4_TEXT_ACTIVE = ImVec4(0.753f, 0.722f, 0.831f, 1.0f);
+    static constexpr ImVec4 COL4_BTN_HOVER_DARK = ImVec4(0.250f, 0.250f, 0.350f, 0.5f);
+    static constexpr ImVec4 COL4_BTN_HOVER_RED = ImVec4(0.700f, 0.150f, 0.150f, 0.8f);
+    static constexpr ImVec4 COL4_TRANSPARENT = ImVec4(0.000f, 0.000f, 0.000f, 0.0f);
 
-    // ImVec4 Style Colors
-    static constexpr ImVec4 STYLE_MODAL_DIM = ImVec4(0.05f, 0.05f, 0.05f, 0.65f);
-    static constexpr ImVec4 STYLE_CHILD_BG = ImVec4(0.031f, 0.031f, 0.059f, 1.0f);
-    static constexpr ImVec4 STYLE_SEPARATOR = ImVec4(0.12f, 0.13f, 0.16f, 1.00f);
+    // Main Style Setup Colors
+    static constexpr ImVec4 COL4_STYLE_MODAL_DIM = ImVec4(0.050f, 0.050f, 0.050f, 0.65f);
+    static constexpr ImVec4 COL4_STYLE_CHILD_BG = ImVec4(0.031f, 0.031f, 0.059f, 1.0f);
+    static constexpr ImVec4 COL4_STYLE_SEPARATOR = ImVec4(0.120f, 0.130f, 0.160f, 1.0f);
 
-    // Dashboard & Metrics Theme
-    static constexpr ImVec4 DASH_BG = ImVec4(0.07f, 0.05f, 0.10f, 1.00f);
-    static constexpr ImVec4 DASH_BORDER = ImVec4(0.18f, 0.12f, 0.25f, 1.00f);
-    static constexpr ImVec4 DASH_TEXT_MUTED = ImVec4(0.45f, 0.42f, 0.55f, 1.00f);
-    static constexpr ImVec4 DASH_TEXT_VALUE = ImVec4(0.70f, 0.45f, 1.00f, 1.00f);
+    // Dashboard & Metrics Theme Text
+    static constexpr ImVec4 COL4_DASH_TEXT_MUTED = ImVec4(0.450f, 0.420f, 0.550f, 1.0f);
+    static constexpr ImVec4 COL4_DASH_TEXT_VALUE = ImVec4(0.700f, 0.450f, 1.000f, 1.0f);
 
-    // Notification & Event Handling Theme
-    static constexpr ImVec4 EV_TEXT_MUTED = ImVec4(0.45f, 0.47f, 0.57f, 1.0f);
-    static constexpr ImVec4 EV_ACCENT = ImVec4(0.53f, 0.44f, 0.96f, 1.0f);
-    static constexpr ImVec4 EV_ACCENT_HOVER = ImVec4(0.60f, 0.52f, 0.98f, 1.0f);
-    static constexpr ImVec4 EV_ACCENT_ACTIVE = ImVec4(0.45f, 0.36f, 0.88f, 1.0f);
-    static constexpr ImVec4 EV_FRAME_BG = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
-    static constexpr ImVec4 EV_FRAME_BG_HOVER = ImVec4(0.18f, 0.18f, 0.24f, 1.0f);
-    static constexpr ImVec4 EV_BTN_DECLINE = ImVec4(0.14f, 0.14f, 0.17f, 1.0f);
-    static constexpr ImVec4 EV_BTN_DEC_HOVER = ImVec4(0.18f, 0.18f, 0.22f, 1.0f);
-    static constexpr ImVec4 EV_BTN_DEC_ACTIVE = ImVec4(0.10f, 0.10f, 0.13f, 1.0f);
-    static constexpr ImVec4 EV_BTN_DEC_BORDER = ImVec4(0.25f, 0.25f, 0.32f, 1.0f);
+    // Notification & Event Handling Theme Colors
+    static constexpr ImVec4 COL4_EV_TEXT_MUTED = ImVec4(0.450f, 0.470f, 0.570f, 1.0f);
+    static constexpr ImVec4 COL4_EV_ACCENT = ImVec4(0.530f, 0.440f, 0.960f, 1.0f);
+    static constexpr ImVec4 COL4_EV_ACCENT_HOVER = ImVec4(0.600f, 0.520f, 0.980f, 1.0f);
+    static constexpr ImVec4 COL4_EV_ACCENT_ACTIVE = ImVec4(0.450f, 0.360f, 0.880f, 1.0f);
+    static constexpr ImVec4 COL4_EV_FRAME_BG = ImVec4(0.120f, 0.120f, 0.160f, 1.0f);
+    static constexpr ImVec4 COL4_EV_FRAME_BG_HOVER = ImVec4(0.180f, 0.180f, 0.240f, 1.0f);
+    static constexpr ImVec4 COL4_EV_BTN_DECLINE = ImVec4(0.140f, 0.140f, 0.170f, 1.0f);
+    static constexpr ImVec4 COL4_EV_BTN_DEC_HOVER = ImVec4(0.180f, 0.180f, 0.220f, 1.0f);
+    static constexpr ImVec4 COL4_EV_BTN_DEC_ACTIVE = ImVec4(0.100f, 0.100f, 0.130f, 1.0f);
+    static constexpr ImVec4 COL4_EV_BTN_DEC_BORDER = ImVec4(0.250f, 0.250f, 0.320f, 1.0f);
 
-    // Bezier Curve / Glow Base Vectors
-    static constexpr ImVec4 GLOW_OPAQUE = ImVec4(0.5f, 0.0f, 1.0f, 1.0f);
-    static constexpr ImVec4 GLOW_HIGH = ImVec4(0.5f, 0.0f, 1.0f, 0.6f);
-    static constexpr ImVec4 GLOW_MED = ImVec4(0.5f, 0.0f, 1.0f, 0.3f);
-    static constexpr ImVec4 GLOW_LOW = ImVec4(0.5f, 0.0f, 1.0f, 0.1f);
+    // Alert Handling Colors
+    static constexpr ImVec4 COL4_ALERT_TITLE = ImVec4(1.000f, 0.820f, 0.000f, 1.0f);
 
-    // ImU32 Packed Drawing Colors
+    // Device Representation Layouts
+    static constexpr ImU32 COL_DEV_EMPTY = IM_COL32(41, 25, 63, 255);
     static constexpr ImU32 COL_DEV_HOVER = IM_COL32(128, 0, 255, 255);
     static constexpr ImU32 COL_DEV_DEFAULT = IM_COL32(255, 255, 255, 255);
+    static constexpr ImU32 COL_RING_BG = IM_COL32(37, 30, 51, 255);
 
-    // Sidebar & Menus
+    // Sidebar & Navigation Menus
     static constexpr ImU32 COL_MENU_BG_IDLE = IM_COL32(30, 30, 40, 0);
     static constexpr ImU32 COL_MENU_ICON_IDLE = IM_COL32(30, 30, 40, 255);
     static constexpr ImU32 COL_MENU_BG_ACTIVE = IM_COL32(168, 85, 247, 40);
@@ -134,8 +132,9 @@ class OmniGUI
     static constexpr ImU32 COL_FEAT_STRIP = IM_COL32(157, 78, 221, 255);
     static constexpr ImU32 COL_FEAT_GLOW = IM_COL32(157, 78, 221, 45);
 
-    // Connection Ring Radar Layout
-    static constexpr ImU32 COL_RING_BG = IM_COL32(0x25, 0x1E, 0x33, 255);
+    // Dashboard Layout Drawing
+    static constexpr ImU32 COL_DASH_BG = IM_COL32(18, 13, 26, 255);
+    static constexpr ImU32 COL_DASH_BORDER = IM_COL32(46, 31, 64, 255);
 
     // Modal Hardware Connection Layouts
     static constexpr ImU32 COL_MODAL_STRIP = IM_COL32(135, 112, 245, 255);
@@ -143,6 +142,12 @@ class OmniGUI
     static constexpr ImU32 COL_MODAL_BOX_BRD = IM_COL32(75, 70, 105, 255);
     static constexpr ImU32 COL_MODAL_CIRC_BG = IM_COL32(23, 23, 30, 255);
     static constexpr ImU32 COL_MODAL_CIRC_BRD = IM_COL32(50, 50, 65, 255);
+
+    // Bezier Curves
+    static constexpr ImU32 COL_GLOW_OPAQUE = IM_COL32(128, 0, 255, 255);
+    static constexpr ImU32 COL_GLOW_HIGH = IM_COL32(128, 0, 255, 153);
+    static constexpr ImU32 COL_GLOW_MED = IM_COL32(128, 0, 255, 76);
+    static constexpr ImU32 COL_GLOW_LOW = IM_COL32(128, 0, 255, 25);
 
   private:
     OmniLink& App;
@@ -289,7 +294,7 @@ class OmniGUI
         if (ImGui::Begin("OmniLink", &ImGuiState, ImGuiWindowFlags_NoTitleBar)) {
 
             ImGui::PopStyleVar();
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, BG_CHILD_1);
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, COL_BG_CHILD_1);
             DrawList = ImGui::GetWindowDrawList();
 
             ImVec2 MenuItemSize = ImVec2(110, 100);
@@ -350,7 +355,7 @@ class OmniGUI
                 DrawList->AddRectFilled(
                     ContentSpaceStart,
                     ImVec2(MaxContentPosX, ContentSpaceStart.y + TitleBarHeight),
-                    IM_COL32(8, 9, 14, 255),
+                    COL_TITLE_BG,
                     16.0f,
                     ImDrawFlags_RoundCornersTopRight
                 );
@@ -359,23 +364,23 @@ class OmniGUI
                 ImGui::SetCursorPosY(ContentSpaceStart.y + VerticalSpacing);
                 ImGui::SetCursorPosX(ContentSpaceStart.x + 10.0f);
                 // Title Bar Text
-                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "OmniLink   >   ");
+                ImGui::TextColored(COL4_TEXT_MUTED, "OmniLink   >   ");
                 ImGui::SameLine(0.0f, 0.0f);
 
                 ImGui::SetCursorPosY(ContentSpaceStart.y + VerticalSpacing);
 
                 switch (ActiveMenu) {
                 case 0:
-                    ImGui::TextColored(TEXT_ACTIVE, "Nexus");
+                    ImGui::TextColored(COL4_TEXT_ACTIVE, "Nexus");
                     break;
                 case 1:
-                    ImGui::TextColored(TEXT_ACTIVE, "Instances");
+                    ImGui::TextColored(COL4_TEXT_ACTIVE, "Instances");
                     break;
                 case 2:
-                    ImGui::TextColored(TEXT_ACTIVE, "Keybinds");
+                    ImGui::TextColored(COL4_TEXT_ACTIVE, "Keybinds");
                     break;
                 case 3:
-                    ImGui::TextColored(TEXT_ACTIVE, "Settings");
+                    ImGui::TextColored(COL4_TEXT_ACTIVE, "Settings");
                     break;
                 }
 
@@ -387,8 +392,8 @@ class OmniGUI
                 ImGui::SameLine(ContentSpaceSize.x - TotalControlsWidth, 0.0f);
 
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.25f, 0.35f, 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_Button, COL4_TRANSPARENT);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_BTN_HOVER_DARK);
 
                 ImGui::SetCursorPosY(ContentSpaceStart.y);
                 ImGui::PushFont(OmniIconsSmall);
@@ -397,7 +402,7 @@ class OmniGUI
 
                 ImGui::SameLine(0.0f, 0.0f);
 
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f, 0.15f, 0.15f, 0.8f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_BTN_HOVER_RED);
                 if (ImGui::Button(IC_X, ImVec2(TitleBarHeight, TitleBarHeight))) {
                     ImGuiState = false;
                 }
@@ -423,7 +428,7 @@ class OmniGUI
 
                 ImVec2 PanelP1 = ImGui::GetCursorScreenPos();
                 DrawList->AddRectFilled(
-                    PanelP1, ImVec2(MaxContentPosX, PanelP1.y + FeaturePanelHeight), BG_CHILD_1
+                    PanelP1, ImVec2(MaxContentPosX, PanelP1.y + FeaturePanelHeight), COL_BG_CHILD_1
                 );
 
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
@@ -436,7 +441,7 @@ class OmniGUI
 
                 ImGui::BeginGroup();
                 ImGui::Dummy(ImVec2(0.0f, ModeTextPadding));
-                ImGui::TextColored(ImVec4(0.239f, 0.220f, 0.333f, 1.0f), "%s", ModeText);
+                ImGui::TextColored(COL4_TEXT_MUTED, "%s", ModeText);
                 ImGui::Dummy(ImVec2(0.0f, ModeTextPadding));
                 ImGui::EndGroup();
 

@@ -38,12 +38,12 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
 
     ImGuiStyle& style = ImGui::GetStyle();
 
-    style.Colors[ImGuiCol_ModalWindowDimBg] = STYLE_MODAL_DIM;
-    style.Colors[ImGuiCol_ChildBg] = STYLE_CHILD_BG;
+    style.Colors[ImGuiCol_ModalWindowDimBg] = COL4_STYLE_MODAL_DIM;
+    style.Colors[ImGuiCol_ChildBg] = COL4_STYLE_CHILD_BG;
 
-    style.Colors[ImGuiCol_Separator] = STYLE_SEPARATOR;
-    style.Colors[ImGuiCol_SeparatorHovered] = STYLE_SEPARATOR;
-    style.Colors[ImGuiCol_SeparatorActive] = STYLE_SEPARATOR;
+    style.Colors[ImGuiCol_Separator] = COL4_STYLE_SEPARATOR;
+    style.Colors[ImGuiCol_SeparatorHovered] = COL4_STYLE_SEPARATOR;
+    style.Colors[ImGuiCol_SeparatorActive] = COL4_STYLE_SEPARATOR;
 
     style.SeparatorTextBorderSize = 1.0f;
     style.ItemSpacing.x = 0.0f;
@@ -450,7 +450,7 @@ void OmniGUI::MetricDashboard(
     if (ItemCount <= 0 || !Items)
         return;
 
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, COL4_TRANSPARENT);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -469,8 +469,8 @@ void OmniGUI::MetricDashboard(
         ImVec2 BarMin = ImGui::GetCursorScreenPos();
         ImVec2 BarMax = ImVec2(BarMin.x + TotalWidth, BarMin.y + Height);
 
-        ImU32 ContainerBgColor = ImGui::ColorConvertFloat4ToU32(DASH_BG);
-        ImU32 ContainerBorderColor = ImGui::ColorConvertFloat4ToU32(DASH_BORDER);
+        ImU32 ContainerBgColor = COL_DASH_BG;
+        ImU32 ContainerBorderColor = COL_DASH_BORDER;
 
         // Main Container
         DrawList->AddRectFilled(BarMin, BarMax, ContainerBgColor, 0.0f);
@@ -502,7 +502,7 @@ void OmniGUI::MetricDashboard(
             // Vertical Accent Pill
             ImVec2 PillMin = ImVec2(SegMin.x + InnerPaddingX, SegMin.y + InnerPaddingY + 2.0f);
             ImVec2 PillMax = ImVec2(PillMin.x + AccentPillWidth, SegMax.y - InnerPaddingY - 2.0f);
-            ImU32 AccentCol = ImGui::ColorConvertFloat4ToU32(DASH_BORDER);
+            ImU32 AccentCol = COL_DASH_BORDER;
             DrawList->AddRectFilled(PillMin, PillMax, AccentCol, 1.5f);
 
             float TextOriginX = PillMax.x + AccentGapping;
@@ -510,7 +510,7 @@ void OmniGUI::MetricDashboard(
             ImGui::SetCursorScreenPos(TitlePos);
 
             // Da Title
-            ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_MUTED);
+            ImGui::PushStyleColor(ImGuiCol_Text, COL4_DASH_TEXT_MUTED);
             ImGui::TextUnformatted(Items[i].Title);
             ImGui::PopStyleColor();
 
@@ -520,7 +520,7 @@ void OmniGUI::MetricDashboard(
 
             // Value
             ImGui::PushFont(JetBrainsBold20);
-            ImGui::PushStyleColor(ImGuiCol_Text, DASH_TEXT_VALUE);
+            ImGui::PushStyleColor(ImGuiCol_Text, COL4_DASH_TEXT_VALUE);
             ImGui::TextUnformatted(Items[i].Value);
             ImGui::PopStyleColor();
             ImGui::PopFont();
@@ -587,12 +587,11 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
     ImGui::SetWindowFontScale(1.0f);
 
     ImGui::Dummy(ImVec2(windowWidth, boxSize + paddingTop + 14.0f));
-
     const char* txtConnReq = "CONNECTION REQUEST";
     ImGui::SetWindowFontScale(11.0f / 18.0f);
     float txtConnReqWidth = ImGui::CalcTextSize(txtConnReq).x;
     ImGui::SetCursorPosX((windowWidth - txtConnReqWidth) / 2.0f);
-    ImGui::TextColored(EV_TEXT_MUTED, "%s", txtConnReq);
+    ImGui::TextColored(COL4_EV_TEXT_MUTED, "%s", txtConnReq);
     ImGui::Dummy(ImVec2(0.0f, 6.0f));
 
     const char* deviceName = "DESKTOP-7K3MX2";
@@ -606,7 +605,7 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
     ImGui::SetWindowFontScale(12.0f / 18.0f);
     float ipSubWidth = ImGui::CalcTextSize(ipSub).x;
     ImGui::SetCursorPosX((windowWidth - ipSubWidth) / 2.0f);
-    ImGui::TextColored(EV_TEXT_MUTED, "%s", ipSub);
+    ImGui::TextColored(COL4_EV_TEXT_MUTED, "%s", ipSub);
     ImGui::SetWindowFontScale(1.0f);
 
     ImGui::Dummy(ImVec2(0.0f, 14.0f));
@@ -626,21 +625,21 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
             ImGui::GetCursorPosX() +
             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PROTOCOL").x) * 0.5f
         );
-        ImGui::TextColored(EV_TEXT_MUTED, "PROTOCOL");
+        ImGui::TextColored(COL4_EV_TEXT_MUTED, "PROTOCOL");
 
         ImGui::TableSetColumnIndex(1);
         ImGui::SetCursorPosX(
             ImGui::GetCursorPosX() +
             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PORT").x) * 0.5f
         );
-        ImGui::TextColored(EV_TEXT_MUTED, "PORT");
+        ImGui::TextColored(COL4_EV_TEXT_MUTED, "PORT");
 
         ImGui::TableSetColumnIndex(2);
         ImGui::SetCursorPosX(
             ImGui::GetCursorPosX() +
             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("LATENCY").x) * 0.5f
         );
-        ImGui::TextColored(EV_TEXT_MUTED, "LATENCY");
+        ImGui::TextColored(COL4_EV_TEXT_MUTED, "LATENCY");
 
         ImGui::TableNextRow();
         ImGui::SetWindowFontScale(13.0f / 18.0f);
@@ -650,7 +649,7 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
             ImGui::GetCursorPosX() +
             (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("[V] [M] [A]").x) * 0.5f
         );
-        ImGui::TextColored(EV_ACCENT, "[V] [M] [A]");
+        ImGui::TextColored(COL4_EV_ACCENT, "[V] [M] [A]");
 
         ImGui::TableSetColumnIndex(1);
         ImGui::SetCursorPosX(
@@ -672,11 +671,11 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
 
     ImGui::Dummy(ImVec2(0.0f, 14.0f));
     ImGui::Separator();
-    ImGui::Dummy(ImVec2(0.0f, 16.0f));
+    ImGui::Dummy(ImVec2(0.0f, 14.0f));
 
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, EV_FRAME_BG);
-    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, EV_FRAME_BG_HOVER);
-    ImGui::PushStyleColor(ImGuiCol_CheckMark, EV_ACCENT);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, COL4_EV_FRAME_BG);
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, COL4_EV_FRAME_BG_HOVER);
+    ImGui::PushStyleColor(ImGuiCol_CheckMark, COL4_EV_ACCENT);
 
     ImGui::SetWindowFontScale(12.5f / 18.0f);
     ImGui::Checkbox("Trust this device permanently", &request.Trusted);
@@ -693,10 +692,10 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
 
     ImGui::SetWindowFontScale(13.0f / 18.0f);
 
-    ImGui::PushStyleColor(ImGuiCol_Button, EV_BTN_DECLINE);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, EV_BTN_DEC_HOVER);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, EV_BTN_DEC_ACTIVE);
-    ImGui::PushStyleColor(ImGuiCol_Border, EV_BTN_DEC_BORDER);
+    ImGui::PushStyleColor(ImGuiCol_Button, COL4_EV_BTN_DECLINE);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_EV_BTN_DEC_HOVER);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, COL4_EV_BTN_DEC_ACTIVE);
+    ImGui::PushStyleColor(ImGuiCol_Border, COL4_EV_BTN_DEC_BORDER);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
 
     if (ImGui::Button("Decline", ImVec2(individualButtonWidth, actionHeight))) {
@@ -708,9 +707,9 @@ bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
 
     ImGui::SameLine(0.0f, Spacing);
 
-    ImGui::PushStyleColor(ImGuiCol_Button, EV_ACCENT);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, EV_ACCENT_HOVER);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, EV_ACCENT_ACTIVE);
+    ImGui::PushStyleColor(ImGuiCol_Button, COL4_EV_ACCENT);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_EV_ACCENT_HOVER);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, COL4_EV_ACCENT_ACTIVE);
 
     if (ImGui::IsWindowAppearing()) {
         ImGui::SetKeyboardFocusHere(-1);
@@ -741,7 +740,7 @@ bool OmniGUI::HandleEvent(Alert& request, float timeout)
     ImGui::BeginGroup();
     ImGui::PushTextWrapPos(TextContentWidth);
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.82f, 0.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, COL4_ALERT_TITLE);
     ImGui::TextUnformatted(request.Title);
     ImGui::PopStyleColor();
 
@@ -773,7 +772,7 @@ void OmniGUI::CreateCurvedLine(const char* label, int curve)
     ImVec2 cp0 = ImVec2(pos.x - curve, pos.y + curve);
     ImVec2 cp1 = ImVec2(pos.x - curve, pos.y + length - curve);
 
-    ImU32 color = ImGui::GetColorU32(GLOW_OPAQUE);
+    ImU32 color = COL_GLOW_OPAQUE;
     float thickness = 1.0f;
     int segments = 20;
 
@@ -781,13 +780,13 @@ void OmniGUI::CreateCurvedLine(const char* label, int curve)
 
     int glow_range = 1;
 
-    color = ImGui::GetColorU32(GLOW_HIGH);
+    color = COL_GLOW_HIGH;
     DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range, segments);
 
-    color = ImGui::GetColorU32(GLOW_MED);
+    color = COL_GLOW_MED;
     DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range * 2, segments);
 
-    color = ImGui::GetColorU32(GLOW_LOW);
+    color = COL_GLOW_LOW;
     DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range * 2.5, segments);
 
     ImGui::PopID();
