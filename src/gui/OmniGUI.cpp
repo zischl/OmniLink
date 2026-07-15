@@ -4,24 +4,21 @@
 #include "JetBrainsFonts.h"
 #include "OmniEnums.h"
 #include "OmniIcons.h"
-#include "OmniLink.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
 
 #include <bit>
-#include <limits>
 
-OmniGUI::OmniGUI(OmniLink& OmniLinkInstance)
-    : App(OmniLinkInstance), SelectedDevice(OmniLink::SelectedTargetDevice)
+OmniGUI::OmniGUI(OmniCore& OmniCoreInstance)
+    : App(OmniCoreInstance), SelectedDevice(OmniCore::SelectedTargetDevice)
 {
     AvailableInstances = App.GetAvailableInstances();
     ActiveInstances = App.GetActiveInstances();
 }
 
-void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context)
+void OmniGUI::SetupImGui(void* hwnd, void* D3D11Device, void* D3D11Context)
 {
-
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -30,11 +27,17 @@ void OmniGUI::SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceConte
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
     // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
+#ifdef _WIN32
     // Setup Platform/Renderer backends
-    ImGui_ImplWin32_Init(hwnd);
-    ImGui_ImplDX11_Init(D3D11Device, D3D11Context);
+    ImGui_ImplWin32_Init(static_cast<HWND>(hwnd));
+    ImGui_ImplDX11_Init(
+        static_cast<ID3D11Device*>(D3D11Device), static_cast<ID3D11DeviceContext*>(D3D11Context)
+    );
 
-    IconTexture.LoadEmbeddedRGBA(OmniLinkLogoNBData, 128, 128, D3D11Device);
+    IconTexture.LoadEmbeddedRGBA(
+        OmniLinkLogoNBData, 128, 128, static_cast<ID3D11Device*>(D3D11Device)
+    );
+#endif
 
     ImGuiStyle& style = ImGui::GetStyle();
 

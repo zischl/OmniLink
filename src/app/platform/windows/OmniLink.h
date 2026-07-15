@@ -13,12 +13,8 @@
 
 #include "resource.h"
 
-#include "IOLink.h"
 #include "OmniCore.h"
 #include "OmniGUI.h"
-#include "SystemLink.h"
-
-#include <memory>
 
 #include <Windows.h>
 #include <dwmapi.h>
@@ -74,9 +70,10 @@ class OmniLink : public OmniCore
 
     void OmniMain(HINSTANCE hInstance, int nCmdShow);
 
-    void PushNotification(const Notification& notification) override {
-        if (GUI) GUI->PushNotification(notification);
-    }
+    void PushNotification(const Notification& notification) override;
+    void DragWindow() override;
+    void MinimizeWindow() override;
+    void HideWindow() override;
 };
 
 #endif

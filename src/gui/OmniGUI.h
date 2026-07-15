@@ -3,27 +3,26 @@
 
 #pragma once
 #include <variant>
-#include <vector>
 
 #include "BurstQ.h"
 #include "IconLoader.h"
 #include "OmniAPI.h"
+#include "OmniCore.h"
 #include "OmniEnums.h"
 #include "OmniInstances.h"
 #include "OmniPackets.h"
 #include "UIEvents.h"
 
-#include <wrl/client.h>
-
-#include "imgui.h"
+#ifdef _WIN32
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
+#endif
 #include "imgui_internal.h"
 
 #include <charconv>
 #include <unordered_map>
 
-class OmniLink;
+class OmniCore;
 
 struct UIDeviceLayout
 {
@@ -150,7 +149,7 @@ class OmniGUI
     static constexpr ImU32 COL_GLOW_LOW = IM_COL32(128, 0, 255, 25);
 
   private:
-    OmniLink& App;
+    OmniCore& App;
     std::unordered_map<DeviceMap, OmniInstance>* AvailableInstances = nullptr;
     ActiveInstanceContainer* ActiveInstances = nullptr;
     DeviceMap& SelectedDevice;
@@ -160,9 +159,6 @@ class OmniGUI
 
     bool DeviceHoverState = false;
     ImVec2 SelectedDevicePos;
-
-    int user_resx = GetSystemMetrics(SM_CXSCREEN);
-    int user_resy = GetSystemMetrics(SM_CYSCREEN);
 
     ImDrawList* DrawList = nullptr;
 
@@ -264,14 +260,14 @@ class OmniGUI
     }
 
   public:
-    OmniGUI(OmniLink& OmniLinkInstance);
+    OmniGUI(OmniCore& OmniCoreInstance);
 
     inline void PushNotification(const Notification& notification)
     {
         NotificationQueue.push(notification);
     }
 
-    void SetupImGui(HWND hwnd, ID3D11Device* D3D11Device, ID3D11DeviceContext* D3D11Context);
+    void SetupImGui(void* hwnd, void* D3D11Device, void* D3D11Context);
 
     inline void FrameBegin()
     {
@@ -389,6 +385,18 @@ class OmniGUI
                 // Title Bar Buttons
                 float TotalControlsWidth = TitleBarHeight * 2;
 
+                // Window Dragging, Calling Virtual Funcs but shoulb pose no performance issues
+                if (ImGui::IsMouseHoveringRect(
+                        ContentSpaceStart,
+                        ImVec2(
+                            MaxContentPosX - TotalControlsWidth,
+                            ContentSpaceStart.y + TitleBarHeight
+                        )
+                    ) &&
+                    ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    App.DragWindow();
+                }
+
                 ImGui::SameLine(ContentSpaceSize.x - TotalControlsWidth, 0.0f);
 
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
@@ -398,13 +406,14 @@ class OmniGUI
                 ImGui::SetCursorPosY(ContentSpaceStart.y);
                 ImGui::PushFont(OmniIconsSmall);
                 if (ImGui::Button(IC_MINUS, ImVec2(TitleBarHeight, TitleBarHeight))) {
+                    App.MinimizeWindow();
                 }
 
                 ImGui::SameLine(0.0f, 0.0f);
 
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_BTN_HOVER_RED);
                 if (ImGui::Button(IC_X, ImVec2(TitleBarHeight, TitleBarHeight))) {
-                    ImGuiState = false;
+                    App.HideWindow();
                 }
 
                 ImGui::PopFont();

@@ -69,6 +69,9 @@ class OmniCore
     OmniCore();
 
     virtual void PushNotification(const Notification& notification) {}
+    virtual void DragWindow() {}
+    virtual void MinimizeWindow() {}
+    virtual void HideWindow() {}
 
     inline std::unordered_map<DeviceMap, OmniInstance>* GetAvailableInstances()
     {

@@ -175,10 +175,11 @@ void OmniLink::OmniMainLoop()
         }
         }
 
-        if (RenderEvent || UIState == OmniGUIState::RENDER) {
-            auto currentTime = std::chrono::steady_clock::now();
+        if (IsWindowVisible(hwnd) && !IsIconic(hwnd) &&
+            (RenderEvent || UIState == OmniGUIState::RENDER)) {
+            auto CurrentTime = std::chrono::steady_clock::now();
 
-            if (currentTime - LastFrameTime >= FrameTimeLimit) {
+            if (CurrentTime - LastFrameTime >= FrameTimeLimit) {
                 GUI->FrameBegin();
 
                 RenderState.Context->ClearRenderTargetView(RenderState.RTV, clearColor);
@@ -188,7 +189,7 @@ void OmniLink::OmniMainLoop()
 
                 RenderState.Swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 
-                LastFrameTime = currentTime;
+                LastFrameTime = CurrentTime;
             }
 
             UIState = OmniGUIState::IDLE;
@@ -209,6 +210,28 @@ void OmniLink::InitTrayIcon(HWND hwnd)
     Shell_NotifyIcon(NIM_ADD, &TrayIconData);
 }
 
+void OmniLink::PushNotification(const Notification& notification)
+{
+    if (GUI)
+        GUI->PushNotification(notification);
+}
+
+void OmniLink::DragWindow()
+{
+    ReleaseCapture();
+    SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+}
+
+void OmniLink::MinimizeWindow()
+{
+    ShowWindow(hwnd, SW_MINIMIZE);
+}
+
+void OmniLink::HideWindow()
+{
+    ShowWindow(hwnd, SW_HIDE);
+}
+
 extern IMGUI_IMPL_API LRESULT
 ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -220,7 +243,40 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         return true;
 
     switch (uMsg) {
+    case WM_TRAYICON:
+        if (lParam == WM_LBUTTONDBLCLK) {
+            ShowWindow(hwnd, SW_SHOW);
+            SetActiveWindow(hwnd);
+            SetForegroundWindow(hwnd);
+        } else if (lParam == WM_RBUTTONUP) {
+            POINT CursorPos;
+            GetCursorPos(&CursorPos);
+            HMENU HMenu = CreatePopupMenu();
+            if (HMenu) {
+                InsertMenuW(HMenu, -1, MF_BYPOSITION, 1, L"Show");
+                InsertMenuW(HMenu, -1, MF_BYPOSITION, 2, L"Exit");
+
+                SetForegroundWindow(hwnd);
+
+                int Selected = TrackPopupMenu(
+                    HMenu, TPM_RETURNCMD | TPM_NONOTIFY, CursorPos.x, CursorPos.y, 0, hwnd, NULL
+                );
+                DestroyMenu(HMenu);
+
+                if (Selected == 1) {
+                    ShowWindow(hwnd, SW_SHOW);
+                    SetActiveWindow(hwnd);
+                    SetForegroundWindow(hwnd);
+                } else if (Selected == 2) {
+                    PostQuitMessage(0);
+                }
+            }
+        }
+        break;
     case WM_DESTROY:
+        if (omni) {
+            Shell_NotifyIcon(NIM_DELETE, &(omni->TrayIconData));
+        }
         PostQuitMessage(0);
         ImGui_ImplDX11_Shutdown();
         ImGui_ImplWin32_Shutdown();
@@ -228,7 +284,6 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         return 0;
     case WM_CLOSE:
         ShowWindow(hwnd, SW_HIDE);
-        Shell_NotifyIcon(NIM_DELETE, &(omni->TrayIconData));
         return 0;
     case WM_SETCURSOR:
         SetCursor(LoadCursor(NULL, IDC_ARROW));
