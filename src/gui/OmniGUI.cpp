@@ -476,7 +476,9 @@ void OmniGUI::MetricDashboard(
         ImU32 ContainerBorderColor = COL_DASH_BORDER;
 
         // Main Container
-        DrawList->AddRectFilled(BarMin, BarMax, ContainerBgColor, 0.0f);
+        DrawList->AddRectFilled(
+            BarMin, BarMax, ContainerBgColor, 12.0f, ImDrawFlags_RoundCornersBottomRight
+        );
 
         float SegmentWidth = TotalWidth / ItemCount;
 

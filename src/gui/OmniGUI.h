@@ -283,15 +283,26 @@ class OmniGUI
         ImGui::SetNextWindowPos(ImVec2(0, 0));
 
         ImGuiStyle& style = ImGui::GetStyle();
-        style.WindowRounding = 15.0f;
+        style.WindowRounding = 8.0f;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
         if (ImGui::Begin("OmniLink", &ImGuiState, ImGuiWindowFlags_NoTitleBar)) {
 
             ImGui::PopStyleVar();
-            ImGui::PushStyleColor(ImGuiCol_ChildBg, COL_BG_CHILD_1);
             DrawList = ImGui::GetWindowDrawList();
+
+            ImVec2 SideMenuPos = ImGui::GetCursorScreenPos();
+            float SideMenuHeight = ImGui::GetContentRegionAvail().y;
+            DrawList->AddRectFilled(
+                SideMenuPos,
+                ImVec2(SideMenuPos.x + 110.0f, SideMenuPos.y + SideMenuHeight),
+                COL_BG_CHILD_1,
+                10.0f,
+                ImDrawFlags_RoundCornersLeft
+            );
+
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32_BLACK_TRANS);
 
             ImVec2 MenuItemSize = ImVec2(110, 100);
             ImGui::BeginChild("SideMenu", ImVec2(110, 0), ImGuiChildFlags_None);
