@@ -8,8 +8,8 @@ void OmniUUIDTest()
     std::cout << "[RUN] OmniUUIDTest\n";
 
     // Generating local IDs
-    NodeID id1 = GenerateLocalID();
-    NodeID id2 = GenerateLocalID();
+    NodeID id1 = GenerateID();
+    NodeID id2 = GenerateID();
 
     // Verifying comparison operators
     assert(id1 == id1);

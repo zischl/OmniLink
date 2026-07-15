@@ -232,6 +232,11 @@ void NvdecSession::Decode(const unsigned char* data, unsigned long size)
 
 void NvdecSession::CloseSession()
 {
+    if (CudaParser) {
+        CUVIDSOURCEDATAPACKET EosPacket = {};
+        EosPacket.flags = CUVID_PKT_ENDOFSTREAM;
+        cuvidParseVideoData(CudaParser, &EosPacket);
+    }
     if (CudaOutputResource) {
         cuCtxPushCurrent(CudaContext);
         cuGraphicsUnregisterResource(CudaOutputResource);
