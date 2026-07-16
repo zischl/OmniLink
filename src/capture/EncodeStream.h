@@ -29,11 +29,6 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
         }
 
         OmniEncode->Encode();
-
-        if constexpr (requires { Source->ReleaseFrame(); }) {
-            Source->ReleaseFrame();
-        }
-
         OmniNet->ChunkedSend(
             reinterpret_cast<char*>(OmniEncode->NVBitstreamLock.bitstreamBufferPtr),
             OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
@@ -84,7 +79,7 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
                 }
             );
             Source->StartSession();
-        } else {
+        } else if constexpr (CaptureSource::Type == CaptureAPI::DXGI) {
             Worker.StartSpinThread(
                 [](OmniNetSession<OmniMTU>* OmniNet,
                    CaptureSource* Source,

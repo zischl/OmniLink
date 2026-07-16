@@ -35,7 +35,7 @@ ComPtr<IDXGIOutputDuplication> DXGICapture::InitDXGI(ID3D11Device* D3D11Device)
     hr = DXGIOutDuplication->AcquireNextFrame(500, &FrameInfo, &FramePixelData);
     if (SUCCEEDED(hr)) {
         FramePixelData.As(&DXGIComBuffer);
-        DXGIOutDuplication->ReleaseFrame();
+        CaptureState = true;
     }
 
     return DXGIOutDuplication;

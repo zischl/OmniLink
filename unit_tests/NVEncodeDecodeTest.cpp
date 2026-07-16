@@ -273,9 +273,18 @@ void NvEncDecTest()
             if (CaptureTex == nullptr) {
                 std::cout << "[WARN] DXGI Capture GetBuffer returned null. Skipping DXGI test.\n";
             } else {
+                StaticNvencSession NvencSession(
+                    D3DDevStruct.D3D11Device.Get(),
+                    Nvenc.NVFunctions,
+                    CaptureTex,
+                    MonitorWidth,
+                    MonitorHeight
+                );
+
                 bool FrameCapState = false;
                 for (int i = 0; i < 15; ++i) {
                     FrameCapState = DXGICap.AcquireFrame();
+
                     std::this_thread::sleep_for(std::chrono::milliseconds(33));
                 }
 
@@ -291,14 +300,6 @@ void NvEncDecTest()
                     } else {
                         std::cout << "[WARN] DXGI: Failed to create SRV for raw captured frame.\n";
                     }
-
-                    StaticNvencSession NvencSession(
-                        D3DDevStruct.D3D11Device.Get(),
-                        Nvenc.NVFunctions,
-                        CaptureTex,
-                        MonitorWidth,
-                        MonitorHeight
-                    );
 
                     NvencSession.Encode();
 
