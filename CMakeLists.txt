@@ -1,10 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 project(OmniLink LANGUAGES CXX CUDA)
 
-if(MSVC)
-  add_link_options(/SUBSYSTEM:WINDOWS)
-endif()
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
 cmake_policy(SET CMP0104 NEW)
@@ -80,7 +76,7 @@ elseif(UNIX)
 endif()
 
 set(RESOURCE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/resource.rc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets/resource.rc"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/OmniIcons.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets/AssetLogo.h")
 
@@ -113,7 +109,6 @@ if(WIN32)
       src/app/platform/windows/SystemLink.cpp
       src/misc/platform/windows/system_probe.cpp
       src/app/platform/windows/OmniLink.cpp
-      src/app/platform/windows/main.cpp
       src/render/platform/windows/IconLoader.cpp)
 elseif(UNIX)
   set(PLATFORM_SOURCES
@@ -125,27 +120,58 @@ elseif(UNIX)
       src/app/platform/linux/SystemLink.cpp
       src/misc/platform/unix/system_probe.cpp
       src/app/platform/linux/OmniLink.cpp
-      src/app/platform/linux/main.cpp
       src/render/platform/linux/IconLoader.cpp)
 endif()
 
 # Targets.....
 if(WIN32)
   add_executable(
-    main WIN32 ${IMGUI_SOURCES} ${RESOURCE_FILES} ${COMMON_SOURCES}
-               ${PLATFORM_SOURCES} ${TEST_SOURCES})
+    main WIN32
+    src/app/platform/windows/main.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
+    ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
 else()
-  add_executable(main ${IMGUI_SOURCES} ${RESOURCE_FILES} ${COMMON_SOURCES}
-                      ${PLATFORM_SOURCES} ${TEST_SOURCES})
+  add_executable(
+    main src/app/platform/linux/main.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
+         ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
+endif()
+
+# Unit testing.... they exist..
+set(UNIT_TEST_SOURCES
+    unit_tests/RunTests.cpp
+    unit_tests/PlatformIntrinsicsTest.cpp
+    unit_tests/OmniUUIDTest.cpp
+    unit_tests/BurstQTest.cpp
+    unit_tests/ByteStreamTest.cpp
+    unit_tests/InstanceRegistryTest.cpp
+    unit_tests/WinForgeTest.cpp
+    unit_tests/D3D11RendererTest.cpp
+    unit_tests/WinCapTest.cpp
+    unit_tests/VarianceTest.cpp
+    unit_tests/CaptureControllerTest.cpp
+    unit_tests/NetSessionTest.cpp
+    unit_tests/NVEncodeDecodeTest.cpp)
+
+if(WIN32)
+  add_executable(tests ${IMGUI_SOURCES} ${UNIT_TEST_SOURCES} ${COMMON_SOURCES}
+                       ${PLATFORM_SOURCES} ${TEST_SOURCES})
+else()
+  add_executable(tests ${UNIT_TEST_SOURCES} ${COMMON_SOURCES}
+                       ${PLATFORM_SOURCES} ${TEST_SOURCES})
 endif()
 
 set_target_properties(
-  main
+  main tests
   PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE
              CUDA_SEPARABLE_COMPILATION ON
              CUDA_STANDARD 14)
 
+if(MSVC)
+  set_target_properties(main PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+  set_target_properties(tests PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
+endif()
+
 add_dependencies(main CompileShaders)
+add_dependencies(tests CompileShaders)
 
 # Surely this is self explanatory
 target_include_directories(
@@ -171,9 +197,42 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/assets
           ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/dummies)
 
+target_include_directories(
+  tests
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+          ${CMAKE_CURRENT_SOURCE_DIR}/external/include
+          ${CMAKE_CURRENT_SOURCE_DIR}/external/include/nvidia
+          ${CMAKE_CURRENT_SOURCE_DIR}/external/include/lz4
+          ${CMAKE_CURRENT_SOURCE_DIR}/external/include/cuda
+          ${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui
+          ${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends
+          ${CMAKE_CURRENT_SOURCE_DIR}/src
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/net
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/capture
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/codec
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/render
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/input
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/window
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/misc
+          ${CMAKE_CURRENT_SOURCE_DIR}/assets
+          ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/dummies
+          ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests)
+
 if(WIN32)
   target_include_directories(
     main
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
+  target_include_directories(
+    tests
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
@@ -191,11 +250,26 @@ elseif(UNIX)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/unix)
+  target_include_directories(
+    tests
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/unix)
 endif()
 
 # Yup... Still about Targets
 target_compile_definitions(
   main
+  PUBLIC $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>
+         $<$<CONFIG:Release>:OMNI_BUILD_RELEASE>
+  PRIVATE WIN32_LEAN_AND_MEAN)
+
+target_compile_definitions(
+  tests
   PUBLIC $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>
          $<$<CONFIG:Release>:OMNI_BUILD_RELEASE>
   PRIVATE WIN32_LEAN_AND_MEAN)
@@ -213,6 +287,11 @@ target_link_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/
   ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architecture}/)
 
+target_link_directories(
+  tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architecture}/)
+
 # Post Build Shit... Copying DLLs
 set(DLL_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/external/dll/$<CONFIG>/${architecture}")
@@ -222,6 +301,12 @@ add_custom_command(
   POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${DLL_PATH}"
           $<TARGET_FILE_DIR:main>)
+
+add_custom_command(
+  TARGET tests
+  POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${DLL_PATH}"
+          $<TARGET_FILE_DIR:tests>)
 
 # I don't wanna manually copy compile commands to root each time I generate for
 # nvim. The End.
