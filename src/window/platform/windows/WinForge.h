@@ -11,14 +11,13 @@
 #include <comdef.h>
 #include <wrl/client.h>
 
-#include <future>
-#include <mutex>
 #include <string>
-#include <thread>
 
 #include "WinCap.h"
 #include <D3D11Renderer.h>
+#include <DecoderConcept.h>
 #include <nvdec.h>
+#include <variant>
 
 using Microsoft::WRL::ComPtr;
 
@@ -30,11 +29,13 @@ struct WinConfig
     UINT wdHeight = 720;
     LPVOID lParam = NULL;
 
-    WinConfig(const std::wstring ClassName,
-              const UINT Width,
-              const UINT Height,
-              const wchar_t* WindowName,
-              LPVOID lParam_)
+    WinConfig(
+        const std::wstring ClassName,
+        const UINT Width,
+        const UINT Height,
+        const wchar_t* WindowName,
+        LPVOID lParam_
+    )
         : class_name(ClassName), Window_Name(WindowName), wdWidth(Width), wdHeight(Height),
           lParam(lParam_)
     {
@@ -48,10 +49,9 @@ class WinForge
   public:
     WinForge(WNDPROC WindowProc = WProc2);
 
-    HWND CreateWindowAsync(const wchar_t* window_name,
-                           HINSTANCE& hInstance,
-                           int nCmdShow,
-                           D3DDevice D3DDevStruct = {});
+    HWND CreateWindowAsync(
+        const wchar_t* window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct = {}
+    );
 
     inline void SetFrameBufferSize(int size)
     {
@@ -74,16 +74,25 @@ class WinForge
     {
         memcpy(FramePool[NextFrame].FrameBuffer, data, size);
 
-        // OutputDebugString((std::to_wstring(CurrentFrame) + L" " +
-        // std::to_wstring(CurrentFrame) + L"\n").c_str());
         FramePool[NextFrame].FrameSize = size;
         NextFrame = NextFrame + 1 & 3;
     }
 
     inline void DecodeBuffer()
     {
-        NVDec->NVDecode(reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
-                        FramePool[CurrentFrame].FrameSize);
+        std::visit(
+            [this](auto& active_decoder) {
+                using T = std::decay_t<decltype(active_decoder)>;
+                if constexpr (!std::is_same_v<T, std::monostate>) {
+                    static_assert(Decoder<T>, "Decoder type must satisfy the Decoder concept");
+                    active_decoder.Decode(
+                        reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
+                        FramePool[CurrentFrame].FrameSize
+                    );
+                }
+            },
+            decoder
+        );
         CurrentFrame = CurrentFrame + 1 & 3;
     }
 
@@ -126,7 +135,8 @@ class WinForge
 
     D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
     ComPtr<ID3D11Texture2D> NvdecBuffer;
-    NVDecoder* NVDec = nullptr;
+    using DecoderVariant = std::variant<std::monostate, NvdecSession>;
+    DecoderVariant decoder;
 
     struct Frame
     {
