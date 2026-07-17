@@ -2,274 +2,45 @@
 #define SESSIONHANDLER_H
 
 #pragma once
-#include "IOLink.h"
 #include "OmniConfig.h"
+#include "OmniLogger.h"
+#include "OmniNetContext.h"
 #include "OmniTypes.h"
-
-#include <winsock2.h>
+#include "SessionTypes.h"
+// #include "SubStream.h"
 
 #include <iphlpapi.h>
-#include <stdio.h>
+#include <winsock2.h>
 #include <ws2tcpip.h>
 
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
-#include <iostream>
-#include <string>
 #include <thread>
 
-#pragma comment(lib, "Ws2_32.lib")
-#pragma comment(lib, "Iphlpapi.lib")
-
-#define MEMALLOC(size) HeapAlloc(GetProcessHeap(), 0, size)
-#define FREE(size) HeapFree(GetProcessHeap(), 0, size)
-
-namespace OmniNet {
-
-struct OmniHeader
-{
-    PacketType PacketType;
-    uint8_t Target;
-    uint8_t Flags;
-};
-
-// Minimal reinterpret tag cast for packet type identification
-struct IOContextTag
-{
-    OVERLAPPED OVStruct;
-    BufferType Type;
-};
-
-// Still experimental, will update later, runs OnComplete on chunk send completion
-struct FrameCompletionToken
-{
-    std::atomic<int> PendingChunks{0};
-    std::function<void()> OnComplete;
-};
-
-struct SEND_BUF
-{
-    OVERLAPPED OVStruct = {};
-    BufferType Type = OP_SEND;
-    WSABUF TransmitBuffer[2] = {0};
-    FrameCompletionToken* Token = nullptr;
-    std::atomic<uint32_t>* InflightCounter = nullptr;
-};
-
-struct RECV_BUF
-{
-    OVERLAPPED OVStruct = {};
-    BufferType Type = OP_RECV;
-    WSABUF TransmitBuffer = {};
-    char* data = nullptr;
-    sockaddr_in addr = {0};
-    int addr_len = 0;
-};
-
-template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize> struct IOContextChunkPool
-{
-    uint32_t PoolHead = 0;
-    ContextType ContextPool[PoolSize];
-    char BufferPool[PoolSize * (ChunkSize + 1)] = "";
-    uint32_t CurrentChunkUsage = 0;
-
-    uint32_t _mask = PoolSize - 1;
-
-    inline void PushChunk() { PoolHead = (PoolHead + 1) & _mask; }
-
-    inline void PushFinalChunk(uint32_t FinalChunkSize)
-    {
-        CurrentChunkUsage = PoolHead * ChunkSize;
-        CurrentChunkUsage += FinalChunkSize;
-    }
-
-    inline bool TryPushFinalChunk(uint32_t FinalChunkSize)
-    {
-        CurrentChunkUsage = PoolHead * ChunkSize;
-        CurrentChunkUsage += FinalChunkSize;
-        if (CurrentChunkUsage > PoolSize * ChunkSize) {
-            std::cout << "OmniNet Chunk Pool Overflowing : Packet May Be Corrupted !\n";
-            PoolHead = 0;
-            CurrentChunkUsage = 0;
-            return false;
-        }
-        return true;
-    }
-
-    inline void ResetChunk()
-    {
-        PoolHead = 0;
-        CurrentChunkUsage = 0;
-    }
-};
-
-template <typename ContextType, typename Header, uint32_t PoolSize> struct IOContextTransmitRing
-{
-    uint32_t PoolHead = 0;
-    ContextType ContextPool[PoolSize];
-    Header HeaderPool[PoolSize];
-
-    uint32_t _mask = PoolSize - 1; // Flags
-
-    inline void PushChunk() { PoolHead = (PoolHead + 1) & _mask; }
-};
-
-} // namespace OmniNet
-
-class OmniNetContext
-{
-  private:
-    int WSResult;
-    int WinsockInit();
-
-  public:
-    WSADATA wsaData;
-
-    OmniNetContext();
-
-    static void GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer);
-
-    static sockaddr_in CreateAddress(PCSTR IP, unsigned short port);
-
-    static SOCKET CreateSocket();
-
-    static bool ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR);
-
-    static HANDLE CreateIOCP(DWORD MaxThreads = 1);
-
-    static bool BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKey);
-
-    template <
-        typename ContextType,
-        uint32_t PoolSize,
-        uint32_t ChunkSize,
-        void (*PacketHandlerFn)(char*, uint32_t, uint8_t, void*)>
-    static std::thread StartCompletionPortHandlerThread(
-        const HANDLE IOCP,
-        const SOCKET socket,
-        OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>* Pool,
-        void* Ctx
-    )
-    {
-
-        std::thread StatusQueue([Pool, IOCP, socket, Ctx]() {
-            void* Context = Ctx;
-
-            while (true) {
-                DWORD BufferSize = 0;
-                ULONG_PTR EventKey = 0;
-                OVERLAPPED* OVStruct = nullptr;
-
-                bool WSResult =
-                    GetQueuedCompletionStatus(IOCP, &BufferSize, &EventKey, &OVStruct, INFINITE);
-                if (!WSResult || OVStruct == nullptr) {
-                    if (OVStruct == nullptr) {
-                        break;
-                    }
-                    OutputDebugStringA((std::to_string(GetLastError()) + "type \n").c_str());
-                    OutputDebugStringA("Completion Status Get False\n");
-                }
-
-                // Minimal Packet Type Deduction
-                OmniNet::IOContextTag* Tag = reinterpret_cast<OmniNet::IOContextTag*>(OVStruct);
-
-                switch (Tag->Type) {
-                case OmniNet::OP_RECV: {
-                    OmniNet::RECV_BUF* Buffer = reinterpret_cast<OmniNet::RECV_BUF*>(OVStruct);
-
-                    // header structure's packet type index = 0 and the header size is 3,
-                    // going backwards from bytes means minus 2 but since the data stream
-                    // is an array it would be minus 3 due to indexing.
-                    uint8_t BufferHeader = *(Buffer->TransmitBuffer.buf + BufferSize - 3);
-
-                    switch (BufferHeader) {
-                    case OmniNet::PacketType::ChunkStart:
-                        Pool->PushChunk();
-                        break;
-                    case OmniNet::PacketType::ChunkData:
-                        Pool->PushChunk();
-                        break;
-                    case OmniNet::PacketType::ChunkEnd:
-                        if (Pool->TryPushFinalChunk(BufferSize)) {
-                            PacketHandlerFn(
-                                &Pool->BufferPool[0], Pool->CurrentChunkUsage, BufferHeader, Context
-                            );
-                        }
-                        Pool->ResetChunk();
-                        break;
-                    default:
-                        PacketHandlerFn(
-                            Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Context
-                        );
-                        break;
-                    }
-
-                    PostWSARecv(socket, *Pool);
-                    break;
-                }
-                case OmniNet::OP_SEND: {
-                    OmniNet::SEND_BUF* SendBuf = reinterpret_cast<OmniNet::SEND_BUF*>(OVStruct);
-                    if (SendBuf->Token &&
-                        SendBuf->Token->PendingChunks.fetch_sub(1, std::memory_order_acq_rel) ==
-                            1) {
-                        SendBuf->Token->OnComplete();
-                    }
-                    if (SendBuf->InflightCounter) {
-                        SendBuf->InflightCounter->fetch_sub(1, std::memory_order_release);
-                    }
-                    break;
-                }
-                }
-            }
-        });
-
-        return StatusQueue;
-    };
-
-    static bool BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket);
-
-    template <typename ContextType, uint32_t PoolSize, uint32_t ChunkSize>
-    inline static void PostWSARecv(
-        const SOCKET& socket, OmniNet::IOContextChunkPool<ContextType, PoolSize, ChunkSize>& Pool
-    )
-    {
-        DWORD flags = 0;
-
-        int WSResult = WSARecv(
-            socket,
-            &Pool.ContextPool[Pool.PoolHead].TransmitBuffer,
-            1,
-            NULL,
-            &flags,
-            &Pool.ContextPool[Pool.PoolHead].OVStruct,
-            NULL
-        );
-
-        if (WSAGetLastError() != WSA_IO_PENDING) {
-            OutputDebugStringA("Recv Pre Post Failed\n");
-        }
-    };
-};
-
-template <uint32_t MTU = 1450> class OmniNetSession
+template <uint32_t MTU = OmniMTU> class OmniNetSession
 {
   private:
     int WSResult;
     bool SessionState = false;
 
-    sockaddr_in address;
-    SOCKET socketR;
+    char LocalIPString[16] = {};
+    sockaddr_in Address;
+    SOCKET SocketR;
     HANDLE IOCPHandle = NULL;
     std::thread WorkerThread;
 
+    // Session Identity, will be passed down to given packet handler, later tho.
+    uint8_t UniqueKey = 0;
+
     // Usual send queue and header pools
-    static constexpr uint32_t SPOOL_SIZE = 2048;
+    static constexpr uint32_t POOL_SIZE = 2048;
 
     uint32_t SPoolHead = 0;
-    OmniNet::SEND_BUF TransmitPool[SPOOL_SIZE];
-    OmniNet::OmniHeader CHeaderPool[SPOOL_SIZE];
+    OmniNet::SEND_BUF TransmitPool[POOL_SIZE];
+    OmniNet::OmniHeader CHeaderPool[POOL_SIZE];
 
     // Tracks how many WSASend OVERLAPPED ops are still owned by the kernel.
     std::atomic<uint32_t> SPoolInflight{0};
@@ -278,7 +49,11 @@ template <uint32_t MTU = 1450> class OmniNetSession
     OmniNet::FrameCompletionToken STokenPool[STOKEN_POOL_SIZE];
 
     // Lonely Recv pool, don't care about headers, head is built in
-    OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, SPOOL_SIZE, MTU> RecvPool;
+    OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, POOL_SIZE, MTU> RecvPool;
+
+    // UDP Sub Streams, still working on it
+    // static constexpr uint32_t MaxSubStreams = 8;
+    // OmniNetSubStream SubStreams[MaxSubStreams];
 
     typedef std::chrono::steady_clock Clock;
     typedef std::chrono::time_point<Clock> TimePoint;
@@ -288,7 +63,7 @@ template <uint32_t MTU = 1450> class OmniNetSession
     {
         int addr_size = sizeof(sockaddr_in);
 
-        for (int BufferCount = 0; BufferCount < (int)SPOOL_SIZE; BufferCount++) {
+        for (int BufferCount = 0; BufferCount < (int)POOL_SIZE; BufferCount++) {
             TransmitPool[BufferCount].OVStruct = {};
             TransmitPool[BufferCount].Type = OmniNet::OP_SEND;
             TransmitPool[BufferCount].TransmitBuffer[0].len = MTU;
@@ -307,17 +82,37 @@ template <uint32_t MTU = 1450> class OmniNetSession
         }
     }
 
-  public:
-    OmniNetSession(
-        PCSTR Local_IP, PCSTR IP, unsigned short port, void* Context, ULONG_PTR CompletionKey
-    )
+    inline void PostSessionWSARecv()
     {
-        PreSetBufferMTU();
-        address = OmniNetContext::CreateAddress(IP, port);
-        socketR = OmniNetContext::CreateSocket();
+        DWORD flags = 0;
 
-        const bool BindState = OmniNetContext::BindReceiver(Local_IP, port, socketR);
-        const bool ConnectState = OmniNetContext::ConnectSesssion(address, socketR);
+        int WSResult = WSARecv(
+            SocketR,
+            &RecvPool.ContextPool[RecvPool.PoolHead].TransmitBuffer,
+            1,
+            NULL,
+            &flags,
+            &RecvPool.ContextPool[RecvPool.PoolHead].OVStruct,
+            NULL
+        );
+
+        if (WSAGetLastError() != WSA_IO_PENDING) {
+            OutputDebugStringA("Recv Pre Post Failed\n");
+        }
+    }
+
+  public:
+    OmniNetSession(PCSTR Local_IP, PCSTR IP, unsigned short port, void* Context, uint8_t SUniqueKey)
+    {
+        UniqueKey = SUniqueKey;
+        strncpy_s(LocalIPString, Local_IP, sizeof(LocalIPString) - 1);
+
+        PreSetBufferMTU();
+        Address = OmniNetContext::CreateAddress(IP, port);
+        SocketR = OmniNetContext::CreateSocket();
+
+        const bool BindState = OmniNetContext::BindReceiver(Local_IP, port, SocketR);
+        const bool ConnectState = OmniNetContext::ConnectSesssion(Address, SocketR);
 
         if (!BindState || !ConnectState) {
             // No IOCP threads for useless sessions :]
@@ -325,8 +120,8 @@ template <uint32_t MTU = 1450> class OmniNetSession
         }
 
         IOCPHandle = OmniNetContext::CreateIOCP();
-        OmniNetContext::BindIOCP(IOCPHandle, socketR, CompletionKey);
-        OmniNetContext::PostWSARecv(socketR, RecvPool);
+        OmniNetContext::BindIOCP(IOCPHandle, SocketR, 0);
+        PostSessionWSARecv();
         SessionState = true;
     }
 
@@ -337,28 +132,101 @@ template <uint32_t MTU = 1450> class OmniNetSession
         if (IOCPHandle) {
             PostQueuedCompletionStatus(IOCPHandle, 0, 0, nullptr);
         }
+
         if (WorkerThread.joinable()) {
             WorkerThread.join();
         }
+
         if (IOCPHandle) {
             CloseHandle(IOCPHandle);
         }
-        closesocket(socketR);
+        closesocket(SocketR);
     }
 
     template <void (*PacketHandlerFn)(char*, uint32_t, uint8_t, void*)>
     void SessionStart(void* Context)
     {
-        WorkerThread = OmniNetContext::
-            StartCompletionPortHandlerThread<OmniNet::RECV_BUF, SPOOL_SIZE, MTU, PacketHandlerFn>(
-                IOCPHandle, socketR, &RecvPool, Context
-            );
+        WorkerThread = std::thread([this, Context]() {
+            void* Ctx = Context;
+
+            while (true) {
+                DWORD BufferSize = 0;
+                ULONG_PTR EventKey = 0;
+                OVERLAPPED* OVStruct = nullptr;
+
+                if (!GetQueuedCompletionStatus(
+                        IOCPHandle, &BufferSize, &EventKey, &OVStruct, INFINITE
+                    )) [[unlikely]] {
+                    if (OVStruct == nullptr) {
+                        // Logger::log("Completion Status Get False\n", GetLastError());
+                        Logger::log("Maybe somthing wrong with the IOCP thread ?");
+                        break;
+                    }
+                }
+
+                if (EventKey != 0) {
+                    continue;
+                }
+
+                // Minimal Packet Type Deduction
+                OmniNet::IOContextTag* Tag = reinterpret_cast<OmniNet::IOContextTag*>(OVStruct);
+
+                switch (Tag->Type) {
+                case OmniNet::OP_RECV: {
+                    OmniNet::RECV_BUF* Buffer = reinterpret_cast<OmniNet::RECV_BUF*>(OVStruct);
+
+                    // header structure's packet type index = 0 and the header size is 3,
+                    // going backwards from bytes means minus 2 but since the data stream
+                    // is an array it would be minus 3 due to indexing.
+                    uint8_t BufferHeader = *(Buffer->TransmitBuffer.buf + BufferSize - 3);
+
+                    switch (BufferHeader) {
+                    case OmniNet::PacketType::ChunkStart:
+                        RecvPool.PushChunk();
+                        break;
+                    case OmniNet::PacketType::ChunkData:
+                        RecvPool.PushChunk();
+                        break;
+                    case OmniNet::PacketType::ChunkEnd:
+                        if (RecvPool.TryPushFinalChunk(BufferSize)) {
+                            PacketHandlerFn(
+                                &RecvPool.BufferPool[0],
+                                RecvPool.CurrentChunkUsage,
+                                BufferHeader,
+                                Ctx
+                            );
+                        }
+                        RecvPool.ResetChunk();
+                        break;
+                    default:
+                        PacketHandlerFn(Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Ctx);
+                        break;
+                    }
+
+                    PostSessionWSARecv();
+                    break;
+                }
+                case OmniNet::OP_SEND: {
+                    OmniNet::SEND_BUF* SendBuf = reinterpret_cast<OmniNet::SEND_BUF*>(OVStruct);
+                    if (SendBuf->Token &&
+                        SendBuf->Token->PendingChunks.fetch_sub(1, std::memory_order_acq_rel) ==
+                            1) {
+                        SendBuf->Token->OnComplete();
+                    }
+                    if (SendBuf->InflightCounter) {
+                        SendBuf->InflightCounter->fetch_sub(1, std::memory_order_release);
+                    }
+                    break;
+                }
+                }
+            }
+        });
     }
 
     // Zero Copy send
     void SessionSend(CHAR* data, int packet_size, const OmniNet::OmniHeader& header)
     {
-        while (SPoolInflight.load(std::memory_order_acquire) >= SPOOL_SIZE) {
+        while (SPoolInflight.load(std::memory_order_acquire) >= POOL_SIZE) {
             _mm_pause();
         }
 
@@ -374,7 +242,7 @@ template <uint32_t MTU = 1450> class OmniNetSession
 
         SPoolInflight.fetch_add(1, std::memory_order_release);
         WSASend(
-            socketR,
+            SocketR,
             TransmitPool[SPoolHead].TransmitBuffer,
             2,
             NULL,
@@ -383,7 +251,7 @@ template <uint32_t MTU = 1450> class OmniNetSession
             NULL
         );
 
-        SPoolHead = (SPoolHead + 1) & (SPOOL_SIZE - 1);
+        SPoolHead = (SPoolHead + 1) & (POOL_SIZE - 1);
     }
 
     // Zero-copy chunked send so.. data must remain valid until OnComplete() fires,
@@ -408,7 +276,7 @@ template <uint32_t MTU = 1450> class OmniNetSession
         // Reserves all inflight slots at once before issuing any WSASend calls.
         while (true) {
             uint32_t cur = SPoolInflight.load(std::memory_order_acquire);
-            if (cur + ChunkCount <= SPOOL_SIZE) {
+            if (cur + ChunkCount <= POOL_SIZE) {
                 if (SPoolInflight.compare_exchange_weak(
                         cur, cur + ChunkCount, std::memory_order_acq_rel, std::memory_order_acquire
                     ))
@@ -439,7 +307,7 @@ template <uint32_t MTU = 1450> class OmniNetSession
             TransmitPool[SPoolHead].Token = &Token;
 
             WSASend(
-                socketR,
+                SocketR,
                 TransmitPool[SPoolHead].TransmitBuffer,
                 2,
                 NULL,
@@ -448,9 +316,9 @@ template <uint32_t MTU = 1450> class OmniNetSession
                 NULL
             );
 
-            SPoolHead = (SPoolHead + 1) & (SPOOL_SIZE - 1);
+            SPoolHead = (SPoolHead + 1) & (POOL_SIZE - 1);
         }
     }
 };
 
-#endif
+#endif // SESSIONHANDLER_H

@@ -1,6 +1,12 @@
-#include "SessionHandler.h"
+#include "OmniNetContext.h"
 #include "OmniLogger.h"
+
 #include <cstddef>
+
+#include <iphlpapi.h>
+
+#define MEMALLOC(size) HeapAlloc(GetProcessHeap(), 0, size)
+#define FREE(size) HeapFree(GetProcessHeap(), 0, size)
 
 OmniNetContext::OmniNetContext()
 {
@@ -145,6 +151,7 @@ bool OmniNetContext::ConnectSesssion(const sockaddr_in& address, const SOCKET& s
     }
     return true;
 }
+
 HANDLE OmniNetContext::CreateIOCP(DWORD MaxThreads)
 {
     HANDLE IOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, MaxThreads);
