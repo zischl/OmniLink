@@ -28,12 +28,39 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
                 return;
         }
 
-        OmniEncode->Encode();
-        OmniNet->ChunkedSend(
-            reinterpret_cast<char*>(OmniEncode->NVBitstreamLock.bitstreamBufferPtr),
-            OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
-            [OmniEncode]() { OmniEncode->NVUnlockBitStream(); }
-        );
+        bool CaptureSendState = false;
+        if constexpr (requires {
+                          { OmniEncode->Encode() } -> std::same_as<bool>;
+                      }) {
+            CaptureSendState = OmniEncode->Encode();
+        } else {
+            OmniEncode->Encode();
+            CaptureSendState = true;
+        }
+
+        if (CaptureSendState) {
+            if constexpr (requires { OmniEncode->NVBitstreamLocks; }) {
+                size_t SlotIndex = OmniEncode->GetLastEncodedSlotIndex();
+                OmniNet->ChunkedSend(
+                    reinterpret_cast<char*>(OmniEncode->NVBitstreamLock.bitstreamBufferPtr),
+                    OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
+                    [](void* encoder, size_t slot) {
+                        reinterpret_cast<EncoderType*>(encoder)->ReleaseBuffer(slot);
+                    },
+                    OmniEncode,
+                    SlotIndex
+                );
+            } else {
+                OmniNet->ChunkedSend(
+                    reinterpret_cast<char*>(OmniEncode->NVBitstreamLock.bitstreamBufferPtr),
+                    OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
+                    [](void* encoder, size_t) {
+                        reinterpret_cast<EncoderType*>(encoder)->NVUnlockBitStream();
+                    },
+                    OmniEncode
+                );
+            }
+        }
     }
 
     void Start(
@@ -55,27 +82,87 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
                     if constexpr (requires { OmniEncode->ResolveCachedResource(Tex2D); }) {
                         OmniEncode->ResolveCachedResource(Tex2D);
                     }
-                    OmniEncode->Encode();
+                    bool CaptureSendState = false;
+                    if constexpr (requires {
+                                      { OmniEncode->Encode() } -> std::same_as<bool>;
+                                  }) {
+                        CaptureSendState = OmniEncode->Encode();
+                    } else {
+                        OmniEncode->Encode();
+                        CaptureSendState = true;
+                    }
                     if constexpr (requires { Tex2D->Release(); }) {
                         Tex2D->Release();
                     }
-                    OmniNet->ChunkedSend(
-                        reinterpret_cast<char*>(OmniEncode->NVBitstreamLock.bitstreamBufferPtr),
-                        OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
-                        [OmniEncode]() { OmniEncode->NVUnlockBitStream(); }
-                    );
+                    if (CaptureSendState) {
+                        if constexpr (requires { OmniEncode->NVBitstreamLocks; }) {
+                            size_t SlotIndex = OmniEncode->GetLastEncodedSlotIndex();
+                            OmniNet->ChunkedSend(
+                                reinterpret_cast<char*>(
+                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
+                                ),
+                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
+                                [](void* encoder, size_t slot) {
+                                    reinterpret_cast<EncoderType*>(encoder)->ReleaseBuffer(slot);
+                                },
+                                OmniEncode,
+                                SlotIndex
+                            );
+                        } else {
+                            OmniNet->ChunkedSend(
+                                reinterpret_cast<char*>(
+                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
+                                ),
+                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
+                                [](void* encoder, size_t) {
+                                    reinterpret_cast<EncoderType*>(encoder)->NVUnlockBitStream();
+                                },
+                                OmniEncode
+                            );
+                        }
+                    }
                 }
             );
             Source->StartSession();
         } else if constexpr (CaptureSource::Type == CaptureAPI::PipeWire) {
             Source->SetupCapturePipeline(
                 Config.Width, Config.Height, [OmniEncode = Encoder, OmniNet = Target](auto* frame) {
-                    OmniEncode->Encode();
-                    OmniNet->ChunkedSend(
-                        reinterpret_cast<char*>(OmniEncode->NVBitstreamLock.bitstreamBufferPtr),
-                        OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
-                        [OmniEncode]() { OmniEncode->NVUnlockBitStream(); }
-                    );
+                    bool CaptureSendState = false;
+                    if constexpr (requires {
+                                      { OmniEncode->Encode() } -> std::same_as<bool>;
+                                  }) {
+                        CaptureSendState = OmniEncode->Encode();
+                    } else {
+                        OmniEncode->Encode();
+                        CaptureSendState = true;
+                    }
+                    if (CaptureSendState) {
+                        if constexpr (requires { OmniEncode->NVBitstreamLocks; }) {
+                            size_t SlotIndex = OmniEncode->GetLastEncodedSlotIndex();
+                            OmniNet->ChunkedSend(
+                                reinterpret_cast<char*>(
+                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
+                                ),
+                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
+                                [](void* encoder, size_t slot) {
+                                    reinterpret_cast<EncoderType*>(encoder)->ReleaseBuffer(slot);
+                                },
+                                OmniEncode,
+                                SlotIndex
+                            );
+                        } else {
+                            OmniNet->ChunkedSend(
+                                reinterpret_cast<char*>(
+                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
+                                ),
+                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
+                                [](void* encoder, size_t) {
+                                    reinterpret_cast<EncoderType*>(encoder)->NVUnlockBitStream();
+                                },
+                                OmniEncode
+                            );
+                        }
+                    }
                 }
             );
             Source->StartSession();
