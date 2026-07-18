@@ -7,7 +7,7 @@
 #include "OmniNetContext.h"
 #include "OmniTypes.h"
 #include "SessionTypes.h"
-// #include "SubStream.h"
+#include "SubStream.h"
 
 #include <iphlpapi.h>
 #include <winsock2.h>
@@ -45,15 +45,15 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
     // Tracks how many WSASend OVERLAPPED ops are still owned by the kernel.
     std::atomic<uint32_t> SPoolInflight{0};
     std::atomic<uint32_t> STokenHead{0};
-    static constexpr uint32_t STOKEN_POOL_SIZE = 8;
+    static constexpr uint32_t STOKEN_POOL_SIZE = 32;
     OmniNet::FrameCompletionToken STokenPool[STOKEN_POOL_SIZE];
 
     // Lonely Recv pool, don't care about headers, head is built in
     OmniNet::IOContextChunkPool<OmniNet::RECV_BUF, POOL_SIZE, MTU> RecvPool;
 
     // UDP Sub Streams, still working on it
-    // static constexpr uint32_t MaxSubStreams = 8;
-    // OmniNetSubStream SubStreams[MaxSubStreams];
+    static constexpr uint32_t MaxSubStreams = 8;
+    OmniNetSubStream SubStreams[MaxSubStreams];
 
     typedef std::chrono::steady_clock Clock;
     typedef std::chrono::time_point<Clock> TimePoint;
@@ -84,21 +84,11 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
 
     inline void PostSessionWSARecv()
     {
-        DWORD flags = 0;
-
-        int WSResult = WSARecv(
+        OmniNetContext::PostWSARecv(
             SocketR,
             &RecvPool.ContextPool[RecvPool.PoolHead].TransmitBuffer,
-            1,
-            NULL,
-            &flags,
-            &RecvPool.ContextPool[RecvPool.PoolHead].OVStruct,
-            NULL
+            &RecvPool.ContextPool[RecvPool.PoolHead].OVStruct
         );
-
-        if (WSAGetLastError() != WSA_IO_PENDING) {
-            OutputDebugStringA("Recv Pre Post Failed\n");
-        }
     }
 
   public:
@@ -165,6 +155,9 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
                 }
 
                 if (EventKey != 0) {
+                    OmniNetSubStream* SubStream = reinterpret_cast<OmniNetSubStream*>(EventKey);
+                    if (SubStream->SubStreamState())
+                        SubStream->HandleCompletion(OVStruct, BufferSize);
                     continue;
                 }
 
@@ -211,7 +204,9 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
                     if (SendBuf->Token &&
                         SendBuf->Token->PendingChunks.fetch_sub(1, std::memory_order_acq_rel) ==
                             1) {
-                        SendBuf->Token->OnComplete();
+                        if (SendBuf->Token->OnComplete) {
+                            SendBuf->Token->OnComplete(SendBuf->Token->Arg1, SendBuf->Token->Arg2);
+                        }
                     }
                     if (SendBuf->InflightCounter) {
                         SendBuf->InflightCounter->fetch_sub(1, std::memory_order_release);
@@ -221,6 +216,43 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
                 }
             }
         });
+    }
+
+    // Opens a sub stream endpoint. Binds to a local ephemeral port and registers with IOCP.
+    // Needs an external data pointer for recv, wires it up and starts receive operations.
+    // Literally built for zero copy output targets
+    // Returns a stable pointer into SubStreams container
+    // The stable pointer itself is returned as the completion key in IOCP
+    OmniNetSubStream* OpenSubStream(
+        char* Data = nullptr,
+        uint32_t DataSize = 0,
+        uint32_t NumSlots = 0,
+        void (*OnSlotComplete)(void* ctx, uint32_t slot, uint32_t size) = nullptr,
+        void* SlotCompleteCtx = nullptr
+    )
+    {
+        for (uint32_t i = 0; i < MaxSubStreams; ++i) {
+            if (!SubStreams[i].SubStreamState()) {
+                if (!SubStreams[i].Init(
+                        LocalIPString,
+                        IOCPHandle,
+                        Data,
+                        DataSize,
+                        NumSlots,
+                        OnSlotComplete,
+                        SlotCompleteCtx
+                    ))
+                    return nullptr;
+                return &SubStreams[i];
+            }
+        }
+        return nullptr;
+    }
+
+    void CloseSubStream(OmniNetSubStream* SubStream)
+    {
+        if (SubStream)
+            SubStream->Close();
     }
 
     // Zero Copy send
@@ -259,36 +291,52 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
     // OnComplete is optional tho.
     // Single-chunk frames (data_size <= MTU) are sent as ChunkEnd directly,
     // which the receiver already handles correctly.
-    void ChunkedSend(CHAR* data, int data_size, std::function<void()> OnComplete)
+    bool ChunkedSend(
+        CHAR* Data,
+        int DataSize,
+        void (*OnComplete)(void*, size_t) = nullptr,
+        void* Arg1 = nullptr,
+        size_t Arg2 = 0
+    )
     {
-        const uint32_t ChunkCount = (uint32_t)((data_size + (int)MTU - 1) / (int)MTU);
+        const uint32_t ChunkCount = (uint32_t)((DataSize + (int)MTU - 1) / (int)MTU);
 
         const uint32_t TokenIndex =
             STokenHead.fetch_add(1, std::memory_order_relaxed) & (STOKEN_POOL_SIZE - 1);
         OmniNet::FrameCompletionToken& Token = STokenPool[TokenIndex];
 
-        while (Token.PendingChunks.load(std::memory_order_acquire) != 0) {
-            _mm_pause();
+        if (Token.PendingChunks.load(std::memory_order_acquire) != 0) {
+            if (OnComplete)
+                OnComplete(Arg1, Arg2);
+            return false;
         }
-        Token.OnComplete = std::move(OnComplete);
-        Token.PendingChunks.store(ChunkCount, std::memory_order_release);
 
-        // Reserves all inflight slots at once before issuing any WSASend calls.
+        // Reserves all inflight slots at once.
         while (true) {
-            uint32_t cur = SPoolInflight.load(std::memory_order_acquire);
-            if (cur + ChunkCount <= POOL_SIZE) {
+            uint32_t ActiveSPoolUsage = SPoolInflight.load(std::memory_order_acquire);
+            if (ActiveSPoolUsage + ChunkCount <= POOL_SIZE) {
                 if (SPoolInflight.compare_exchange_weak(
-                        cur, cur + ChunkCount, std::memory_order_acq_rel, std::memory_order_acquire
+                        ActiveSPoolUsage,
+                        ActiveSPoolUsage + ChunkCount,
+                        std::memory_order_acq_rel,
+                        std::memory_order_acquire
                     ))
                     break;
             } else {
-                _mm_pause();
+                if (OnComplete)
+                    OnComplete(Arg1, Arg2);
+                return false;
             }
         }
 
+        Token.OnComplete = OnComplete;
+        Token.Arg1 = Arg1;
+        Token.Arg2 = Arg2;
+        Token.PendingChunks.store(ChunkCount, std::memory_order_release);
+
         for (uint32_t i = 0; i < ChunkCount; ++i) {
             const int offset = (int)(i * MTU);
-            const int chunkLen = (i + 1 < ChunkCount) ? (int)MTU : (data_size - offset);
+            const int chunkLen = (i + 1 < ChunkCount) ? (int)MTU : (DataSize - offset);
 
             OmniNet::PacketType type;
             if (ChunkCount == 1)
@@ -302,7 +350,7 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
 
             CHeaderPool[SPoolHead].PacketType = type;
             CHeaderPool[SPoolHead].Target = 0;
-            TransmitPool[SPoolHead].TransmitBuffer[0].buf = data + offset;
+            TransmitPool[SPoolHead].TransmitBuffer[0].buf = Data + offset;
             TransmitPool[SPoolHead].TransmitBuffer[0].len = (ULONG)chunkLen;
             TransmitPool[SPoolHead].Token = &Token;
 
@@ -318,6 +366,7 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
 
             SPoolHead = (SPoolHead + 1) & (POOL_SIZE - 1);
         }
+        return true;
     }
 };
 

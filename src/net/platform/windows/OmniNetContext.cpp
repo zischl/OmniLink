@@ -23,11 +23,11 @@ int OmniNetContext::WinsockInit()
     return 0;
 }
 
-sockaddr_in OmniNetContext::CreateAddress(PCSTR IP, unsigned short port)
+sockaddr_in OmniNetContext::CreateAddress(PCSTR IP, unsigned short Port)
 {
     sockaddr_in address;
     address.sin_family = AF_INET;
-    address.sin_port = htons(port);
+    address.sin_port = htons(Port);
     inet_pton(AF_INET, IP, &address.sin_addr);
     return address;
 }
@@ -122,16 +122,16 @@ void OmniNetContext::GetLocals(uint8_t family, std::vector<sockaddr_in>* Buffer)
     return;
 }
 
-bool OmniNetContext::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
+bool OmniNetContext::BindReceiver(PCSTR IP, unsigned int Port, SOCKET& Socket)
 {
     int WSResult = 0;
 
     sockaddr_in local;
     local.sin_family = AF_INET;
-    local.sin_port = htons(port);
+    local.sin_port = htons(Port);
     inet_pton(AF_INET, IP, &local.sin_addr);
 
-    WSResult = bind(socket, (sockaddr*)&local, sizeof(local));
+    WSResult = bind(Socket, (sockaddr*)&local, sizeof(local));
     if (WSResult != 0) {
         WSResult = WSAGetLastError();
         Logger::log("BindReceiver failed: WSA error {}", WSResult);
@@ -140,11 +140,11 @@ bool OmniNetContext::BindReceiver(PCSTR IP, unsigned int port, SOCKET& socket)
     return true;
 }
 
-bool OmniNetContext::ConnectSesssion(const sockaddr_in& address, const SOCKET& socketR)
+bool OmniNetContext::ConnectSesssion(const sockaddr_in& Address, const SOCKET& SocketR)
 {
     int WSResult = 0;
 
-    WSResult = connect(socketR, (sockaddr*)&address, sizeof(address));
+    WSResult = connect(SocketR, (sockaddr*)&Address, sizeof(Address));
     if (WSResult != 0) {
         Logger::log("ConnectSesssion failed: WSA error {}", WSAGetLastError());
         return false;
@@ -172,4 +172,14 @@ bool OmniNetContext::BindIOCP(HANDLE IOCP, SOCKET Socket, ULONG_PTR CompletionKe
         return false;
     }
     return true;
+}
+
+void OmniNetContext::PostWSARecv(SOCKET Socket, WSABUF* Buffer, OVERLAPPED* OVStruct)
+{
+    DWORD flags = 0;
+    if (WSARecv(Socket, Buffer, 1, NULL, &flags, OVStruct, NULL) != 0) {
+        if (WSAGetLastError() != WSA_IO_PENDING) {
+            Logger::log("PostWSARecv failed: WSA error {}", WSAGetLastError());
+        }
+    }
 }

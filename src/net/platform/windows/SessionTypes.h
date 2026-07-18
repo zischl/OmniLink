@@ -3,10 +3,10 @@
 
 #pragma once
 
+#include "OmniConfig.h"
 #include "OmniTypes.h"
 
 #include <atomic>
-#include <functional>
 #include <iostream>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -27,11 +27,12 @@ struct IOContextTag
     BufferType Type;
 };
 
-// Still experimental, will update later, runs OnComplete on chunk send completion
 struct FrameCompletionToken
 {
     std::atomic<int> PendingChunks{0};
-    std::function<void()> OnComplete;
+    void (*OnComplete)(void* Arg1, size_t Arg2) = nullptr;
+    void* Arg1 = nullptr;
+    size_t Arg2 = 0;
 };
 
 struct SEND_BUF
@@ -99,6 +100,82 @@ template <typename ContextType, typename Header, uint32_t PoolSize> struct IOCon
     uint32_t _mask = PoolSize - 1;
 
     inline void PushChunk() { PoolHead = (PoolHead + 1) & _mask; }
+};
+
+template <typename ContextType, uint32_t MaxSlots = 8, uint32_t MaxChunks = 2048>
+struct IOContextExternalChunkPool
+{
+    char* Data = nullptr;
+    uint32_t SlotSize = 0;
+    uint32_t ChunksPerSlot = 0;
+    uint32_t SlotCount = 0;
+
+    uint32_t ActiveSlot = 0;
+    uint32_t ActiveChunk = 0;
+    uint32_t PoolHead = 0;
+    void (*OnSlotComplete)(void* ctx, uint32_t slot, uint32_t size) = nullptr;
+    void* SlotCompleteCtx = nullptr;
+
+    ContextType ContextPool[MaxSlots * MaxChunks];
+
+    void Init(
+        char* DataPtr,
+        uint32_t DataSize,
+        uint32_t SlotCount,
+        void (*onSlotComplete)(void*, uint32_t, uint32_t) = nullptr,
+        void* SlotCompletionCtx = nullptr
+    )
+    {
+        Data = DataPtr;
+        SlotCount = SlotCount;
+        SlotSize = DataSize / SlotCount;
+        ChunksPerSlot = SlotSize / OmniMTU;
+        ActiveSlot = 0;
+        ActiveChunk = 0;
+        PoolHead = 0;
+        OnSlotComplete = onSlotComplete;
+        SlotCompleteCtx = SlotCompletionCtx;
+
+        for (uint32_t slot = 0; slot < SlotCount; ++slot) {
+            for (uint32_t chunk = 0; chunk < ChunksPerSlot; ++chunk) {
+                const uint32_t idx = slot * ChunksPerSlot + chunk;
+                ContextPool[idx].OVStruct = {};
+                ContextPool[idx].Type = OP_RECV;
+                ContextPool[idx].TransmitBuffer.buf = DataPtr + slot * SlotSize + chunk * OmniMTU;
+                ContextPool[idx].TransmitBuffer.len = OmniMTU + OmniHeaderSize;
+            }
+        }
+    }
+
+    inline void PushChunk()
+    {
+        ++ActiveChunk;
+        ++PoolHead;
+    }
+
+    inline void PushFinalChunk(uint32_t BufferSize)
+    {
+        const uint32_t size = ActiveChunk * OmniMTU + BufferSize;
+        if (OnSlotComplete) {
+            OnSlotComplete(SlotCompleteCtx, ActiveSlot, size);
+        }
+        ActiveSlot = (ActiveSlot + 1) % SlotCount;
+        ActiveChunk = 0;
+        PoolHead = ActiveSlot * ChunksPerSlot;
+    }
+
+    inline void Reset()
+    {
+        Data = nullptr;
+        SlotSize = 0;
+        ChunksPerSlot = 0;
+        SlotCount = 0;
+        ActiveSlot = 0;
+        ActiveChunk = 0;
+        PoolHead = 0;
+        OnSlotComplete = nullptr;
+        SlotCompleteCtx = nullptr;
+    }
 };
 
 } // namespace OmniNet
