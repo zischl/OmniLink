@@ -163,6 +163,8 @@ void WinForge::Render()
 
 void WinForge::MainLoop()
 {
+    NvdecSession* ActiveDecoder = std::get_if<NvdecSession>(&OmniDecoder);
+
     while (true) {
         EventDW = MsgWaitForMultipleObjectsEx(1, Events, 0, QS_ALLINPUT, 0);
 
@@ -171,7 +173,12 @@ void WinForge::MainLoop()
             while (PeekMessage(&Msg, nullptr, 0, 0, PM_REMOVE)) {
 
                 if (Msg.message == WM_QUIT)
-                    break;
+                    return;
+
+                if (Msg.message == WM_SWAP_DECODER) {
+                    ActiveDecoder = std::get_if<NvdecSession>(&OmniDecoder);
+                    continue;
+                }
 
                 TranslateMessage(&Msg);
                 DispatchMessage(&Msg);
@@ -181,7 +188,7 @@ void WinForge::MainLoop()
 
         case WAIT_OBJECT_0 + 0:
             if (std::chrono::steady_clock::now() - LastFrameTime >= FrameTimeLimit) {
-                DecodeBuffer();
+                DecodeBuffer(ActiveDecoder);
                 Render();
 
                 LastFrameTime = std::chrono::steady_clock::now();

@@ -45,6 +45,8 @@ struct WinConfig
 
 HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc);
 
+constexpr UINT WM_SWAP_DECODER = WM_USER + 101;
+
 class WinForge
 {
   public:
@@ -94,24 +96,30 @@ class WinForge
         SetRenderEvent();
     }
 
+    inline void DecodeBuffer(NvdecSession* ActiveDecoder)
+    {
+        if (ActiveDecoder != nullptr) {
+            ActiveDecoder->Decode(
+                reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
+                FramePool[CurrentFrame].FrameSize
+            );
+        }
+        CurrentFrame = CurrentFrame + 1 & 3;
+    }
+
     inline void DecodeBuffer()
     {
-        std::visit(
-            [this](auto& ActiveDecoder) {
-                using T = std::decay_t<decltype(ActiveDecoder)>;
-                if constexpr (!std::is_same_v<T, std::monostate>) {
-                    static_assert(
-                        DecoderConcept<T>, "Decoder type must satisfy the Decoder concept"
-                    );
-                    ActiveDecoder.Decode(
-                        reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
-                        FramePool[CurrentFrame].FrameSize
-                    );
-                }
-            },
-            OmniDecoder
-        );
-        CurrentFrame = CurrentFrame + 1 & 3;
+        NvdecSession* activeDecoder = std::get_if<NvdecSession>(&OmniDecoder);
+        DecodeBuffer(activeDecoder);
+    }
+
+    template <typename T, typename... Args> inline void SwapDecoder(Args&&... args)
+    {
+        static_assert(DecoderConcept<T>, "Decoder type must satisfy the Decoder concept");
+        OmniDecoder.emplace<T>(std::forward<Args>(args)...);
+        if (hwnd != NULL) {
+            PostMessage(hwnd, WM_SWAP_DECODER, 0, 0);
+        }
     }
 
     inline void SetRenderEvent() { SetEvent(Events[0]); }
