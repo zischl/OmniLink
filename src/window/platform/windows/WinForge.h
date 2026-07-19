@@ -7,16 +7,17 @@
 
 #pragma once
 
+#include "D3D11Renderer.h"
+#include "DecoderConcept.h"
+#include "OmniConfig.h"
+#include "WinCap.h"
+#include "nvdec.h"
+
 #include <Windows.h>
 #include <comdef.h>
 #include <wrl/client.h>
 
 #include <string>
-
-#include "WinCap.h"
-#include <D3D11Renderer.h>
-#include <DecoderConcept.h>
-#include <nvdec.h>
 #include <variant>
 
 using Microsoft::WRL::ComPtr;
@@ -53,53 +54,69 @@ class WinForge
         const wchar_t* window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct = {}
     );
 
-    inline void SetFrameBufferSize(int size)
+    inline void SetFrameBufferSize(int Size)
     {
-        for (int frame_index = 0; frame_index < FrameQueueSize; frame_index++) {
-            FramePool[frame_index].FrameBuffer = new CHAR[FrameSize];
-        }
+        char* block = new CHAR[FrameQueueSize * FrameSize];
+        for (int i = 0; i < FrameQueueSize; i++)
+            FramePool[i].FrameBuffer = block + i * FrameSize;
     }
 
-    inline void SetFramePoolSize(int size)
+    inline void SetFramePoolSize(int Size)
     {
         if (FramePool != nullptr) {
             delete[] FramePool;
         }
 
-        FramePool = new Frame[size];
+        FramePool = new Frame[Size];
         SetFrameBufferSize(FrameSize);
     }
 
-    inline void SetBufferData(char* data, int size)
+    inline void SetBufferData(char* Data, int Size)
     {
-        memcpy(FramePool[NextFrame].FrameBuffer, data, size);
+        memcpy(FramePool[NextFrame].FrameBuffer, Data, Size);
 
-        FramePool[NextFrame].FrameSize = size;
+        FramePool[NextFrame].FrameSize = Size;
         NextFrame = NextFrame + 1 & 3;
+    }
+
+    inline char* GetFrameDataPool() const { return FramePool[0].FrameBuffer; }
+
+    inline uint32_t GetFrameDataTotalSize() const
+    {
+        return static_cast<uint32_t>(FrameQueueSize * FrameSize);
+    }
+    inline uint32_t GetFrameQueueSize() const { return static_cast<uint32_t>(FrameQueueSize); }
+
+    inline void OnFrameUpdate(uint32_t Slot, uint32_t Size)
+    {
+        FramePool[Slot].FrameSize = static_cast<UINT>(Size);
+        NextFrame = static_cast<uint8_t>((Slot + 1) % FrameQueueSize);
+        SetRenderEvent();
     }
 
     inline void DecodeBuffer()
     {
         std::visit(
-            [this](auto& active_decoder) {
-                using T = std::decay_t<decltype(active_decoder)>;
+            [this](auto& ActiveDecoder) {
+                using T = std::decay_t<decltype(ActiveDecoder)>;
                 if constexpr (!std::is_same_v<T, std::monostate>) {
-                    static_assert(Decoder<T>, "Decoder type must satisfy the Decoder concept");
-                    active_decoder.Decode(
+                    static_assert(
+                        DecoderConcept<T>, "Decoder type must satisfy the Decoder concept"
+                    );
+                    ActiveDecoder.Decode(
                         reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
                         FramePool[CurrentFrame].FrameSize
                     );
                 }
             },
-            decoder
+            OmniDecoder
         );
         CurrentFrame = CurrentFrame + 1 & 3;
     }
 
     inline void SetRenderEvent() { SetEvent(Events[0]); }
-    // void ContextSwitch();
 
-    inline void SetFPSLimit(int FPS) { limit.store(1000 / FPS); }
+    inline void SetFPSLimit(int FPS) { FPSLimitMS.store(1000 / FPS); }
 
   private:
     HRESULT hr = NULL;
@@ -116,27 +133,27 @@ class WinForge
     ID3D11Device* D3D11Device = nullptr;
     ID3D11DeviceContext* D3D11Context = nullptr;
 
-    IDXGISwapChain3* swapchain = nullptr;
-    ID3D11RenderTargetView* renderTargetView = nullptr;
+    IDXGISwapChain3* Swapchain = nullptr;
+    ID3D11RenderTargetView* RenderTargetView = nullptr;
 
-    ID3D11PixelShader* pixelShader = nullptr;
-    ID3D11VertexShader* vertexShader = nullptr;
-    ID3D11Buffer* vertexBuffer = nullptr;
-    ID3D11InputLayout* inputLayout = nullptr;
+    ID3D11PixelShader* PixelShader = nullptr;
+    ID3D11VertexShader* VertexShader = nullptr;
+    ID3D11Buffer* VertexBuffer = nullptr;
+    ID3D11InputLayout* InputLayout = nullptr;
     ID3D11Buffer* IndexBuffer = nullptr;
-    ID3D11SamplerState* sampler = nullptr;
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    ComPtr<ID3D11ShaderResourceView> textureView = nullptr;
+    ID3D11SamplerState* Sampler = nullptr;
+    D3D11_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+    ComPtr<ID3D11ShaderResourceView> TextureView = nullptr;
 
-    UINT stride = 0;
-    UINT offset = 0;
+    UINT Stride = 0;
+    UINT Offset = 0;
 
-    float clearColor[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+    float ClearColor[4] = {0.0f, 0.0f, 1.0f, 1.0f};
 
-    D3D11_TEXTURE2D_DESC custommainBufferDesc = {};
+    D3D11_TEXTURE2D_DESC CustommainBufferDesc = {};
     ComPtr<ID3D11Texture2D> NvdecBuffer;
     using DecoderVariant = std::variant<std::monostate, NvdecSession>;
-    DecoderVariant decoder;
+    DecoderVariant OmniDecoder;
 
     struct Frame
     {
@@ -144,7 +161,7 @@ class WinForge
         UINT FrameSize = 0;
     };
 
-    int FrameSize = 300000;
+    int FrameSize = 2048 * OmniMTU;
     int FrameQueueSize = 4;
     Frame* FramePool = nullptr;
     uint8_t CurrentFrame = 0;
@@ -152,8 +169,8 @@ class WinForge
 
     D3D11_DEVICE_CONTEXT_TYPE ContextMode = D3D11_DEVICE_CONTEXT_IMMEDIATE;
 
-    std::atomic<int> limit = 7;
-    MSG msg = {};
+    std::atomic<int> FPSLimitMS = 7;
+    MSG Msg = {};
 
     void Render();
     void MainLoop();

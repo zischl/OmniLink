@@ -79,26 +79,26 @@ HWND WinForge::CreateWindowAsync(
         D3D11Context = RendererPtrs.D3D11Context.Get();
         ContextMode = D3D11Context->GetType();
 
-        swapchain = RendererPtrs.swapchain.Get();
-        renderTargetView = RendererPtrs.renderTargetView.Get();
+        Swapchain = RendererPtrs.swapchain.Get();
+        RenderTargetView = RendererPtrs.renderTargetView.Get();
 
         HWNDxShaders ShaderPtrs = Renderer.ShadersInit(D3D11Device);
-        pixelShader = ShaderPtrs.pixelShader.Get();
-        vertexShader = ShaderPtrs.vertexShader.Get();
-        vertexBuffer = ShaderPtrs.vertexBuffer.Get();
-        inputLayout = ShaderPtrs.inputLayout.Get();
+        PixelShader = ShaderPtrs.pixelShader.Get();
+        VertexShader = ShaderPtrs.vertexShader.Get();
+        VertexBuffer = ShaderPtrs.vertexBuffer.Get();
+        InputLayout = ShaderPtrs.inputLayout.Get();
         IndexBuffer = ShaderPtrs.IndexBuffer.Get();
-        sampler = ShaderPtrs.sampler.Get();
+        Sampler = ShaderPtrs.sampler.Get();
 
-        stride = ShaderPtrs.VertexBufferStride;
-        offset = ShaderPtrs.VertexBufferOffset;
+        Stride = ShaderPtrs.VertexBufferStride;
+        Offset = ShaderPtrs.VertexBufferOffset;
 
         Renderer.SetShaders(D3D11Context, &ShaderPtrs);
 
-        srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MostDetailedMip = 0;
-        srvDesc.Texture2D.MipLevels = 1;
+        SrvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        SrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        SrvDesc.Texture2D.MostDetailedMip = 0;
+        SrvDesc.Texture2D.MipLevels = 1;
 
         D3D11_VIEWPORT viewport = {};
         viewport.TopLeftX = 0.0f;
@@ -112,24 +112,24 @@ HWND WinForge::CreateWindowAsync(
 
         // ###############################################################################//
 
-        custommainBufferDesc = {};
-        custommainBufferDesc.Width = config.wdWidth;
-        custommainBufferDesc.Height = config.wdHeight;
-        custommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        custommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-        custommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-        custommainBufferDesc.SampleDesc.Count = 1;
-        custommainBufferDesc.SampleDesc.Quality = 0;
-        custommainBufferDesc.ArraySize = 1;
-        custommainBufferDesc.MipLevels = 1;
-        custommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+        CustommainBufferDesc = {};
+        CustommainBufferDesc.Width = config.wdWidth;
+        CustommainBufferDesc.Height = config.wdHeight;
+        CustommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        CustommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        CustommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+        CustommainBufferDesc.SampleDesc.Count = 1;
+        CustommainBufferDesc.SampleDesc.Quality = 0;
+        CustommainBufferDesc.ArraySize = 1;
+        CustommainBufferDesc.MipLevels = 1;
+        CustommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
 
-        D3D11Device->CreateTexture2D(&custommainBufferDesc, nullptr, NvdecBuffer.GetAddressOf());
+        D3D11Device->CreateTexture2D(&CustommainBufferDesc, nullptr, NvdecBuffer.GetAddressOf());
 
         ShowWindow(hwnd, SW_SHOW);
         UpdateWindow(hwnd);
 
-        decoder.emplace<NvdecSession>(config.wdWidth, config.wdHeight, NvdecBuffer.Get());
+        OmniDecoder.emplace<NvdecSession>(config.wdWidth, config.wdHeight, NvdecBuffer.Get());
 
         MainLoop();
     });
@@ -142,7 +142,7 @@ HWND WinForge::CreateWindowAsync(
 void WinForge::Render()
 {
     hr = D3D11Device->CreateShaderResourceView(
-        NvdecBuffer.Get(), &srvDesc, textureView.GetAddressOf()
+        NvdecBuffer.Get(), &SrvDesc, TextureView.GetAddressOf()
     );
     if (FAILED(hr)) {
         _com_error err(hr);
@@ -150,13 +150,13 @@ void WinForge::Render()
         OutputDebugString(L"aaaaaaaaaaaaaaaa\n");
     }
 
-    D3D11Context->PSSetShaderResources(0, 1, textureView.GetAddressOf());
+    D3D11Context->PSSetShaderResources(0, 1, TextureView.GetAddressOf());
 
-    D3D11Context->ClearRenderTargetView(renderTargetView, clearColor);
-    D3D11Context->OMSetRenderTargets(1, &renderTargetView, nullptr);
+    D3D11Context->ClearRenderTargetView(RenderTargetView, ClearColor);
+    D3D11Context->OMSetRenderTargets(1, &RenderTargetView, nullptr);
     D3D11Context->Draw(4, 0);
 
-    swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+    Swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 
     // D3D11Context->FinishCommandList();
 }
@@ -168,13 +168,13 @@ void WinForge::MainLoop()
 
         switch (EventDW) {
         case WAIT_OBJECT_0 + 1:
-            while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            while (PeekMessage(&Msg, nullptr, 0, 0, PM_REMOVE)) {
 
-                if (msg.message == WM_QUIT)
+                if (Msg.message == WM_QUIT)
                     break;
 
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
+                TranslateMessage(&Msg);
+                DispatchMessage(&Msg);
             }
 
             break;
