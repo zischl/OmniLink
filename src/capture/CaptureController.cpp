@@ -18,14 +18,19 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
     if (Mode == CaptureMode::WGC) {
         ScreenCaptureWGC* WGSCapture = new ScreenCaptureWGC(D3D11Device);
 
-        CachedPoolNvencSession* Encoder = new CachedPoolNvencSession(
-            D3D11Device, NvEncodeAPI.NVFunctions, Config.Width, Config.Height, 3
-        );
+        BufferedNvencSession<CachedPoolNvencSession>* Encoder =
+            new BufferedNvencSession<CachedPoolNvencSession>(
+                D3D11Device, NvEncodeAPI.NVFunctions, Config.Width, Config.Height, 3
+            );
 
         Streams.try_emplace(
-            id, std::in_place_type<EncodeStream<ScreenCaptureWGC, CachedPoolNvencSession>>
+            id,
+            std::in_place_type<
+                EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>>>
         );
-        std::get<EncodeStream<ScreenCaptureWGC, CachedPoolNvencSession>>(Streams[id])
+        std::get<EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>>>(
+            Streams[id]
+        )
             .Start(WGSCapture, Encoder, NetSession, TargetID, Config);
 
     } else if (Mode == CaptureMode::DXGI) {
@@ -33,14 +38,19 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
         DXGISCapture->InitDXGI(D3D11Device);
         ID3D11Texture2D* CaptureBuffer = DXGISCapture->GetBuffer();
 
-        StaticNvencSession* Encoder = new StaticNvencSession(
-            D3D11Device, NvEncodeAPI.NVFunctions, CaptureBuffer, Config.Width, Config.Height
-        );
+        BufferedNvencSession<StaticNvencSession>* Encoder =
+            new BufferedNvencSession<StaticNvencSession>(
+                D3D11Device, NvEncodeAPI.NVFunctions, CaptureBuffer, Config.Width, Config.Height
+            );
 
         Streams.try_emplace(
-            id, std::in_place_type<EncodeStream<ScreenCaptureDXGI, StaticNvencSession>>
+            id,
+            std::in_place_type<
+                EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>>>
         );
-        std::get<EncodeStream<ScreenCaptureDXGI, StaticNvencSession>>(Streams[id])
+        std::get<EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>>>(
+            Streams[id]
+        )
             .Start(DXGISCapture, Encoder, NetSession, TargetID, Config);
     }
 

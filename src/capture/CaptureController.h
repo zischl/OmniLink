@@ -11,8 +11,8 @@
 enum CaptureMode { DXGI, WGC };
 
 using EncodeStreamTypes = std::variant<
-    EncodeStream<ScreenCaptureDXGI, StaticNvencSession>,
-    EncodeStream<ScreenCaptureWGC, CachedPoolNvencSession>>;
+    EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>>,
+    EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>>>;
 #elif defined(__linux__)
 
 enum CaptureMode { PW, X11_SHM };
