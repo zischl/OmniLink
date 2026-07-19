@@ -13,6 +13,9 @@
 
 #include <Windows.h>
 #include <vector>
+#include <wrl/client.h>
+
+using Microsoft::WRL::ComPtr;
 
 template <uint32_t MTU> class OmniNetSession;
 
@@ -25,6 +28,9 @@ struct OmniSystemLink
     OmniStreamController StreamController;
     OmniIOCap IOCapture;
     OmniIOShield IOShield;
+
+    ComPtr<ID3D11Device> StreamingDevice = nullptr;
+    ComPtr<ID3D11DeviceContext> StreamingContext = nullptr;
 
     OmniRenderState& RenderState;
     std::vector<StreamWindow*> ActiveWindows;
