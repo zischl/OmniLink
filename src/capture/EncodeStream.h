@@ -20,14 +20,9 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
     DeviceMap TargetDevice;
     AsyncWorker::Uncached Worker;
 
-    static void
-    CaptureSend(OmniNetSession<OmniMTU>* OmniNet, CaptureSource* Source, EncoderType* OmniEncode)
+    // U might be wondering what this is... it's just Encode and Send
+    inline static void Zencode(OmniNetSession<OmniMTU>* OmniNet, EncoderType* OmniEncode)
     {
-        if constexpr (requires { Source->AcquireFrame(); }) {
-            if (!Source->AcquireFrame())
-                return;
-        }
-
         bool CaptureSendState = false;
         if constexpr (requires {
                           { OmniEncode->Encode() } -> std::same_as<bool>;
@@ -63,6 +58,17 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
         }
     }
 
+    static void
+    CaptureSend(OmniNetSession<OmniMTU>* OmniNet, CaptureSource* Source, EncoderType* OmniEncode)
+    {
+        if constexpr (requires { Source->AcquireFrame(); }) {
+            if (!Source->AcquireFrame())
+                return;
+        }
+
+        Zencode(OmniNet, OmniEncode);
+    }
+
     void Start(
         CaptureSource* Source_,
         EncoderType* Encoder_,
@@ -82,44 +88,9 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
                     if constexpr (requires { OmniEncode->ResolveCachedResource(Tex2D); }) {
                         OmniEncode->ResolveCachedResource(Tex2D);
                     }
-                    bool CaptureSendState = false;
-                    if constexpr (requires {
-                                      { OmniEncode->Encode() } -> std::same_as<bool>;
-                                  }) {
-                        CaptureSendState = OmniEncode->Encode();
-                    } else {
-                        OmniEncode->Encode();
-                        CaptureSendState = true;
-                    }
+                    Zencode(OmniNet, OmniEncode);
                     if constexpr (requires { Tex2D->Release(); }) {
                         Tex2D->Release();
-                    }
-                    if (CaptureSendState) {
-                        if constexpr (requires { OmniEncode->NVBitstreamLocks; }) {
-                            size_t SlotIndex = OmniEncode->GetLastEncodedSlotIndex();
-                            OmniNet->ChunkedSend(
-                                reinterpret_cast<char*>(
-                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
-                                ),
-                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
-                                [](void* encoder, size_t slot) {
-                                    reinterpret_cast<EncoderType*>(encoder)->ReleaseBuffer(slot);
-                                },
-                                OmniEncode,
-                                SlotIndex
-                            );
-                        } else {
-                            OmniNet->ChunkedSend(
-                                reinterpret_cast<char*>(
-                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
-                                ),
-                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
-                                [](void* encoder, size_t) {
-                                    reinterpret_cast<EncoderType*>(encoder)->NVUnlockBitStream();
-                                },
-                                OmniEncode
-                            );
-                        }
                     }
                 }
             );
@@ -127,42 +98,7 @@ template <CapSource CaptureSource, typename EncoderType = NvencSession> struct E
         } else if constexpr (CaptureSource::Type == CaptureAPI::PipeWire) {
             Source->SetupCapturePipeline(
                 Config.Width, Config.Height, [OmniEncode = Encoder, OmniNet = Target](auto* frame) {
-                    bool CaptureSendState = false;
-                    if constexpr (requires {
-                                      { OmniEncode->Encode() } -> std::same_as<bool>;
-                                  }) {
-                        CaptureSendState = OmniEncode->Encode();
-                    } else {
-                        OmniEncode->Encode();
-                        CaptureSendState = true;
-                    }
-                    if (CaptureSendState) {
-                        if constexpr (requires { OmniEncode->NVBitstreamLocks; }) {
-                            size_t SlotIndex = OmniEncode->GetLastEncodedSlotIndex();
-                            OmniNet->ChunkedSend(
-                                reinterpret_cast<char*>(
-                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
-                                ),
-                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
-                                [](void* encoder, size_t slot) {
-                                    reinterpret_cast<EncoderType*>(encoder)->ReleaseBuffer(slot);
-                                },
-                                OmniEncode,
-                                SlotIndex
-                            );
-                        } else {
-                            OmniNet->ChunkedSend(
-                                reinterpret_cast<char*>(
-                                    OmniEncode->NVBitstreamLock.bitstreamBufferPtr
-                                ),
-                                OmniEncode->NVBitstreamLock.bitstreamSizeInBytes,
-                                [](void* encoder, size_t) {
-                                    reinterpret_cast<EncoderType*>(encoder)->NVUnlockBitStream();
-                                },
-                                OmniEncode
-                            );
-                        }
-                    }
+                    Zencode(OmniNet, OmniEncode);
                 }
             );
             Source->StartSession();
