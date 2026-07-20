@@ -4,6 +4,7 @@
 #include "NvencTypes.h"
 #include "OmniLogger.h"
 #include <atomic>
+#include <cstddef>
 #include <d3d11.h>
 #include <intrin.h>
 #include <nvEncodeAPI.h>
@@ -73,7 +74,8 @@ class NvencSession
         const NvencResourceRegConfig& config
     );
 
-    void Encode();
+    void RequestKeyframe() { ForceNextIDR.store(true, std::memory_order_relaxed); }
+    bool Encode();
     void NVUnlockBitStream();
     void NVCleanup();
 
@@ -84,6 +86,8 @@ class NvencSession
     NV_ENC_CREATE_BITSTREAM_BUFFER NVOutputBufferDesc = {};
 
     NvencResourceRegConfig ResourceConfig;
+
+    std::atomic<bool> ForceNextIDR{false};
 
     void OpenNvEncSession(void* D3DDevice);
     void LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams, NvencInitConfig& config);
@@ -113,7 +117,7 @@ class StaticNvencSession : public NvencSession
 
 // Nvidia encoding session extended with a Cached Resource Pool
 // Perfect for Texture Pools
-// Just.. ResolveCachedResource before encoding or resolve it all in one go.. whatever
+// Just.. ResolveCachedResource before encoding
 class CachedPoolNvencSession : public NvencSession
 {
   public:
@@ -156,17 +160,18 @@ template <typename BaseSession> class BufferedNvencSession : public BaseSession
     size_t CurrentBufferIndex = 0;
     std::atomic<uint64_t> DroppedFramesCount;
 
-    // Creates extra bitstreams..
+    // Creates extra bitstream buffers.. yes, skipping 0 slot cuz base class handles that shit.
     template <typename... Args>
     BufferedNvencSession(Args&&... args) : BaseSession(std::forward<Args>(args)...)
     {
+        NvencOutputs[0] = this->NvencOutput;
+
         for (size_t i = 0; i < BITSTREAM_POOL_SIZE; ++i) {
             BufferUsageRegistry[i].store(false, std::memory_order_relaxed);
             BufferLockStates[i] = false;
         }
-        DroppedFramesCount.store(0, std::memory_order_relaxed);
 
-        NvencOutputs[0] = this->NvencOutput;
+        DroppedFramesCount.store(0, std::memory_order_relaxed);
 
         for (size_t i = 1; i < BITSTREAM_POOL_SIZE; ++i) {
             NV_ENC_CREATE_BITSTREAM_BUFFER desc = {};
@@ -212,7 +217,7 @@ template <typename BaseSession> class BufferedNvencSession : public BaseSession
     bool Encode()
     {
         if (BufferUsageRegistry[CurrentBufferIndex].load(std::memory_order_acquire)) {
-            uint64_t DropCount = DroppedFramesCount.fetch_add(1, std::memory_order_relaxed);
+            DroppedFramesCount.fetch_add(1, std::memory_order_relaxed);
             Logger::log("Excuse me, You're holding on to the Bitstream buffers too long.. \n");
             return false;
         }
@@ -235,43 +240,42 @@ template <typename BaseSession> class BufferedNvencSession : public BaseSession
             return false;
         }
 
-        // Encode picture targeting NvencOutputs[CurrentBufferIndex]
+        bool ForceIDR = this->ForceNextIDR.exchange(false, std::memory_order_relaxed);
+
         NV_ENC_PIC_PARAMS NvencPicParams = {};
         memset(&NvencPicParams, 0, sizeof(NV_ENC_PIC_PARAMS));
-
         NvencPicParams.version = NV_ENC_PIC_PARAMS_VER;
         NvencPicParams.inputBuffer = NVInputResource.mappedResource;
         NvencPicParams.bufferFmt = NVInputResource.mappedBufferFmt;
         NvencPicParams.outputBitstream = NvencOutputs[CurrentBufferIndex];
         NvencPicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-        NvencPicParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
+        NvencPicParams.encodePicFlags = ForceIDR ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
         NvencPicParams.completionEvent = nullptr;
 
         this->Status = this->NVFunctions.nvEncEncodePicture(this->NVEncoder, &NvencPicParams);
         this->NVFunctions.nvEncUnmapInputResource(this->NVEncoder, NVInputResource.mappedResource);
-
-        if (this->Status == NV_ENC_SUCCESS) {
-            NVBitstreamLocks[CurrentBufferIndex] = {};
-            NVBitstreamLocks[CurrentBufferIndex].version = NV_ENC_LOCK_BITSTREAM_VER;
-            NVBitstreamLocks[CurrentBufferIndex].outputBitstream = NvencOutputs[CurrentBufferIndex];
-            NVBitstreamLocks[CurrentBufferIndex].doNotWait = false;
-
-            this->Status = this->NVFunctions.nvEncLockBitstream(
-                this->NVEncoder, &NVBitstreamLocks[CurrentBufferIndex]
-            );
-            if (this->Status == NV_ENC_SUCCESS) {
-                BufferLockStates[CurrentBufferIndex] = true;
-                BufferUsageRegistry[CurrentBufferIndex].store(true, std::memory_order_release);
-            } else {
-                Logger::log(this->NVFunctions.nvEncGetLastErrorString(this->NVEncoder));
-                Logger::log(("\n RIP Output Lock " + std::to_string(this->Status)).c_str());
-                return false;
-            }
-        } else {
+        if (this->Status != NV_ENC_SUCCESS) {
             Logger::log(this->NVFunctions.nvEncGetLastErrorString(this->NVEncoder));
             Logger::log(("\n RIP Encoding " + std::to_string(this->Status)).c_str());
             return false;
         }
+
+        NVBitstreamLocks[CurrentBufferIndex] = {};
+        NVBitstreamLocks[CurrentBufferIndex].version = NV_ENC_LOCK_BITSTREAM_VER;
+        NVBitstreamLocks[CurrentBufferIndex].outputBitstream = NvencOutputs[CurrentBufferIndex];
+        NVBitstreamLocks[CurrentBufferIndex].doNotWait = 0;
+
+        this->Status = this->NVFunctions.nvEncLockBitstream(
+            this->NVEncoder, &NVBitstreamLocks[CurrentBufferIndex]
+        );
+        if (this->Status != NV_ENC_SUCCESS) {
+            Logger::log(this->NVFunctions.nvEncGetLastErrorString(this->NVEncoder));
+            Logger::log(("\n RIP Output Lock " + std::to_string(this->Status)).c_str());
+            return false;
+        }
+
+        BufferLockStates[CurrentBufferIndex] = true;
+        BufferUsageRegistry[CurrentBufferIndex].store(true, std::memory_order_release);
 
         this->NVBitstreamLock = NVBitstreamLocks[CurrentBufferIndex];
 

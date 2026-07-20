@@ -137,7 +137,20 @@ NvencSession::NvencSession(
     CreateBitStream();
 }
 
-NvencSession::~NvencSession() {}
+NvencSession::~NvencSession()
+{
+    if (NvencOutput) {
+        Status = NVFunctions.nvEncDestroyBitstreamBuffer(NVEncoder, NvencOutput);
+        NVCHECK(Status, "Nvenc Bit Stream Buffer Could Not Be Destroyed");
+        NvencOutput = nullptr;
+    }
+
+    if (NVEncoder) {
+        Status = NVFunctions.nvEncDestroyEncoder(NVEncoder);
+        NVCHECK(Status, "Nv Encoder Could Not Be Destroyed");
+        NVEncoder = nullptr;
+    }
+}
 
 void NvencSession::OpenNvEncSession(void* D3DDevice)
 {
@@ -180,12 +193,16 @@ void NvencSession::LoadDefaultInitParams(
     NVPresetConfig.presetCfg.gopLength = config.gopLength;
     NVPresetConfig.presetCfg.frameIntervalP = config.frameIntervalP;
 
-    NVPresetConfig.presetCfg.rcParams.rateControlMode = config.rcParams.rateControlMode;
+    NVPresetConfig.presetCfg.rcParams.averageBitRate = config.rcParams.averageBitRate;
+    NVPresetConfig.presetCfg.rcParams.maxBitRate = config.rcParams.maxBitRate;
 
-    // NVPresetConfig.presetCfg.rcParams.averageBitRate = 0;
-    NVPresetConfig.presetCfg.rcParams.maxBitRate = config.rcParams.averageBitRate;
-    // NVPresetConfig.presetCfg.rcParams.vbvBufferSize = 0;
-    // NVPresetConfig.presetCfg.rcParams.vbvInitialDelay = 0;
+    // I would prolly let the user decide on the multiplier later
+    if (config.rcParams.averageBitRate > 0) {
+        const uint32_t fps = (config.FrameRateNum > 0) ? config.FrameRateNum : 60;
+        const uint32_t onFrameBits = config.rcParams.averageBitRate / fps;
+        NVPresetConfig.presetCfg.rcParams.vbvBufferSize = onFrameBits * 4;
+        NVPresetConfig.presetCfg.rcParams.vbvInitialDelay = onFrameBits * 4;
+    }
 
     NVPresetConfig.presetCfg.rcParams.enableLookahead = config.rcParams.enableLookahead;
     NVPresetConfig.presetCfg.rcParams.lookaheadDepth = config.rcParams.enableLookahead;
@@ -200,6 +217,10 @@ void NvencSession::LoadDefaultInitParams(
     h264.idrPeriod = config.h264Config.idrPeriod;
     h264.repeatSPSPPS = config.h264Config.repeatSPSPPS;
     h264.disableDeblockingFilterIDC = config.h264Config.disableDeblockingFilterIDC;
+
+    h264.enableIntraRefresh = config.h264Config.enableIntraRefresh;
+    h264.intraRefreshPeriod = config.h264Config.intraRefreshPeriod;
+    h264.intraRefreshCnt = config.h264Config.intraRefreshCnt;
 
     h264.level = config.h264Config.level;
     h264.maxNumRefFrames = config.h264Config.maxNumRefFrames;
@@ -217,7 +238,7 @@ void NvencSession::LoadDefaultInitParams(
     NvInitParams.encodeHeight = config.Dimensions.Height;
     NvInitParams.darWidth = config.Dimensions.Width;
     NvInitParams.darHeight = config.Dimensions.Height;
-    NvInitParams.frameRateNum = config.FrameRateDen;
+    NvInitParams.frameRateNum = config.FrameRateNum;
     NvInitParams.frameRateDen = config.FrameRateDen;
     NvInitParams.enablePTD = config.EnablePTD;
     NvInitParams.enableEncodeAsync = 0;
@@ -281,7 +302,7 @@ void NvencSession::CreateBitStream()
     NvencOutput = NVOutputBufferDesc.bitstreamBuffer;
 }
 
-void NvencSession::Encode()
+bool NvencSession::Encode()
 {
 
     NV_ENC_MAP_INPUT_RESOURCE NVInputResource = {};
@@ -291,7 +312,10 @@ void NvencSession::Encode()
     if (Status != NV_ENC_SUCCESS) {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
         Logger::log(("RIP Input Resource Map \n" + std::to_string(Status)).c_str());
+        return false;
     }
+
+    bool ForceIDR = ForceNextIDR.exchange(false, std::memory_order_relaxed);
 
     NV_ENC_PIC_PARAMS NvencPicParams = {};
     memset(&NvencPicParams, 0, sizeof(NV_ENC_PIC_PARAMS));
@@ -301,28 +325,30 @@ void NvencSession::Encode()
     NvencPicParams.bufferFmt = NVInputResource.mappedBufferFmt;
     NvencPicParams.outputBitstream = NvencOutput;
     NvencPicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-    NvencPicParams.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
+    NvencPicParams.encodePicFlags = ForceIDR ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
     NvencPicParams.completionEvent = nullptr;
 
     Status = NVFunctions.nvEncEncodePicture((void*)NVEncoder, &NvencPicParams);
     NVFunctions.nvEncUnmapInputResource(NVEncoder, NVInputResource.mappedResource);
     if (Status == NV_ENC_SUCCESS) {
-
         NVBitstreamLock = {};
         NVBitstreamLock.version = NV_ENC_LOCK_BITSTREAM_VER;
         NVBitstreamLock.outputBitstream = NvencOutput;
-        NVBitstreamLock.doNotWait = false;
+        NVBitstreamLock.doNotWait = 0;
 
         Status = NVFunctions.nvEncLockBitstream(NVEncoder, &NVBitstreamLock);
         if (Status != NV_ENC_SUCCESS) {
             Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
             Logger::log(("\n RIP Output Lock " + std::to_string(Status)).c_str());
+            return false;
         }
 
     } else {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
         Logger::log(("\n RIP Encoding " + std::to_string(Status)).c_str());
+        return false;
     }
+    return true;
 }
 
 void NvencSession::NVUnlockBitStream()
