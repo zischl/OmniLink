@@ -159,6 +159,8 @@ NvdecSession::NvdecSession(UINT MaxWidth, UINT MaxHeight, ID3D11Texture2D* Outpu
                            std::to_string(SessionResult))
                               .c_str());
     }
+
+    cuCtxPopCurrent(nullptr);
 }
 
 NvdecSession::~NvdecSession()
@@ -181,9 +183,9 @@ CUresult NvdecSession::InitializeSession()
 
     CudaDecoderInfo.ChromaFormat = cudaVideoChromaFormat_420;
     CudaDecoderInfo.bitDepthMinus8 = 0;
-    CudaDecoderInfo.ulIntraDecodeOnly = 1;
-    CudaDecoderInfo.ulNumDecodeSurfaces = 8;
-    CudaDecoderInfo.ulNumOutputSurfaces = 2;
+    CudaDecoderInfo.ulIntraDecodeOnly = 0;
+    CudaDecoderInfo.ulNumDecodeSurfaces = 4;
+    CudaDecoderInfo.ulNumOutputSurfaces = 1;
     CudaDecoderInfo.OutputFormat = cudaVideoSurfaceFormat_NV12;
     CudaDecoderInfo.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
     CudaDecoderInfo.ulCreationFlags = cudaVideoCreate_Default;
@@ -200,7 +202,7 @@ CUresult NvdecSession::InitializeSession()
     }
 
     CudaParserParams.CodecType = cudaVideoCodec_H264;
-    CudaParserParams.ulMaxNumDecodeSurfaces = 8;
+    CudaParserParams.ulMaxNumDecodeSurfaces = 4;
     CudaParserParams.ulMaxDisplayDelay = 0;
     CudaParserParams.pUserData = this;
     CudaParserParams.pfnSequenceCallback = ParserSequenceCallback;
@@ -241,6 +243,7 @@ void NvdecSession::CloseSession()
         cuCtxPushCurrent(CudaContext);
         cuGraphicsUnregisterResource(CudaOutputResource);
         CudaOutputResource = nullptr;
+        cuCtxPopCurrent(nullptr);
     }
     if (CudaParser) {
         cuvidDestroyVideoParser(CudaParser);
@@ -257,8 +260,7 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* instanceData, CUVIDEOFORM
     NvdecSession* instance = static_cast<NvdecSession*>(instanceData);
 
     CUVIDRECONFIGUREDECODERINFO ReConfig = {};
-
-    /*ReConfig.ulWidth = CuDecoderInfo->coded_width;
+    ReConfig.ulWidth = CuDecoderInfo->coded_width;
     ReConfig.ulHeight = CuDecoderInfo->coded_height;
     ReConfig.ulTargetWidth = CuDecoderInfo->display_area.right - CuDecoderInfo->display_area.left;
     ReConfig.ulTargetHeight = CuDecoderInfo->display_area.bottom - CuDecoderInfo->display_area.top;
@@ -272,7 +274,7 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* instanceData, CUVIDEOFORM
     ReConfig.target_rect.top = CuDecoderInfo->display_area.top;
     ReConfig.target_rect.left = CuDecoderInfo->display_area.left;
     ReConfig.target_rect.bottom = CuDecoderInfo->display_area.bottom;
-    ReConfig.target_rect.right = CuDecoderInfo->display_area.right;*/
+    ReConfig.target_rect.right = CuDecoderInfo->display_area.right;
 
     if (instance->CudaDecoder == NULL) {
         OutputDebugString("CudaDecoder is NULL in ParserSequenceCallback!");
@@ -359,6 +361,8 @@ int CUDAAPI NvdecSession::PictureOutputCallback(void* instanceData, CUVIDPARSERD
     const uint8_t* NV12Buffer = reinterpret_cast<const uint8_t*>(dpSrcFrame);
     Cast2BGRA(NV12Buffer, instance->Width, instance->Height, OutputSurface, pitch);
 
+    cudaDestroySurfaceObject(OutputSurface);
+
     CUDA_ARRAY_DESCRIPTOR arrayDesc = {};
     cuArrayGetDescriptor_v2(&arrayDesc, MappedResArray);
 
@@ -368,6 +372,7 @@ int CUDAAPI NvdecSession::PictureOutputCallback(void* instanceData, CUVIDPARSERD
         OutputDebugString(("\nTexture Resource Unmapping Failed: " +
                            std::to_string(instance->SessionResult))
                               .c_str());
+        cuCtxPopCurrent(nullptr);
         return 0;
     }
 
@@ -377,5 +382,7 @@ int CUDAAPI NvdecSession::PictureOutputCallback(void* instanceData, CUVIDPARSERD
             ("\nDecoder Output Unmap Failed: " + std::to_string(instance->SessionResult)).c_str()
         );
     }
+
+    cuCtxPopCurrent(nullptr);
     return 1;
 }
