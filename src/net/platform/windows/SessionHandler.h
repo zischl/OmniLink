@@ -17,7 +17,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <thread>
 
 template <uint32_t MTU = OmniMTU> class OmniNetSession
@@ -119,6 +118,14 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
 
     ~OmniNetSession()
     {
+        SessionState = false;
+
+        if (SocketR != INVALID_SOCKET) {
+            CancelIoEx(reinterpret_cast<HANDLE>(SocketR), NULL);
+            closesocket(SocketR);
+            SocketR = INVALID_SOCKET;
+        }
+
         if (IOCPHandle) {
             PostQueuedCompletionStatus(IOCPHandle, 0, 0, nullptr);
         }
@@ -129,8 +136,8 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
 
         if (IOCPHandle) {
             CloseHandle(IOCPHandle);
+            IOCPHandle = NULL;
         }
-        closesocket(SocketR);
     }
 
     template <void (*PacketHandlerFn)(char*, uint32_t, uint8_t, void*)>
@@ -144,14 +151,23 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
                 ULONG_PTR EventKey = 0;
                 OVERLAPPED* OVStruct = nullptr;
 
-                if (!GetQueuedCompletionStatus(
-                        IOCPHandle, &BufferSize, &EventKey, &OVStruct, INFINITE
-                    )) [[unlikely]] {
-                    if (OVStruct == nullptr) {
-                        // Logger::log("Completion Status Get False\n", GetLastError());
-                        Logger::log("Maybe somthing wrong with the IOCP thread ?");
-                        break;
+                BOOL CompletionStatus = GetQueuedCompletionStatus(
+                    IOCPHandle, &BufferSize, &EventKey, &OVStruct, INFINITE
+                );
+
+                if (OVStruct == nullptr) [[unlikely]] {
+                    break;
+                }
+
+                if (!CompletionStatus) [[unlikely]] {
+                    OmniNet::IOContextTag* Tag = reinterpret_cast<OmniNet::IOContextTag*>(OVStruct);
+                    if (Tag->Type == OmniNet::OP_SEND) {
+                        OmniNet::SEND_BUF* SendBuf = reinterpret_cast<OmniNet::SEND_BUF*>(OVStruct);
+                        if (SendBuf->InflightCounter) {
+                            SendBuf->InflightCounter->fetch_sub(1, std::memory_order_release);
+                        }
                     }
+                    continue;
                 }
 
                 if (EventKey != 0) {
