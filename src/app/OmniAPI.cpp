@@ -1,5 +1,6 @@
 #include "OmniAPI.h"
 #include "OmniLink.h"
+#include "OmniPackets.h"
 
 void OmniAPI::Ignite(OmniLink& OmniLinkInstance)
 {
@@ -27,6 +28,28 @@ void OmniAPI::Connect(ConnectionRequest Request)
     App->PushCommandWArgs(args);
     App->NotifyCommandQueue();
 }
+
+void OmniAPI::AcceptHandshake(DeviceMap DeviceID, bool trustPermanently)
+{
+    FuncArgTypes args =
+        HandshakeResponse{DeviceID, HandshakeResponse::Action::ACCEPT, trustPermanently};
+    App->PushCommandWArgs(args);
+    App->NotifyCommandQueue();
+}
+
+void OmniAPI::RejectHandshake(DeviceMap DeviceID)
+{
+    FuncArgTypes args = HandshakeResponse{DeviceID, HandshakeResponse::Action::REJECT};
+    App->PushCommandWArgs(args);
+    App->NotifyCommandQueue();
+}
+
+void OmniAPI::CancelHandshake(DeviceMap DeviceID)
+{
+    FuncArgTypes args = HandshakeResponse{DeviceID, HandshakeResponse::Action::CANCEL};
+    App->PushCommandWArgs(args);
+    App->NotifyCommandQueue();
+};
 
 void OmniAPI::ExecuteNetCommand(CoreCommands Command)
 {

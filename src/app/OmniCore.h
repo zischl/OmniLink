@@ -1,19 +1,19 @@
 #ifndef OMNICORE_H
 #define OMNICORE_H
 
-#include "OmniDiscovery.h"
 #pragma once
 
 #include "BurstQ.h"
 #include "InstanceRegistry.h"
+#include "OmniDiscovery.h"
 #include "OmniEnums.h"
 #include "OmniLogger.h"
 #include "OmniPackets.h"
+#include "OmniQrypt.h"
 #include "OmniTypes.h"
 #include "RenderState.h"
 #include "SessionHandler.h"
 #include "SessionManager.h"
-#include "StreamWindow.h"
 #include "SystemLink.h"
 #include "UIEvents.h"
 #include "nvenc.h"
@@ -22,7 +22,6 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
-#include <random>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -37,6 +36,7 @@ class OmniCore
     OmniRenderState RenderState;
     OmniInstanceRegistry InstanceRegistry;
     OmniSessionManager SessionManager;
+    OmniQrypt QryptManager;
 
     NVENCODER* NVENC = nullptr;
 
@@ -94,6 +94,10 @@ class OmniCore
     void RequestHandshake(DeviceMap DeviceID);
 
     void HandshakeHandler(HandshakeData Data);
+
+    void AcceptConnection(DeviceMap DeviceID, bool trustPermanently);
+
+    void RejectConnection(DeviceMap DeviceID);
 
     void ConnectInstance(DeviceMap DeviceID);
 
@@ -208,6 +212,20 @@ class OmniCore
 
                 break;
             }
+            case 4: {
+                HandshakeResponse args = std::get<4>(CommandBurstQWArgs.Queue[Tail]);
+                if (args.State == HandshakeResponse::Action::ACCEPT) {
+                    AcceptConnection(args.DeviceID, args.Trusted);
+                } else {
+                    RejectConnection(args.DeviceID);
+                }
+
+                if (!CommandBurstQWArgs.pop()) {
+                    Logger::log("Command Execution Failure");
+                }
+
+                break;
+            }
             }
         }
     }
@@ -246,9 +264,12 @@ class OmniCore
 
         std::vector<uint8_t> payload = OmniNetCommand::Serialize(Command);
 
-        InstanceRegistry.ActiveInstances[TargetDevice].InstanceSession->SessionSend(
-            reinterpret_cast<char*>(payload.data()), payload.size(), header
-        );
+        if (InstanceRegistry.ActiveInstances.contains(TargetDevice)) {
+            InstanceRegistry.ActiveInstances.at(TargetDevice)
+                .InstanceSession->SessionSend(
+                    reinterpret_cast<char*>(payload.data()), payload.size(), header
+                );
+        }
     }
 
     void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);

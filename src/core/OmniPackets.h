@@ -6,6 +6,7 @@
 #include "OmniEnums.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <variant>
@@ -36,8 +37,6 @@ struct ArraySwapLayout
 struct ConnectionRequest
 {
     DeviceMap DeviceID;
-    char OmniReqKey[32];
-    bool Trusted;
 
     static ConnectionRequest Deserialize(ByteStreamReader& reader)
     {
@@ -47,14 +46,6 @@ struct ConnectionRequest
         reader.ReadU8Ex(DevId);
         obj.DeviceID = DeviceMap(DevId);
 
-        uint32_t KeyLen;
-        reader.ReadU32Ex(KeyLen);
-        reader.ReadString(obj.OmniReqKey, KeyLen, 32);
-
-        uint8_t trust = 0;
-        reader.ReadU8Ex(trust);
-        obj.Trusted = (bool)trust;
-
         return obj;
     }
 
@@ -62,10 +53,6 @@ struct ConnectionRequest
     {
         ByteVecStreamEx NetWriter{sizeof(ConnectionRequest)};
         NetWriter.WriteU8Ex(obj.DeviceID);
-        const uint32_t KeyLen = static_cast<uint32_t>(strnlen(obj.OmniReqKey, 32));
-        NetWriter.WriteU32Ex(KeyLen);
-        NetWriter.SafeWriteString(std::string_view(obj.OmniReqKey, KeyLen), 32);
-        NetWriter.WriteU8Ex(obj.Trusted);
         return NetWriter.Data;
     }
 };
@@ -184,8 +171,46 @@ struct HandshakeData
     }
 };
 
-using FuncArgTypes =
-    std::variant<ArraySwapLayout, ConnectionRequest, WindowCreationData, HandshakeData>;
+struct HandshakeResponse
+{
+    enum Action : uint8_t { ACCEPT, REJECT, CANCEL };
+
+    DeviceMap DeviceID = DeviceMap::END;
+    Action State = Action::CANCEL;
+    bool Trusted = false;
+
+    static HandshakeResponse Deserialize(ByteStreamReader& reader)
+    {
+
+        uint8_t TempID;
+        uint8_t TempState;
+        uint8_t TempTrustState;
+        reader.ReadU8Ex(TempID);
+        reader.ReadU8Ex(TempState);
+        reader.ReadU8Ex(TempTrustState);
+
+        HandshakeResponse obj{(DeviceMap)TempID, (Action)TempState, (bool)TempTrustState};
+
+        return obj;
+    }
+
+    static std::vector<uint8_t> Serialize(const HandshakeResponse& obj)
+    {
+        ByteVecStreamEx NetWriter{sizeof(HandshakeResponse)};
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.DeviceID));
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.State));
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Trusted));
+
+        return NetWriter.Data;
+    }
+};
+
+using FuncArgTypes = std::variant<
+    ArraySwapLayout,
+    ConnectionRequest,
+    WindowCreationData,
+    HandshakeData,
+    HandshakeResponse>;
 
 using DataTypes = std::variant<int>;
 

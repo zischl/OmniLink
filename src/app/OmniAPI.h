@@ -8,39 +8,46 @@
 
 class OmniLink;
 
-class OmniAPI {
-public:
-  static void Ignite(OmniLink &OmniLinkInstance);
+class OmniAPI
+{
+  public:
+    static void Ignite(OmniLink& OmniLinkInstance);
 
-  static void SwapDeviceLayout(uint8_t index1, uint8_t index2);
+    static void SwapDeviceLayout(uint8_t index1, uint8_t index2);
 
-  static void Scan();
+    static void Scan();
 
-  static void Connect(ConnectionRequest Rquest);
+    static void Connect(ConnectionRequest Rquest);
 
-  static void ExecuteNetCommand(CoreCommands Command);
+    static void AcceptHandshake(DeviceMap DeviceID, bool TrustPermanently = false);
 
-  static void ExecuteNetCommandWArgs(OmniCommand Command);
+    static void RejectHandshake(DeviceMap DeviceID);
 
-  static void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
+    static void CancelHandshake(DeviceMap DeviceID);
 
-  static void Get(DataTypes);
+    static void ExecuteNetCommand(CoreCommands Command);
 
-  inline static void perf_test_start() {
-    t1 = std::chrono::high_resolution_clock::now();
-  }
+    static void ExecuteNetCommandWArgs(OmniCommand Command);
 
-  inline static void perf_test_end() {
-    std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(
-                     std::chrono::high_resolution_clock::now() - t1)
-                     .count()
-              << "Time Taken : : : : :\n";
-  }
+    static void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
 
-private:
-  static inline OmniLink *App = nullptr;
+    static void Get(DataTypes);
 
-  static inline std::chrono::time_point<std::chrono::high_resolution_clock> t1;
+    inline static void perf_test_start() { t1 = std::chrono::high_resolution_clock::now(); }
+
+    inline static void perf_test_end()
+    {
+        std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(
+                         std::chrono::high_resolution_clock::now() - t1
+                     )
+                         .count()
+                  << "Time Taken : : : : :\n";
+    }
+
+  private:
+    static inline OmniLink* App = nullptr;
+
+    static inline std::chrono::time_point<std::chrono::high_resolution_clock> t1;
 };
 
 #endif

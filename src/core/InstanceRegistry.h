@@ -264,7 +264,8 @@ struct OmniInstanceRegistry
 
     inline bool GetSessionState(DeviceMap DeviceID)
     {
-        return ActiveInstances[DeviceID].InstanceSession != nullptr;
+        return ActiveInstances.contains(DeviceID) &&
+               ActiveInstances.at(DeviceID).InstanceSession != nullptr;
     }
 
     inline void SetHandshakeToken(DeviceMap DeviceID, uint32_t Token)
