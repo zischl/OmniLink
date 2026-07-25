@@ -29,6 +29,8 @@ class OmniAPI
 
     static void ExecuteNetCommandWArgs(OmniCommand Command);
 
+    static bool VerifyCommandToken(DeviceMap DeviceID, const OmniNetCommand& Command);
+
     static void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
 
     static void Get(DataTypes);

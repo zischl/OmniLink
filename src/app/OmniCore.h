@@ -260,6 +260,14 @@ class OmniCore
         DeviceMap TargetDevice, OmniNetCommand& Command, uint8_t Target = 0, uint8_t Flags = 0
     )
     {
+        if (Command.CommandType >= CoreCommandsWArgs::AuthlessGate && Command.ActionToken == 0) {
+            Command.ActionToken = QryptManager.CreateActionToken(
+                TargetDevice,
+                static_cast<uint8_t>(Command.CommandType),
+                static_cast<uint64_t>(Command.ArgTypeIndex)
+            );
+        }
+
         OmniNet::OmniHeader header;
         header.PacketType = OmniNet::PacketType::Command;
         header.Target = Target;
@@ -276,6 +284,39 @@ class OmniCore
     }
 
     void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
+
+    inline bool VerifyCommandToken(DeviceMap DeviceID, const OmniNetCommand& Command) const
+    {
+        if (Command.CommandType < CoreCommandsWArgs::AuthlessGate) {
+            return true;
+        }
+
+        return QryptManager.VerifyActionToken(
+            DeviceID,
+            static_cast<uint8_t>(Command.CommandType),
+            static_cast<uint64_t>(Command.ArgTypeIndex),
+            Command.ActionToken
+        );
+    }
+
+    inline bool VerifyCommandToken(const OmniNetCommand& Command) const
+    {
+        if (Command.CommandType < CoreCommandsWArgs::AuthlessGate) {
+            return true;
+        }
+
+        for (const auto& [DeviceID, Instance] : InstanceRegistry.ActiveInstances) {
+            if (QryptManager.VerifyActionToken(
+                    DeviceID,
+                    static_cast<uint8_t>(Command.CommandType),
+                    static_cast<uint64_t>(Command.ArgTypeIndex),
+                    Command.ActionToken
+                )) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 #endif

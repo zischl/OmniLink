@@ -219,15 +219,20 @@ struct OmniNetCommand
     CoreCommandsWArgs CommandType;
     uint32_t ArgTypeIndex = 0;
     uint32_t ArgArrayLength = 0;
+    uint64_t ActionToken = 0;
     std::vector<uint8_t> Args;
 
     OmniNetCommand() = default;
 
     OmniNetCommand(
-        CoreCommandsWArgs InCommandType, uint32_t InArgTypeIndex, std::vector<uint8_t> InArgs
+        CoreCommandsWArgs InCommandType,
+        uint32_t InArgTypeIndex,
+        std::vector<uint8_t> InArgs,
+        uint64_t InActionToken = 0
     )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex),
-          ArgArrayLength(static_cast<uint32_t>(InArgs.size())), Args(std::move(InArgs))
+          ArgArrayLength(static_cast<uint32_t>(InArgs.size())), ActionToken(InActionToken),
+          Args(std::move(InArgs))
     {
     }
 
@@ -235,10 +240,11 @@ struct OmniNetCommand
         CoreCommandsWArgs InCommandType,
         uint32_t InArgTypeIndex,
         uint32_t InLength,
-        const uint8_t* InArgs
+        const uint8_t* InArgs,
+        uint64_t InActionToken = 0
     )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex), ArgArrayLength(InLength),
-          Args(InArgs, InArgs + InLength)
+          ActionToken(InActionToken), Args(InArgs, InArgs + InLength)
     {
     }
 
@@ -246,11 +252,12 @@ struct OmniNetCommand
     {
         const uint32_t payloadLen = static_cast<uint32_t>(obj.Args.size());
 
-        ByteVecStreamEx writer{static_cast<uint32_t>(1 + 4 + 4 + payloadLen)};
+        ByteVecStreamEx writer{static_cast<uint32_t>(1 + 4 + 4 + 8 + payloadLen)};
 
         writer.WriteU8Ex(static_cast<uint8_t>(obj.CommandType));
         writer.WriteU32Ex(obj.ArgTypeIndex);
         writer.WriteU32Ex(payloadLen);
+        writer.WriteU64Ex(obj.ActionToken);
         writer.WriteBytes(obj.Args.data(), payloadLen);
 
         return writer.Data;
@@ -259,7 +266,7 @@ struct OmniNetCommand
     static void Serialize(const OmniNetCommand& obj, std::vector<uint8_t>& out)
     {
         const uint32_t payloadLen = static_cast<uint32_t>(obj.Args.size());
-        const uint32_t totalSize = 1 + 4 + 4 + payloadLen;
+        const uint32_t totalSize = 1 + 4 + 4 + 8 + payloadLen;
 
         out.clear();
         out.reserve(totalSize);
@@ -268,6 +275,7 @@ struct OmniNetCommand
         writer.WriteU8Ex(static_cast<uint8_t>(obj.CommandType));
         writer.WriteU32Ex(obj.ArgTypeIndex);
         writer.WriteU32Ex(payloadLen);
+        writer.WriteU64Ex(obj.ActionToken);
         writer.WriteString(
             std::string_view(reinterpret_cast<const char*>(obj.Args.data()), payloadLen)
         );
@@ -283,6 +291,7 @@ struct OmniNetCommand
 
         Reader.ReadU32Ex(Cmd.ArgTypeIndex);
         Reader.ReadU32Ex(Cmd.ArgArrayLength);
+        Reader.ReadU64Ex(Cmd.ActionToken);
 
         Cmd.Args.resize(Cmd.ArgArrayLength);
 
@@ -296,17 +305,25 @@ struct OmniCommand
 {
     CoreCommandsWArgs CommandType = CoreCommandsWArgs::SwapLayout;
     uint32_t ArgTypeIndex = 0;
+    uint64_t ActionToken = 0;
     FuncArgTypes Args = ArraySwapLayout{0, 0};
 
     OmniCommand() = default;
 
-    OmniCommand(CoreCommandsWArgs InCommandType, uint32_t InArgTypeIndex, FuncArgTypes InArgs)
-        : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex), Args(std::move(InArgs))
+    OmniCommand(
+        CoreCommandsWArgs InCommandType,
+        uint32_t InArgTypeIndex,
+        FuncArgTypes InArgs,
+        uint64_t InActionToken = 0
+    )
+        : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex), ActionToken(InActionToken),
+          Args(std::move(InArgs))
     {
     }
 
     explicit OmniCommand(const OmniNetCommand& NetCmd)
-        : CommandType(NetCmd.CommandType), ArgTypeIndex(NetCmd.ArgTypeIndex)
+        : CommandType(NetCmd.CommandType), ArgTypeIndex(NetCmd.ArgTypeIndex),
+          ActionToken(NetCmd.ActionToken)
     {
     }
 };

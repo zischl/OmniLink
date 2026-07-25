@@ -20,6 +20,12 @@ struct OmniHeader
     uint8_t Flags;
 };
 
+struct SessionPacketContext
+{
+    void* UserContext = nullptr;
+    uint8_t UniqueKey = 0;
+};
+
 // Minimal reinterpret tag cast for packet type identification
 struct IOContextTag
 {

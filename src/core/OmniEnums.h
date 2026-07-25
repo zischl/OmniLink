@@ -33,6 +33,14 @@ enum DeviceMap : uint8_t { C0, L1, U1, R1, D1, LU1, RU1, RD1, LD1, END };
 
 enum CoreCommands { OmniStatus, ScanInstances };
 
-enum CoreCommandsWArgs : uint8_t { SwapLayout, ConnectDevice, CreateStreamLink, InitiateHandshake };
+enum CoreCommandsWArgs : uint8_t {
+    InitiateHandshake,
+    ConnectDevice,
+
+    AuthlessGate,
+
+    SwapLayout = AuthlessGate,
+    CreateStreamLink
+};
 
 #endif // OMNIENUMS_H

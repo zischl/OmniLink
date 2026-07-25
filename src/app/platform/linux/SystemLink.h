@@ -1,7 +1,6 @@
 #ifndef SYSTEMLINK_H
 #define SYSTEMLINK_H
 
-#include <cstdint>
 #pragma once
 
 #include "CaptureController.h"
@@ -11,9 +10,10 @@
 #include "RenderState.h"
 #include "StreamWindow.h"
 
+#include <cstdint>
 #include <vector>
 
-class session;
+template <uint32_t MTU> class OmniNetSession;
 
 using NetworkPacketHandlerFn = void(char*, uint32_t, uint8_t, void*);
 
@@ -21,21 +21,32 @@ NetworkPacketHandlerFn NetworkPacketHandler;
 
 struct OmniSystemLink
 {
-    RenderState& render;
-    CaptureController& capture;
-    IOLink& input;
+    OmniStreamController StreamController;
+    OmniIOCap IOCapture;
+    OmniIOShield IOShield;
+
+    void* StreamingDevice = nullptr;
+    void* StreamingContext = nullptr;
+
+    OmniRenderState& RenderState;
     std::vector<StreamWindow*> ActiveWindows;
 
-    OmniSystemLink(RenderState& renderState, CaptureController& captureCtrl, IOLink& inputLink);
+    HINSTANCE hInstance = nullptr;
+    int nCmdShow = 0;
+    HWND WindowID = nullptr;
 
-    StreamWindow* CreateStreamWindow(const WindowCreationData& info);
+    OmniSystemLink(OmniRenderState& RenderState);
 
-    void ToggleEdgeProbe();
+    void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
+
+    StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
+
+    void ToggleEdgeProbe(ActiveInstanceContainer& ActiveInstances);
 
     void SyncInputFilter();
 
-    CaptureController::StreamID
-    AddCaptureStream(session* netSession, DeviceMap targetID, CaptureMode mode);
+    OmniStreamController::StreamID
+    AddCaptureStream(OmniNetSession<OmniMTU>* netSession, DeviceMap targetID, CaptureMode mode);
 };
 
 #endif

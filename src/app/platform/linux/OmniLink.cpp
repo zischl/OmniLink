@@ -6,16 +6,16 @@
 
 static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)
 {
-    OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
-    StreamWindow* target = Windows->at(header->Target);
-    target->SetBufferData(Buffer, BufferSize);
-    target->SetRenderEvent();
+    OmniNet::OmniHeader* Header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
+    StreamWindow* Target = Windows->at(Header->Target);
+    Target->SetBufferData(Buffer, BufferSize);
+    Target->SetRenderEvent();
 }
 
-static void HandleCommand(CHAR* Buffer, DWORD BufferSize)
+static void HandleCommand(CHAR* Buffer, DWORD BufferSize, DeviceMap DeviceID)
 {
-    OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
-    if (header->Flags == OmniNet::VoidArg) {
+    OmniNet::OmniHeader* Header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
+    if (Header->Flags == OmniNet::VoidArg) {
         OmniAPI::ExecuteNetCommand(*reinterpret_cast<CoreCommands*>(Buffer));
     } else {
 
@@ -24,6 +24,10 @@ static void HandleCommand(CHAR* Buffer, DWORD BufferSize)
         };
 
         OmniNetCommand Payload = OmniNetCommand::Deserialize(Reader);
+
+        if (!OmniAPI::VerifyCommandToken(DeviceID, Payload)) {
+            return;
+        }
 
         OmniCommand command{Payload};
 
@@ -47,12 +51,17 @@ static void HandleInput(CHAR* Buffer)
 
 void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)
 {
-    std::vector<StreamWindow*>* WinContext = reinterpret_cast<std::vector<StreamWindow*>*>(Context);
+    OmniNet::SessionPacketContext* SessionCtx =
+        reinterpret_cast<OmniNet::SessionPacketContext*>(Context);
+    std::vector<StreamWindow*>* WindowContext =
+        reinterpret_cast<std::vector<StreamWindow*>*>(SessionCtx->UserContext);
+    DeviceMap DeviceID = static_cast<DeviceMap>(SessionCtx->UniqueKey);
 
     switch (BufferHeader) {
     case OmniNet::PacketType::ChunkEnd:
         break;
     case OmniNet::Command: {
+        HandleCommand(Buffer, BufferSize, DeviceID);
         break;
     }
     case OmniNet::PacketType::ProcMouse:

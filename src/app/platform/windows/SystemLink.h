@@ -1,7 +1,6 @@
 #ifndef SYSTEMLINK_H
 #define SYSTEMLINK_H
 
-#include <cstdint>
 #pragma once
 
 #include "CaptureController.h"
@@ -11,8 +10,10 @@
 #include "RenderState.h"
 #include "StreamWindow.h"
 
-#include <Windows.h>
+#include <cstdint>
 #include <vector>
+
+#include <Windows.h>
 #include <wrl/client.h>
 
 using Microsoft::WRL::ComPtr;

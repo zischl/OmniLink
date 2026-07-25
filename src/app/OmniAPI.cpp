@@ -63,6 +63,11 @@ void OmniAPI::ExecuteNetCommandWArgs(OmniCommand Command)
     App->NotifyCommandQueue();
 }
 
+bool OmniAPI::VerifyCommandToken(DeviceMap DeviceID, const OmniNetCommand& Command)
+{
+    return App ? App->VerifyCommandToken(DeviceID, Command) : false;
+}
+
 void OmniAPI::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
 {
     App->ToggleFeature(FeatureIndex, Index);

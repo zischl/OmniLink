@@ -31,8 +31,9 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
     HANDLE IOCPHandle = NULL;
     std::thread WorkerThread;
 
-    // Session Identity, will be passed down to given packet handler, later tho.
+    // Session Identity & Context passed down to packet handler
     uint8_t UniqueKey = 0;
+    OmniNet::SessionPacketContext SessionCtx;
 
     // Usual send queue and header pools
     static constexpr uint32_t POOL_SIZE = 2048;
@@ -92,8 +93,8 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
 
   public:
     OmniNetSession(PCSTR Local_IP, PCSTR IP, unsigned short port, void* Context, uint8_t SUniqueKey)
+        : UniqueKey(SUniqueKey), SessionCtx{Context, SUniqueKey}
     {
-        UniqueKey = SUniqueKey;
         strncpy_s(LocalIPString, Local_IP, sizeof(LocalIPString) - 1);
 
         PreSetBufferMTU();
@@ -144,7 +145,7 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
     void SessionStart(void* Context)
     {
         WorkerThread = std::thread([this, Context]() {
-            void* Ctx = Context;
+            SessionCtx.UserContext = Context;
 
             while (true) {
                 DWORD BufferSize = 0;
@@ -202,13 +203,15 @@ template <uint32_t MTU = OmniMTU> class OmniNetSession
                                 &RecvPool.BufferPool[0],
                                 RecvPool.CurrentChunkUsage,
                                 BufferHeader,
-                                Ctx
+                                &SessionCtx
                             );
                         }
                         RecvPool.ResetChunk();
                         break;
                     default:
-                        PacketHandlerFn(Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, Ctx);
+                        PacketHandlerFn(
+                            Buffer->TransmitBuffer.buf, BufferSize, BufferHeader, &SessionCtx
+                        );
                         break;
                     }
 
