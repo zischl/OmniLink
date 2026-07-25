@@ -109,6 +109,8 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
                     HandshakeRetries.erase(DeviceID);
                 }
 
+                CancelNotification(DeviceID);
+
                 PushNotification(
                     Notification{
                         Alert{
@@ -131,6 +133,8 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
             }
 
             QryptManager.ClearSession(DeviceID);
+
+            CancelNotification(DeviceID);
 
             PushNotification(
                 Notification{
@@ -306,6 +310,7 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
                 InstanceRegistry.AllInstances[DeviceID].InstanceName
             );
             PushNotification(
+                DeviceID,
                 Notification{Event, "HandshakeEvent", Notification::EventLayout::CENTER, 30.0f}
             );
         }
@@ -320,6 +325,7 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
             InstanceRegistry.AllInstances[DeviceID].InstanceName
         );
         PushNotification(
+            DeviceID,
             Notification{Event, "HandshakeEvent", Notification::EventLayout::CENTER, 30.0f}
         );
     }
