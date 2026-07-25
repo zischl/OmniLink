@@ -3,7 +3,6 @@
 #include "OmniDiscovery.h"
 #include "OmniEnums.h"
 #include "OmniPackets.h"
-#include "SessionManager.h"
 #include "WinForge.h"
 #include <OmniLink.h>
 #include <memory>
@@ -12,7 +11,8 @@ static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD
 {
     OmniNet::OmniHeader* header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
     StreamWindow* target = Windows->at(header->Target);
-    target->SetBufferData(Buffer, BufferSize);
+
+    target->SetBufferData(Buffer, BufferSize - OmniHeaderSize);
     target->SetRenderEvent();
 }
 
@@ -111,7 +111,7 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 
     Logger::log("Renderer Initialization Complete");
 
-    GUI = new OmniGUI(*this);
+    GUI = std::make_unique<OmniGUI>(*this);
     GUI->SetupImGui(hwnd, RenderState.Device, RenderState.Context);
 
     Logger::log("GUI Initialization Complete");
@@ -214,6 +214,29 @@ void OmniLink::PushNotification(const Notification& notification)
 {
     if (GUI)
         GUI->PushNotification(notification);
+}
+
+void OmniLink::PushNotification(DeviceMap DeviceID, const Notification& notification)
+{
+    if (notification.Cancelled) {
+        std::lock_guard<std::mutex> lock(EventTokensMutex);
+        ActiveEventTokens[DeviceID] = notification.Cancelled;
+    }
+
+    if (GUI)
+        GUI->PushNotification(notification);
+}
+
+void OmniLink::CancelNotification(DeviceMap DeviceID)
+{
+    std::lock_guard<std::mutex> lock(EventTokensMutex);
+    auto iter = ActiveEventTokens.find(DeviceID);
+    if (iter != ActiveEventTokens.end()) {
+        if (iter->second) {
+            iter->second->store(true, std::memory_order_relaxed);
+        }
+        ActiveEventTokens.erase(iter);
+    }
 }
 
 void OmniLink::DragWindow()

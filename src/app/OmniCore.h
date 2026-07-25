@@ -61,7 +61,7 @@ class OmniCore
 
     void HandleHandshakeRetries();
 
-    void FailHandshake(DeviceMap DeviceID, const char* reason);
+    void FailHandshake(DeviceMap DeviceID, const char* Reason);
 
   public:
     static DeviceMap SelectedTargetDevice;
@@ -69,6 +69,9 @@ class OmniCore
     OmniCore();
 
     virtual void PushNotification(const Notification& notification) {}
+    virtual void PushNotification(DeviceMap DeviceID, const Notification& notification) {}
+    virtual void CancelNotification(DeviceMap DeviceID) {}
+
     virtual void DragWindow() {}
     virtual void MinimizeWindow() {}
     virtual void HideWindow() {}

@@ -4,7 +4,9 @@
 #pragma once
 #include "OmniEnums.h"
 
+#include <atomic>
 #include <format>
+#include <memory>
 #include <string_view>
 #include <variant>
 
@@ -44,6 +46,7 @@ struct Notification
     enum EventLayout { CENTER, BOTTOM_RIGHT } Layout = EventLayout::CENTER;
     float Timeout = 15.0f;
     bool Active = true;
+    std::shared_ptr<std::atomic<bool>> Cancelled = std::make_shared<std::atomic<bool>>(false);
 };
 
 #endif // !UI_EVENTS_H

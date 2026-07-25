@@ -27,16 +27,20 @@
 #include <directxmath.h>
 #include <dxgi1_5.h>
 
-#pragma comment(lib, "dwmapi.lib")
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "dxgi.lib")
-#pragma comment(lib, "d3dcompiler.lib")
-#pragma comment(lib, "dcomp.lib")
 #include <comdef.h>
 #include <wincodec.h>
 
 #include <nvEncodeAPI.h>
 #pragma comment(lib, "nvencodeapi.lib")
+
+#pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "dcomp.lib")
+
+#include <mutex>
+#include <unordered_map>
 
 #define WM_TRAYICON (WM_USER + 1)
 
@@ -47,7 +51,7 @@ class OmniLink : public OmniCore
     int nCmdShow;
 
     HWND hwnd = 0;
-    OmniGUI* GUI = nullptr;
+    std::unique_ptr<OmniGUI> GUI = nullptr;
 
     NOTIFYICONDATAW TrayIconData = {};
 
@@ -58,6 +62,9 @@ class OmniLink : public OmniCore
         std::chrono::steady_clock::now();
 
     MSG msg = {};
+
+    std::mutex EventTokensMutex;
+    std::unordered_map<DeviceMap, std::shared_ptr<std::atomic<bool>>> ActiveEventTokens;
 
     void OmniMainLoop();
 
@@ -71,6 +78,8 @@ class OmniLink : public OmniCore
     void OmniMain(HINSTANCE hInstance, int nCmdShow);
 
     void PushNotification(const Notification& notification) override;
+    void PushNotification(DeviceMap DeviceID, const Notification& notification) override;
+    void CancelNotification(DeviceMap DeviceID) override;
     void DragWindow() override;
     void MinimizeWindow() override;
     void HideWindow() override;
