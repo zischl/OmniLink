@@ -1,16 +1,19 @@
 #ifndef UI_EVENTS_H
 #define UI_EVENTS_H
 
-#include <string_view>
 #pragma once
-#include "OmniPackets.h"
+#include "OmniEnums.h"
 
+#include <format>
+#include <string_view>
 #include <variant>
 
 struct Alert
 {
     char Title[32] = {};
     char Desc[64] = {};
+
+    Alert() = default;
 
     Alert(std::string_view title, std::string_view descPrefix, std::string_view descValue)
     {
@@ -20,7 +23,19 @@ struct Alert
     }
 };
 
-using EventData = std::variant<ConnectionRequest, Alert>;
+struct HandshakeWaitEvent
+{
+    DeviceMap DeviceID = DeviceMap::END;
+    char VerificationCode[7]{'0', '0', '0', '0', '0', '0', '\0'};
+    char InstanceName[32]{};
+};
+
+struct HandshakeConfirmEvent : public HandshakeWaitEvent
+{
+    bool Trusted = false;
+};
+
+using EventData = std::variant<Alert, HandshakeWaitEvent, HandshakeConfirmEvent>;
 
 struct Notification
 {

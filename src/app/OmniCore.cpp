@@ -11,7 +11,10 @@
 DeviceMap OmniCore::ActiveIOProcTarget = DeviceMap::C0;
 DeviceMap OmniCore::SelectedTargetDevice = DeviceMap::C0;
 
-OmniCore::OmniCore() = default;
+OmniCore::OmniCore()
+{
+    QryptManager.LoadPairingTokensFromFile();
+}
 
 // Callback for the OmniDiscovery class, Ochestrates LinkRequests and LinkResponses
 // On the event of simultaneous LinkRequests, the one with the lower IP wins as the initiator
@@ -119,6 +122,28 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
                     }
                 );
             }
+        } else if (Event.LinkState == NetLinkState::FAILED) {
+            InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::FAILED);
+            InstanceRegistry.ResetInstance(DeviceID);
+
+            if (HandshakeRetries.count(DeviceID)) {
+                HandshakeRetries.erase(DeviceID);
+            }
+
+            QryptManager.ClearSession(DeviceID);
+
+            PushNotification(
+                Notification{
+                    Alert{
+                        "Connection Rejected",
+                        "Instance : ",
+                        InstanceRegistry.AllInstances[DeviceID].InstanceName
+                    },
+                    "ConnectFail",
+                    Notification::EventLayout::BOTTOM_RIGHT,
+                    3
+                }
+            );
         }
         break;
     }
@@ -148,30 +173,24 @@ uint32_t OmniCore::GenerateHandshakeToken()
     return Distribution(Generator);
 }
 
+// Literally ordering the reciever side's command queue to call HandshakeHandler
 void OmniCore::RequestHandshake(DeviceMap DeviceID)
 {
-    PushNotification(
-        Notification{
-            Alert{
-                "Handshake Request Initiated",
-                "Instance : ",
-                InstanceRegistry.AllInstances[DeviceID].InstanceName
-            },
-            "HandshakeNotif",
-            Notification::EventLayout::BOTTOM_RIGHT,
-            2
-        }
-    );
 
     uint32_t HandshakeToken = InstanceRegistry.GetHandshakeToken(DeviceID);
+    std::vector<uint8_t> LocalPublicKey = QryptManager.GenerateKeyPair(DeviceID);
 
-    const HandshakeData Data{
+    HandshakeData Data{
         InstanceRegistry.UserInstance.InstanceIP,
         DeviceID,
         HandshakeToken,
-        {}, // I'll add ECDH later
+        {},
         HandshakeData::MonitorRes{1920, 1080}
     };
+
+    if (LocalPublicKey.size() == 32) {
+        std::copy_n(LocalPublicKey.data(), 32, Data.Key);
+    }
 
     OmniNetCommand Command{
         CoreCommandsWArgs::InitiateHandshake,
@@ -180,8 +199,20 @@ void OmniCore::RequestHandshake(DeviceMap DeviceID)
     };
 
     TransmitNetCommand(DeviceID, Command, 0, OmniNet::Argonized);
+
+    HandshakeRetries[DeviceID] = HandshakeRetryContext{
+        DeviceID,
+        HandshakeToken,
+        1,
+        std::chrono::steady_clock::now() + std::chrono::seconds(5),
+        true
+    };
 }
 
+// Generating key pairs, deriving shared secret, handling auth
+// If receiver lookup auth tokens in either memory or storage otherwise ask for approval
+// Both sides will display the passkey for approval if required
+// HandshakeRetries will not be recalling a failed auth.
 void OmniCore::HandshakeHandler(HandshakeData Data)
 {
     if (!InstanceRegistry.InstanceLookup.contains(Data.IP)) {
@@ -193,8 +224,7 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
 
     if (Data.Token != InstanceRegistry.GetHandshakeToken(DeviceID)) {
         Logger::log(
-            "Token mismatch in HandshakeData for device {} (got {:x}, expected {:x}), "
-            "discarding",
+            "Token mismatch in HandshakeData for device {} (got {:x}, expected {:x}), discarding",
             InstanceRegistry.AllInstances[DeviceID].InstanceName,
             Data.Token,
             InstanceRegistry.GetHandshakeToken(DeviceID)
@@ -212,27 +242,123 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
         return;
     }
 
-    // Again... will add ECDH later
+    bool PriorSessionAuth = QryptManager.SessionAuthState(DeviceID);
 
+    // ECDH plus Passkey..
+    std::vector<uint8_t> LocalPubKey = QryptManager.GenerateKeyPair(DeviceID);
+    QryptManager.DeriveSecret(DeviceID, Data.Key, 32);
+    int32_t PassKey = QryptManager.GeneratePasskey(DeviceID);
+
+    Logger::log(
+        "Derived ECDH Shared Secret for device {}, PassKey: {:06d}",
+        InstanceRegistry.AllInstances[DeviceID].InstanceName,
+        PassKey
+    );
+
+    bool ResponseRequired = (CurrentLinkState == NetLinkState::LINKING_WAIT);
+    if (ResponseRequired) {
+        HandshakeData HandshakeResponse{
+            InstanceRegistry.UserInstance.InstanceIP,
+            DeviceID,
+            Data.Token,
+            {},
+            HandshakeData::MonitorRes{1920, 1080}
+        };
+        if (LocalPubKey.size() == 32) {
+            std::copy_n(LocalPubKey.data(), 32, HandshakeResponse.Key);
+        }
+
+        OmniNetCommand Command{
+            CoreCommandsWArgs::InitiateHandshake,
+            Variance::GetVariantTypeIndex<HandshakeData, FuncArgTypes>,
+            HandshakeData::Serialize(HandshakeResponse)
+        };
+        TransmitNetCommand(DeviceID, Command, 0, OmniNet::Argonized);
+    }
+
+    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING_AUTH);
+
+    // If this is the receiver...
+    if (ResponseRequired) {
+        // Yes.. finally.. AUTH
+        if (PriorSessionAuth) {
+            Logger::log(
+                "Device {} active in-memory session found, auto-approving non-permanent "
+                "reconnection",
+                InstanceRegistry.AllInstances[DeviceID].InstanceName
+            );
+            AcceptConnection(DeviceID, false);
+            return;
+        } else if (QryptManager.PairingTokenState(DeviceID)) {
+            Logger::log(
+                "Device {} is trusted permanently on disk, auto-approving reconnection",
+                InstanceRegistry.AllInstances[DeviceID].InstanceName
+            );
+            AcceptConnection(DeviceID, true);
+            return;
+        } else {
+            HandshakeConfirmEvent Event{DeviceID};
+            snprintf(Event.VerificationCode, sizeof(Event.VerificationCode), "%06d", PassKey);
+            snprintf(
+                Event.InstanceName,
+                sizeof(Event.InstanceName),
+                "%s",
+                InstanceRegistry.AllInstances[DeviceID].InstanceName
+            );
+            PushNotification(
+                Notification{Event, "HandshakeEvent", Notification::EventLayout::CENTER, 30.0f}
+            );
+        }
+
+    } else {
+        HandshakeWaitEvent Event{.DeviceID = DeviceID};
+        snprintf(Event.VerificationCode, sizeof(Event.VerificationCode), "%06d", PassKey);
+        snprintf(
+            Event.InstanceName,
+            sizeof(Event.InstanceName),
+            "%s",
+            InstanceRegistry.AllInstances[DeviceID].InstanceName
+        );
+        PushNotification(
+            Notification{Event, "HandshakeEvent", Notification::EventLayout::CENTER, 30.0f}
+        );
+    }
+
+    // Set 30 second user interaction timeout deadline
+    if (HandshakeRetries.count(DeviceID)) {
+        HandshakeRetries[DeviceID].NextRetry =
+            std::chrono::steady_clock::now() + std::chrono::seconds(30);
+        HandshakeRetries[DeviceID].RetriesLeft = 1;
+    }
+}
+
+void OmniCore::AcceptConnection(DeviceMap DeviceID, bool TrustPermanently)
+{
+    QryptManager.AuthenticateSession(DeviceID);
     InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED);
+    InstanceRegistry.TransmitConnectionState(DeviceID);
+
+    if (TrustPermanently) {
+        auto Token = QryptManager.GeneratePairingToken(DeviceID);
+        QryptManager.StorePairingToken(DeviceID, Token);
+    }
+
+    if (HandshakeRetries.count(DeviceID)) {
+        HandshakeRetries.erase(DeviceID);
+    }
+}
+
+void OmniCore::RejectConnection(DeviceMap DeviceID)
+{
+    QryptManager.ClearSession(DeviceID);
+    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::FAILED);
     InstanceRegistry.TransmitConnectionState(DeviceID);
 
     if (HandshakeRetries.count(DeviceID)) {
         HandshakeRetries.erase(DeviceID);
     }
 
-    PushNotification(
-        Notification{
-            Alert{
-                "Handshake Complete",
-                "Instance : ",
-                InstanceRegistry.AllInstances[DeviceID].InstanceName
-            },
-            "HandshakeNotif",
-            Notification::EventLayout::BOTTOM_RIGHT,
-            2
-        }
-    );
+    InstanceRegistry.ResetInstance(DeviceID);
 }
 
 void OmniCore::ConnectInstance(DeviceMap DeviceID)
@@ -278,7 +404,6 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
             InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING_INIT);
 
             InstanceRegistry.TransmitConnectionRequest(DeviceID, HandshakeToken);
-            InstanceRegistry.TransmitConnectionState(DeviceID);
 
             // Retry until receiver side sends LINKING_WAIT, max 5 tries tho
             HandshakeRetries[DeviceID] = HandshakeRetryContext{
@@ -345,7 +470,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
                 DeviceID,
                 HandshakeToken,
                 5,
-                std::chrono::steady_clock::now() + std::chrono::milliseconds(500),
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(1000),
                 true
             };
 
@@ -379,6 +504,7 @@ void OmniCore::FailHandshake(DeviceMap DeviceID, const char* Reason)
         Reason
     );
     InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::FAILED);
+
     PushNotification(
         Notification{
             Alert{
@@ -419,16 +545,28 @@ void OmniCore::HandleHandshakeRetries()
             // Spam ConnectionRequest until LINKING_WAIT
             InstanceRegistry.TransmitConnectionRequest(DeviceID, RetryContext.Token);
             InstanceRegistry.TransmitConnectionState(DeviceID);
+            --RetryContext.RetriesLeft;
+            RetryContext.NextRetry = now + std::chrono::milliseconds(500);
             break;
 
         case NetLinkState::LINKING_WAIT:
             // Spam LINKING_WAIT until a HandshakeRequest gets here
             InstanceRegistry.TransmitConnectionState(DeviceID);
+            --RetryContext.RetriesLeft;
+            RetryContext.NextRetry = now + std::chrono::milliseconds(1000);
             break;
 
         case NetLinkState::LINKING_ACK:
             // Spam HandshakeRequest till Linked
             RequestHandshake(DeviceID);
+            --RetryContext.RetriesLeft;
+            RetryContext.NextRetry = now + std::chrono::seconds(5);
+            break;
+
+        case NetLinkState::LINKING_AUTH:
+            //  Just.. press... something..
+            FailHandshake(DeviceID, "Handshake Timed Out Waiting for User Approval");
+            ExterminationTargets.push_back(DeviceID);
             break;
 
         default:
@@ -436,9 +574,6 @@ void OmniCore::HandleHandshakeRetries()
             ExterminationTargets.push_back(DeviceID);
             continue;
         }
-
-        --RetryContext.RetriesLeft;
-        RetryContext.NextRetry = now + std::chrono::milliseconds(500);
     }
 
     for (DeviceMap DeviceID : ExterminationTargets) {
@@ -468,10 +603,28 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
             WindowCreationData::Serialize(WGC),
         };
 
-        auto& instance = InstanceRegistry.ActiveInstances[Index];
-        if (instance.InstanceSession) {
-            TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
-            SystemLink.AddCaptureStream(instance.InstanceSession.get(), Index, CaptureMode::DXGI);
+        if (InstanceRegistry.ActiveInstances.contains(Index)) {
+            auto& Instance = InstanceRegistry.ActiveInstances.at(Index);
+            if (Instance.InstanceSession) {
+                TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
+                Sleep(500);
+                SystemLink.AddCaptureStream(
+                    Instance.InstanceSession.get(), Index, CaptureMode::DXGI
+                );
+            } else {
+                PushNotification(
+                    Notification{
+                        Alert{
+                            "Stream Link Error",
+                            "Instance : ",
+                            InstanceRegistry.AllInstances[Index].InstanceName
+                        },
+                        "Please Select An Instance First",
+                        Notification::EventLayout::BOTTOM_RIGHT,
+                        1
+                    }
+                );
+            }
         } else {
             PushNotification(
                 Notification{
@@ -503,11 +656,30 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
         command.ArgArrayLength = payload.size();
 
         TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
+        Sleep(500);
 
-        auto& instance = InstanceRegistry.ActiveInstances[Index];
-        if (instance.InstanceSession) {
-            SystemLink.AddCaptureStream(instance.InstanceSession.get(), Index, CaptureMode::WGC);
+        if (InstanceRegistry.ActiveInstances.contains(Index)) {
+            auto& Instance = InstanceRegistry.ActiveInstances.at(Index);
+            if (Instance.InstanceSession) {
+                SystemLink.AddCaptureStream(
+                    Instance.InstanceSession.get(), Index, CaptureMode::WGC
+                );
+            }
+        } else {
+            PushNotification(
+                Notification{
+                    Alert{
+                        "Stream Link Error",
+                        "Instance : ",
+                        InstanceRegistry.AllInstances[Index].InstanceName
+                    },
+                    "Please Select An Instance First",
+                    Notification::EventLayout::BOTTOM_RIGHT,
+                    1
+                }
+            );
         }
+
         break;
     }
 
