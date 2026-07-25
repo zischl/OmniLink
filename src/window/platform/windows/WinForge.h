@@ -78,7 +78,7 @@ class WinForge
         memcpy(FramePool[NextFrame].FrameBuffer, Data, Size);
 
         FramePool[NextFrame].FrameSize = Size;
-        NextFrame = NextFrame + 1 & 3;
+        NextFrame = (NextFrame + 1) & 3;
     }
 
     inline char* GetFrameDataPool() const { return FramePool[0].FrameBuffer; }
@@ -87,6 +87,7 @@ class WinForge
     {
         return static_cast<uint32_t>(FrameQueueSize * FrameSize);
     }
+
     inline uint32_t GetFrameQueueSize() const { return static_cast<uint32_t>(FrameQueueSize); }
 
     inline void OnFrameUpdate(uint32_t Slot, uint32_t Size)
@@ -104,7 +105,8 @@ class WinForge
                 FramePool[CurrentFrame].FrameSize
             );
         }
-        CurrentFrame = CurrentFrame + 1 & 3;
+
+        CurrentFrame = (CurrentFrame + 1) & 3;
     }
 
     inline void DecodeBuffer()
@@ -124,7 +126,10 @@ class WinForge
 
     inline void SetRenderEvent() { SetEvent(Events[0]); }
 
-    inline void SetFPSLimit(int FPS) { FPSLimitMS.store(1000 / FPS); }
+    inline void SetFPSLimit(int FPS)
+    {
+        FrameTimeLimit = std::chrono::nanoseconds(1000000000LL / FPS);
+    }
 
   private:
     HRESULT hr = NULL;
@@ -133,7 +138,8 @@ class WinForge
     HANDLE* Events = nullptr;
     DWORD EventDW = NULL;
 
-    std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::nanoseconds(15 * 1000000);
+    std::chrono::steady_clock::duration FrameTimeLimit =
+        std::chrono::nanoseconds(1000000000LL / 75);
 
     std::chrono::time_point<std::chrono::steady_clock> LastFrameTime =
         std::chrono::steady_clock::now();
@@ -159,7 +165,7 @@ class WinForge
     float ClearColor[4] = {0.0f, 0.0f, 1.0f, 1.0f};
 
     D3D11_TEXTURE2D_DESC CustommainBufferDesc = {};
-    ComPtr<ID3D11Texture2D> NvdecBuffer;
+    ComPtr<ID3D11Texture2D> FrameBufferTex;
     using DecoderVariant = std::variant<std::monostate, NvdecSession>;
     DecoderVariant OmniDecoder;
 
@@ -177,7 +183,6 @@ class WinForge
 
     D3D11_DEVICE_CONTEXT_TYPE ContextMode = D3D11_DEVICE_CONTEXT_IMMEDIATE;
 
-    std::atomic<int> FPSLimitMS = 7;
     MSG Msg = {};
 
     void Render();

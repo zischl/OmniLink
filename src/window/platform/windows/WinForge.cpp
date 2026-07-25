@@ -124,12 +124,16 @@ HWND WinForge::CreateWindowAsync(
         CustommainBufferDesc.MipLevels = 1;
         CustommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
 
-        D3D11Device->CreateTexture2D(&CustommainBufferDesc, nullptr, NvdecBuffer.GetAddressOf());
+        D3D11Device->CreateTexture2D(&CustommainBufferDesc, nullptr, FrameBufferTex.GetAddressOf());
+
+        D3D11Device->CreateShaderResourceView(
+            FrameBufferTex.Get(), &SrvDesc, TextureView.GetAddressOf()
+        );
 
         ShowWindow(hwnd, SW_SHOW);
         UpdateWindow(hwnd);
 
-        OmniDecoder.emplace<NvdecSession>(config.wdWidth, config.wdHeight, NvdecBuffer.Get());
+        OmniDecoder.emplace<NvdecSession>(config.wdWidth, config.wdHeight, FrameBufferTex.Get());
 
         MainLoop();
     });
@@ -141,15 +145,6 @@ HWND WinForge::CreateWindowAsync(
 
 void WinForge::Render()
 {
-    hr = D3D11Device->CreateShaderResourceView(
-        NvdecBuffer.Get(), &SrvDesc, TextureView.GetAddressOf()
-    );
-    if (FAILED(hr)) {
-        _com_error err(hr);
-        OutputDebugString(err.ErrorMessage());
-        OutputDebugString(L"aaaaaaaaaaaaaaaa\n");
-    }
-
     D3D11Context->PSSetShaderResources(0, 1, TextureView.GetAddressOf());
 
     D3D11Context->ClearRenderTargetView(RenderTargetView, ClearColor);
@@ -157,8 +152,6 @@ void WinForge::Render()
     D3D11Context->Draw(4, 0);
 
     Swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
-
-    // D3D11Context->FinishCommandList();
 }
 
 void WinForge::MainLoop()
@@ -188,7 +181,14 @@ void WinForge::MainLoop()
 
         case WAIT_OBJECT_0 + 0:
             if (std::chrono::steady_clock::now() - LastFrameTime >= FrameTimeLimit) {
-                DecodeBuffer(ActiveDecoder);
+                if (ActiveDecoder != nullptr) [[unlikely]] {
+                    ActiveDecoder->Decode(
+                        reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
+                        FramePool[CurrentFrame].FrameSize
+                    );
+                }
+
+                CurrentFrame = (CurrentFrame + 1) & 3;
                 Render();
 
                 LastFrameTime = std::chrono::steady_clock::now();
