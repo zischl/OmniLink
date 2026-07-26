@@ -53,7 +53,7 @@ bool DXGICapture::AcquireFrame()
         CaptureState = false;
     }
 
-    hr = DXGIOutDuplication->AcquireNextFrame(33, &FrameInfo, &FramePixelData);
+    hr = DXGIOutDuplication->AcquireNextFrame(0, &FrameInfo, &FramePixelData);
     if (SUCCEEDED(hr)) {
         CaptureState = true;
         return true;

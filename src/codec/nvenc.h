@@ -87,7 +87,7 @@ class NvencSession
 
     NvencResourceRegConfig ResourceConfig;
 
-    std::atomic<bool> ForceNextIDR{false};
+    std::atomic<bool> ForceNextIDR{true};
 
     void OpenNvEncSession(void* D3DDevice);
     void LoadDefaultInitParams(NV_ENC_INITIALIZE_PARAMS& NvInitParams, NvencInitConfig& config);
