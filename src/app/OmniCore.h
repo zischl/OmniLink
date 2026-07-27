@@ -229,6 +229,16 @@ class OmniCore
 
                 break;
             }
+            case 5: {
+                FeatureToggleData args = std::get<5>(CommandBurstQWArgs.Queue[Tail]);
+                FeatureStateHandler(SelectedTargetDevice, args);
+
+                if (!CommandBurstQWArgs.pop()) {
+                    Logger::log("Command Execution Failure");
+                }
+
+                break;
+            }
             }
         }
     }
@@ -284,6 +294,15 @@ class OmniCore
     }
 
     void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
+    void FeatureStateHandler(DeviceMap SenderID, const FeatureToggleData& ToggleConfig);
+
+    void UpdateFeatureState(
+        DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Route, FeatureAction Action
+    );
+    void DispatchFeatureState(
+        FeatureTypes Feature, DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    );
+    void SubStreamCleanup(DeviceMap DeviceID, FeatureTypes Feature);
 
     inline bool VerifyCommandToken(DeviceMap DeviceID, const OmniNetCommand& Command) const
     {

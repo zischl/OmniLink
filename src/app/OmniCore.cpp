@@ -597,104 +597,98 @@ void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo)
     SystemLink.CreateStreamWindow(WindowInfo);
 }
 
+typedef void (OmniSystemLink::*FeatureHandlerFn)(DeviceMap, FeatureActionRoute, FeatureAction);
+
+static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchTable = {
+    {FeatureTypes::ScreenLink, &OmniSystemLink::SetScreenLinkState},
+    {FeatureTypes::WindowLink, &OmniSystemLink::SetWindowLinkState},
+    {FeatureTypes::InputLink, &OmniSystemLink::SetInputLinkState},
+    {FeatureTypes::AudioLink, &OmniSystemLink::SetAudioLinkState},
+    {FeatureTypes::ClipboardLink, &OmniSystemLink::SetClipboardLinkState}
+};
+
+void OmniCore::DispatchFeatureState(
+    FeatureTypes Feature, DeviceMap Device, FeatureActionRoute Direction, FeatureAction Action
+)
+{
+    auto iter = FeatureDispatchTable.find(Feature);
+    if (iter != FeatureDispatchTable.end() && iter->second) {
+        (SystemLink.*(iter->second))(Device, Direction, Action);
+    }
+}
+
+void OmniCore::SubStreamCleanup(DeviceMap DeviceID, FeatureTypes Feature)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
+        return;
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+    if (Instance.GetLinkState(Feature) == FeatureLinkState::Inactive) {
+        Logger::log(
+            "Feature {:d} fully inactive between local and device {:d}. Cleaning up session "
+            "resources.",
+            static_cast<int>(Feature),
+            static_cast<int>(DeviceID)
+        );
+    }
+}
+
+void OmniCore::UpdateFeatureState(
+    DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Direction, FeatureAction Action
+)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(Device)) {
+        return;
+    }
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
+    bool enable = (Action == FeatureAction::Activate);
+
+    Instance.SetFeatureState(Feature, Direction, enable);
+    DispatchFeatureState(Feature, Device, Direction, Action);
+
+    if (Action == FeatureAction::Deactivate) {
+        SubStreamCleanup(Device, Feature);
+    }
+}
+
 void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
 {
-    switch (FeatureIndex) {
-    case FeatureTypes::ScreenLink: {
-        WindowCreationData WGC{"Test Window"};
-
-        OmniNetCommand command{
-            CoreCommandsWArgs::CreateStreamLink,
-            2,
-            WindowCreationData::Serialize(WGC),
-        };
-
-        if (InstanceRegistry.ActiveInstances.contains(Index)) {
-            auto& Instance = InstanceRegistry.ActiveInstances.at(Index);
-            if (Instance.InstanceSession) {
-                TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
-                Sleep(500);
-                SystemLink.AddCaptureStream(
-                    Instance.InstanceSession.get(), Index, CaptureMode::DXGI
-                );
-            } else {
-                PushNotification(
-                    Notification{
-                        Alert{
-                            "Stream Link Error",
-                            "Instance : ",
-                            InstanceRegistry.AllInstances[Index].InstanceName
-                        },
-                        "Please Select An Instance First",
-                        Notification::EventLayout::BOTTOM_RIGHT,
-                        1
-                    }
-                );
+    if (!InstanceRegistry.ActiveInstances.contains(Index)) {
+        std::string instName = InstanceRegistry.AllInstances.contains(Index)
+                                   ? InstanceRegistry.AllInstances[Index].InstanceName
+                                   : "Unknown";
+        PushNotification(
+            Notification{
+                Alert{"Stream Link Error", "Instance : ", instName},
+                "Please Select An Instance First",
+                Notification::EventLayout::BOTTOM_RIGHT,
+                1
             }
-        } else {
-            PushNotification(
-                Notification{
-                    Alert{
-                        "Stream Link Error",
-                        "Instance : ",
-                        InstanceRegistry.AllInstances[Index].InstanceName
-                    },
-                    "Please Select An Instance First",
-                    Notification::EventLayout::BOTTOM_RIGHT,
-                    1
-                }
-            );
-        }
-        break;
+        );
+        return;
     }
 
-    case FeatureTypes::WindowLink: {
-        WindowCreationData WGC{"Test Window"};
+    auto& Instance = InstanceRegistry.ActiveInstances.at(Index);
+    bool IsCurrentlyActive = Instance.GetFeatureState(FeatureIndex, FeatureActionRoute::Outbound);
+    FeatureAction targetAction =
+        IsCurrentlyActive ? FeatureAction::Deactivate : FeatureAction::Activate;
 
-        OmniNetCommand command{
-            CoreCommandsWArgs::CreateStreamLink,
-            2,
-            WindowCreationData::Serialize(WGC),
-        };
+    FeatureToggleData toggleData{FeatureIndex, targetAction};
+    OmniNetCommand command{
+        CoreCommandsWArgs::ToggleFeature,
+        Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
+        FeatureToggleData::Serialize(toggleData)
+    };
 
-        std::vector<uint8_t> payload = WindowCreationData::Serialize(WGC);
-        command.Args = payload;
-        command.ArgArrayLength = payload.size();
+    TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
 
-        TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
-        Sleep(500);
+    UpdateFeatureState(Index, FeatureIndex, FeatureActionRoute::Outbound, targetAction);
+}
 
-        if (InstanceRegistry.ActiveInstances.contains(Index)) {
-            auto& Instance = InstanceRegistry.ActiveInstances.at(Index);
-            if (Instance.InstanceSession) {
-                SystemLink.AddCaptureStream(
-                    Instance.InstanceSession.get(), Index, CaptureMode::WGC
-                );
-            }
-        } else {
-            PushNotification(
-                Notification{
-                    Alert{
-                        "Stream Link Error",
-                        "Instance : ",
-                        InstanceRegistry.AllInstances[Index].InstanceName
-                    },
-                    "Please Select An Instance First",
-                    Notification::EventLayout::BOTTOM_RIGHT,
-                    1
-                }
-            );
-        }
-
-        break;
-    }
-
-    case FeatureTypes::InputLink:
-        SystemLink.ToggleEdgeProbe(InstanceRegistry.ActiveInstances);
-        SystemLink.SyncInputFilter();
-        break;
-
-    case FeatureTypes::AudioLink:
-        break;
-    }
+void OmniCore::FeatureStateHandler(DeviceMap SenderID, const FeatureToggleData& ToggleCmd)
+{
+    UpdateFeatureState(
+        SenderID, ToggleCmd.FeatureType, FeatureActionRoute::Inbound, ToggleCmd.Action
+    );
 }

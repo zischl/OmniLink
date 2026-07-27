@@ -205,12 +205,39 @@ struct HandshakeResponse
     }
 };
 
+struct FeatureToggleData
+{
+    FeatureTypes FeatureType = FeatureTypes::ScreenLink;
+    FeatureAction Action = FeatureAction::Activate;
+
+    static FeatureToggleData Deserialize(ByteStreamReader& reader)
+    {
+        FeatureToggleData obj;
+        uint8_t f = 0;
+        uint8_t a = 0;
+        reader.ReadU8Ex(f);
+        reader.ReadU8Ex(a);
+        obj.FeatureType = static_cast<FeatureTypes>(f);
+        obj.Action = static_cast<FeatureAction>(a);
+        return obj;
+    }
+
+    static std::vector<uint8_t> Serialize(const FeatureToggleData& obj)
+    {
+        ByteVecStreamEx NetWriter{2};
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.FeatureType));
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Action));
+        return NetWriter.Data;
+    }
+};
+
 using FuncArgTypes = std::variant<
     ArraySwapLayout,
     ConnectionRequest,
     WindowCreationData,
     HandshakeData,
-    HandshakeResponse>;
+    HandshakeResponse,
+    FeatureToggleData>;
 
 using DataTypes = std::variant<int>;
 

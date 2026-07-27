@@ -19,6 +19,17 @@ enum FeatureFlags {
 
 enum FeatureTypes : uint8_t { ScreenLink, WindowLink, InputLink, AudioLink, ClipboardLink };
 
+enum class FeatureActionRoute : uint8_t { Outbound, Inbound };
+
+enum class FeatureAction : uint8_t { Deactivate = 0, Activate = 1, Pause = 2 };
+
+enum class FeatureLinkState : uint8_t {
+    Inactive = 0,
+    OutboundOnly = 1 << 0,
+    InboundOnly = 1 << 1,
+    Duplex = OutboundOnly | InboundOnly
+};
+
 enum NetLinkState : uint8_t {
     INACTIVE = 0,     // Air... Nothing...
     FAILED = 1,       // Failed Air.. just like unemployed me
@@ -40,7 +51,8 @@ enum CoreCommandsWArgs : uint8_t {
     AuthlessGate,
 
     SwapLayout = AuthlessGate,
-    CreateStreamLink
+    CreateStreamLink,
+    ToggleFeature
 };
 
 #endif // OMNIENUMS_H

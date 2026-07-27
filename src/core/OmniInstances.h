@@ -55,10 +55,17 @@ struct OmniInstance
     }
 };
 
+inline FeatureFlags FeatureTypeToFlag(FeatureTypes Feature)
+{
+    return static_cast<FeatureFlags>(1 << static_cast<uint8_t>(Feature));
+}
+
 struct OmniActiveInstance : OmniInstance
 {
     std::unique_ptr<OmniNetSession<OmniMTU>> InstanceSession;
     uint16_t port = 62485;
+    uint32_t OutboundFlags = FeatureFlags::fInactive;
+    uint32_t InboundFlags = FeatureFlags::fInactive;
     uint32_t ActiveFlags = FeatureFlags::fInactive;
 
     OmniActiveInstance() {}
@@ -81,9 +88,39 @@ struct OmniActiveInstance : OmniInstance
         DevMapIndex = Instance.DevMapIndex;
     }
 
-    inline void ToggleFeatureState(FeatureFlags Feature) { ActiveFlags ^= Feature; }
+    inline void SetFeatureState(FeatureTypes Feature, FeatureActionRoute Route, bool State)
+    {
+        uint32_t Flag = 1 << static_cast<uint32_t>(Feature);
+        uint32_t& TargetFlags =
+            (Route == FeatureActionRoute::Outbound) ? OutboundFlags : InboundFlags;
+
+        if (State)
+            TargetFlags |= Flag;
+        else
+            TargetFlags &= ~Flag;
+
+        ActiveFlags = OutboundFlags | InboundFlags;
+    }
+
+    inline bool GetFeatureState(FeatureTypes Feature, FeatureActionRoute Route) const
+    {
+        uint32_t Flag = 1 << static_cast<uint32_t>(Feature);
+        uint32_t Flags = (Route == FeatureActionRoute::Outbound) ? OutboundFlags : InboundFlags;
+        return (Flags & Flag) != 0;
+    }
 
     inline bool GetFeatureState(FeatureFlags Feature) const { return (ActiveFlags & Feature) != 0; }
+
+    inline FeatureLinkState GetLinkState(FeatureTypes Feature) const
+    {
+        uint32_t Flag = 1 << static_cast<uint32_t>(Feature);
+        uint8_t State = 0;
+        if (OutboundFlags & Flag)
+            State |= static_cast<uint8_t>(FeatureLinkState::OutboundOnly);
+        if (InboundFlags & Flag)
+            State |= static_cast<uint8_t>(FeatureLinkState::InboundOnly);
+        return static_cast<FeatureLinkState>(State);
+    }
 };
 
 using ActiveInstanceContainer = std::unordered_map<DeviceMap, OmniActiveInstance>;
