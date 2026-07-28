@@ -23,6 +23,13 @@ enum class FeatureActionRoute : uint8_t { Outbound, Inbound };
 
 enum class FeatureAction : uint8_t { Deactivate = 0, Activate = 1, Pause = 2 };
 
+enum class SubStreamState : uint8_t {
+    Idle = 0,
+    Pending = 1,
+    Active = 2,
+    Terminating = 3,
+};
+
 enum class FeatureLinkState : uint8_t {
     Inactive = 0,
     OutboundOnly = 1 << 0,
@@ -52,7 +59,9 @@ enum CoreCommandsWArgs : uint8_t {
 
     SwapLayout = AuthlessGate,
     CreateStreamLink,
-    ToggleFeature
+    ToggleFeature,
+    OpenSubStream,
+    ConnectSubStream,
 };
 
 #endif // OMNIENUMS_H

@@ -47,6 +47,12 @@ struct OmniSystemLink
 
     OmniStreamController::StreamID
     AddCaptureStream(OmniNetSession<OmniMTU>* netSession, DeviceMap targetID, CaptureMode mode);
+
+    void SetScreenLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    void SetWindowLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    void SetInputLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    void SetAudioLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    void SetClipboardLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
 };
 
 #endif

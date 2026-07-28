@@ -5,12 +5,12 @@
 
 #if defined(_WIN32)
 OmniStreamController::StreamID OmniStreamController::AddStream(
-    ID3D11Device* D3D11Device,
+    ID3D11Device*        D3D11Device,
     ID3D11DeviceContext* D3D11Context,
-    OmniNetSession<OmniMTU>* NetSession,
-    DeviceMap TargetID,
-    CaptureMode Mode,
-    const StreamConfig& Config
+    OmniNetSubStream*    SubStream,
+    DeviceMap            TargetID,
+    CaptureMode          Mode,
+    const StreamConfig&  Config
 )
 {
     StreamID id = StreamCount++;
@@ -26,12 +26,12 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
         Streams.try_emplace(
             id,
             std::in_place_type<
-                EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>>>
+                EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>
         );
-        std::get<EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>>>(
+        std::get<EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>(
             Streams[id]
         )
-            .Start(WGSCapture, Encoder, NetSession, TargetID, Config);
+            .Start(WGSCapture, Encoder, SubStream, TargetID, Config);
 
     } else if (Mode == CaptureMode::DXGI) {
         ScreenCaptureDXGI* DXGISCapture = new ScreenCaptureDXGI();
@@ -46,19 +46,19 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
         Streams.try_emplace(
             id,
             std::in_place_type<
-                EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>>>
+                EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>, OmniNetSubStream>>
         );
-        std::get<EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>>>(
+        std::get<EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>, OmniNetSubStream>>(
             Streams[id]
         )
-            .Start(DXGISCapture, Encoder, NetSession, TargetID, Config);
+            .Start(DXGISCapture, Encoder, SubStream, TargetID, Config);
     }
 
     return id;
 }
 #elif defined(__linux__)
 StreamID OmniStreamController::AddStream(
-    session<OmniMTU>* NetSession, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config
+    OmniNetSubStream* SubStream, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config
 )
 {
     StreamID id = StreamCount++;

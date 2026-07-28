@@ -231,13 +231,70 @@ struct FeatureToggleData
     }
 };
 
+struct SubStreamOpenData
+{
+    FeatureTypes Feature = FeatureTypes::ScreenLink;
+    uint16_t SubStreamID = 0;
+    uint16_t Port = 0;
+
+    static SubStreamOpenData Deserialize(ByteStreamReader& reader)
+    {
+        SubStreamOpenData obj;
+        uint8_t f = 0;
+        reader.ReadU8Ex(f);
+        obj.Feature = static_cast<FeatureTypes>(f);
+        reader.ReadU16Ex(obj.SubStreamID);
+        reader.ReadU16Ex(obj.Port);
+        return obj;
+    }
+
+    static std::vector<uint8_t> Serialize(const SubStreamOpenData& obj)
+    {
+        ByteVecStreamEx NetWriter{5};
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Feature));
+        NetWriter.WriteU16Ex(obj.SubStreamID);
+        NetWriter.WriteU16Ex(obj.Port);
+        return NetWriter.Data;
+    }
+};
+
+// While this is identical to SubStreamOpenData this is the return config
+struct SubStreamConnectData
+{
+    FeatureTypes Feature = FeatureTypes::ScreenLink;
+    uint16_t SubStreamID = 0;
+    uint16_t Port = 0;
+
+    static SubStreamConnectData Deserialize(ByteStreamReader& reader)
+    {
+        SubStreamConnectData obj;
+        uint8_t f = 0;
+        reader.ReadU8Ex(f);
+        obj.Feature = static_cast<FeatureTypes>(f);
+        reader.ReadU16Ex(obj.SubStreamID);
+        reader.ReadU16Ex(obj.Port);
+        return obj;
+    }
+
+    static std::vector<uint8_t> Serialize(const SubStreamConnectData& obj)
+    {
+        ByteVecStreamEx NetWriter{5};
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Feature));
+        NetWriter.WriteU16Ex(obj.SubStreamID);
+        NetWriter.WriteU16Ex(obj.Port);
+        return NetWriter.Data;
+    }
+};
+
 using FuncArgTypes = std::variant<
     ArraySwapLayout,
     ConnectionRequest,
     WindowCreationData,
     HandshakeData,
     HandshakeResponse,
-    FeatureToggleData>;
+    FeatureToggleData,
+    SubStreamOpenData,
+    SubStreamConnectData>;
 
 using DataTypes = std::variant<int>;
 

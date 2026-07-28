@@ -5,6 +5,7 @@
 #include "OmniConfig.h"
 #include "OmniEnums.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -17,6 +18,7 @@
 #define OmniDevNameLen 31
 
 template <uint32_t MTU> class OmniNetSession;
+class OmniNetSubStream;
 
 struct OmniIP
 {
@@ -60,6 +62,13 @@ inline FeatureFlags FeatureTypeToFlag(FeatureTypes Feature)
     return static_cast<FeatureFlags>(1 << static_cast<uint8_t>(Feature));
 }
 
+struct SubStreamEntry
+{
+    OmniNetSubStream* SubStream = nullptr;
+    SubStreamState State = SubStreamState::Idle;
+    uint16_t CaptureStreamID = 0;
+};
+
 struct OmniActiveInstance : OmniInstance
 {
     std::unique_ptr<OmniNetSession<OmniMTU>> InstanceSession;
@@ -67,6 +76,15 @@ struct OmniActiveInstance : OmniInstance
     uint32_t OutboundFlags = FeatureFlags::fInactive;
     uint32_t InboundFlags = FeatureFlags::fInactive;
     uint32_t ActiveFlags = FeatureFlags::fInactive;
+
+    std::unordered_map<uint16_t, SubStreamEntry> SubStreamRegistry;
+    static inline std::atomic<uint16_t> NextSubStreamID{1};
+
+    SubStreamEntry* FindSubStream(uint16_t ID)
+    {
+        auto iter = SubStreamRegistry.find(ID);
+        return (iter != SubStreamRegistry.end()) ? &iter->second : nullptr;
+    }
 
     OmniActiveInstance() {}
 

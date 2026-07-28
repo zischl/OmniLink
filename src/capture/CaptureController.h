@@ -11,13 +11,13 @@
 enum CaptureMode { DXGI, WGC };
 
 using EncodeStreamTypes = std::variant<
-    EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>>,
-    EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>>>;
+    EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>,    OmniNetSubStream>,
+    EncodeStream<ScreenCaptureWGC,  BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>;
 #elif defined(__linux__)
 
 enum CaptureMode { PW, X11_SHM };
 
-using EncodeStreamTypes = std::variant<EncodeStream<ScreenCapturePW>>;
+using EncodeStreamTypes = std::variant<EncodeStream<ScreenCapturePW, NvencSession, OmniNetSubStream>>;
 #endif
 
 struct OmniStreamController
@@ -33,16 +33,16 @@ struct OmniStreamController
 
 #if defined(_WIN32)
     StreamID AddStream(
-        ID3D11Device* D3D11Device,
+        ID3D11Device*        D3D11Device,
         ID3D11DeviceContext* D3D11Context,
-        OmniNetSession<OmniMTU>* NetSession,
-        DeviceMap TargetID,
-        CaptureMode Mode,
-        const StreamConfig& Config = {}
+        OmniNetSubStream*    SubStream,
+        DeviceMap            TargetID,
+        CaptureMode          Mode,
+        const StreamConfig&  Config = {}
     );
 #elif defined(__linux__)
     StreamID AddStream(
-        session* NetSession, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config = {}
+        OmniNetSubStream* SubStream, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config = {}
     );
 #endif
 
