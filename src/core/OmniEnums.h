@@ -30,6 +30,12 @@ enum class SubStreamState : uint8_t {
     Terminating = 3,
 };
 
+enum class SubStreamAction : uint8_t {
+    Create = 0,
+    Connect = 1,
+    Disconnect = 2,
+};
+
 enum class FeatureLinkState : uint8_t {
     Inactive = 0,
     OutboundOnly = 1 << 0,
@@ -60,8 +66,7 @@ enum CoreCommandsWArgs : uint8_t {
     SwapLayout = AuthlessGate,
     CreateStreamLink,
     ToggleFeature,
-    OpenSubStream,
-    ConnectSubStream,
+    SubStream,
 };
 
 #endif // OMNIENUMS_H

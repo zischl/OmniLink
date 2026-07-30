@@ -66,7 +66,6 @@ struct SubStreamEntry
 {
     OmniNetSubStream* SubStream = nullptr;
     SubStreamState State = SubStreamState::Idle;
-    uint16_t CaptureStreamID = 0;
 };
 
 struct OmniActiveInstance : OmniInstance
@@ -78,12 +77,37 @@ struct OmniActiveInstance : OmniInstance
     uint32_t ActiveFlags = FeatureFlags::fInactive;
 
     std::unordered_map<uint16_t, SubStreamEntry> SubStreamRegistry;
+    std::unordered_multimap<FeatureTypes, uint16_t> FeatureSubStreams;
     static inline std::atomic<uint16_t> NextSubStreamID{1};
 
     SubStreamEntry* FindSubStream(uint16_t ID)
     {
         auto iter = SubStreamRegistry.find(ID);
         return (iter != SubStreamRegistry.end()) ? &iter->second : nullptr;
+    }
+
+    inline void RegisterFeatureSubStream(FeatureTypes Feature, uint16_t SubStreamID)
+    {
+        FeatureSubStreams.insert({Feature, SubStreamID});
+    }
+
+    inline void UnregisterFeatureSubStream(uint16_t SubStreamID)
+    {
+        for (auto iter = FeatureSubStreams.begin(); iter != FeatureSubStreams.end(); ++iter) {
+            if (iter->second == SubStreamID) {
+                FeatureSubStreams.erase(iter);
+                break;
+            }
+        }
+    }
+
+    inline uint16_t GetFirstSubStreamForFeature(FeatureTypes Feature) const
+    {
+        auto Range = FeatureSubStreams.equal_range(Feature);
+        if (Range.first != Range.second) {
+            return Range.first->second;
+        }
+        return 0;
     }
 
     OmniActiveInstance() {}

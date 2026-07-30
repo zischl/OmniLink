@@ -209,77 +209,51 @@ struct FeatureToggleData
 {
     FeatureTypes FeatureType = FeatureTypes::ScreenLink;
     FeatureAction Action = FeatureAction::Activate;
+    uint16_t SubStreamID = 0;
 
     static FeatureToggleData Deserialize(ByteStreamReader& reader)
     {
         FeatureToggleData obj;
-        uint8_t f = 0;
-        uint8_t a = 0;
-        reader.ReadU8Ex(f);
-        reader.ReadU8Ex(a);
-        obj.FeatureType = static_cast<FeatureTypes>(f);
-        obj.Action = static_cast<FeatureAction>(a);
+        uint8_t Feature = 0, FAction = 0;
+        reader.ReadU8Ex(Feature);
+        reader.ReadU8Ex(FAction);
+        obj.FeatureType = static_cast<FeatureTypes>(Feature);
+        obj.Action = static_cast<FeatureAction>(FAction);
+        reader.ReadU16Ex(obj.SubStreamID);
         return obj;
     }
 
     static std::vector<uint8_t> Serialize(const FeatureToggleData& obj)
     {
-        ByteVecStreamEx NetWriter{2};
+        ByteVecStreamEx NetWriter{4};
         NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.FeatureType));
         NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Action));
-        return NetWriter.Data;
-    }
-};
-
-struct SubStreamOpenData
-{
-    FeatureTypes Feature = FeatureTypes::ScreenLink;
-    uint16_t SubStreamID = 0;
-    uint16_t Port = 0;
-
-    static SubStreamOpenData Deserialize(ByteStreamReader& reader)
-    {
-        SubStreamOpenData obj;
-        uint8_t f = 0;
-        reader.ReadU8Ex(f);
-        obj.Feature = static_cast<FeatureTypes>(f);
-        reader.ReadU16Ex(obj.SubStreamID);
-        reader.ReadU16Ex(obj.Port);
-        return obj;
-    }
-
-    static std::vector<uint8_t> Serialize(const SubStreamOpenData& obj)
-    {
-        ByteVecStreamEx NetWriter{5};
-        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Feature));
         NetWriter.WriteU16Ex(obj.SubStreamID);
-        NetWriter.WriteU16Ex(obj.Port);
         return NetWriter.Data;
     }
 };
 
-// While this is identical to SubStreamOpenData this is the return config
-struct SubStreamConnectData
+struct SubStreamData
 {
-    FeatureTypes Feature = FeatureTypes::ScreenLink;
+    SubStreamAction Action = SubStreamAction::Connect;
     uint16_t SubStreamID = 0;
     uint16_t Port = 0;
 
-    static SubStreamConnectData Deserialize(ByteStreamReader& reader)
+    static SubStreamData Deserialize(ByteStreamReader& reader)
     {
-        SubStreamConnectData obj;
-        uint8_t f = 0;
-        reader.ReadU8Ex(f);
-        obj.Feature = static_cast<FeatureTypes>(f);
+        SubStreamData obj;
+        uint8_t a = 0;
+        reader.ReadU8Ex(a);
+        obj.Action = static_cast<SubStreamAction>(a);
         reader.ReadU16Ex(obj.SubStreamID);
         reader.ReadU16Ex(obj.Port);
         return obj;
     }
 
-    static std::vector<uint8_t> Serialize(const SubStreamConnectData& obj)
+    static std::vector<uint8_t> Serialize(const SubStreamData& obj)
     {
         ByteVecStreamEx NetWriter{5};
-        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Feature));
+        NetWriter.WriteU8Ex(static_cast<uint8_t>(obj.Action));
         NetWriter.WriteU16Ex(obj.SubStreamID);
         NetWriter.WriteU16Ex(obj.Port);
         return NetWriter.Data;
@@ -293,8 +267,7 @@ using FuncArgTypes = std::variant<
     HandshakeData,
     HandshakeResponse,
     FeatureToggleData,
-    SubStreamOpenData,
-    SubStreamConnectData>;
+    SubStreamData>;
 
 using DataTypes = std::variant<int>;
 
@@ -391,6 +364,7 @@ struct OmniCommand
     uint32_t ArgTypeIndex = 0;
     uint64_t ActionToken = 0;
     FuncArgTypes Args = ArraySwapLayout{0, 0};
+    DeviceMap DeviceID = DeviceMap::C0;
 
     OmniCommand() = default;
 
@@ -398,16 +372,17 @@ struct OmniCommand
         CoreCommandsWArgs InCommandType,
         uint32_t InArgTypeIndex,
         FuncArgTypes InArgs,
-        uint64_t InActionToken = 0
+        uint64_t InActionToken = 0,
+        DeviceMap InDeviceID = DeviceMap::C0
     )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex), ActionToken(InActionToken),
-          Args(std::move(InArgs))
+          DeviceID(InDeviceID), Args(std::move(InArgs))
     {
     }
 
-    explicit OmniCommand(const OmniNetCommand& NetCmd)
+    explicit OmniCommand(const OmniNetCommand& NetCmd, DeviceMap DeviceID = DeviceMap::C0)
         : CommandType(NetCmd.CommandType), ArgTypeIndex(NetCmd.ArgTypeIndex),
-          ActionToken(NetCmd.ActionToken)
+          ActionToken(NetCmd.ActionToken), DeviceID(DeviceID)
     {
     }
 };
