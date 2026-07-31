@@ -40,7 +40,7 @@ static void HandleCommand(CHAR* Buffer, DWORD BufferSize, DeviceMap DeviceID)
             return;
         }
 
-        OmniCommand command{Payload};
+        OmniCommand command{Payload, DeviceID};
 
         NetVariantDeserializer(
             command.Args,

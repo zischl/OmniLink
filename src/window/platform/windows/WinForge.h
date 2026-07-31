@@ -90,6 +90,26 @@ class WinForge
 
     inline uint32_t GetFrameQueueSize() const { return static_cast<uint32_t>(FrameQueueSize); }
 
+    // Packages up the frame pool for wiring into a sub-stream recv pool.
+    // OnSlotComplete fires from the IOCP thread — routes through OnFrameUpdate then sets render
+    // event.
+    inline void GetFramePool(
+        char*& OutData,
+        uint32_t& OutDataSize,
+        uint32_t& OutSlotCount,
+        void (**OutOnSlotComplete)(void*, uint32_t, uint32_t),
+        void*& OutCtx
+    )
+    {
+        OutData = GetFrameDataPool();
+        OutDataSize = GetFrameDataTotalSize();
+        OutSlotCount = GetFrameQueueSize();
+        *OutOnSlotComplete = [](void* ctx, uint32_t slot, uint32_t size) {
+            reinterpret_cast<WinForge*>(ctx)->OnFrameUpdate(slot, size);
+        };
+        OutCtx = this;
+    }
+
     inline void OnFrameUpdate(uint32_t Slot, uint32_t Size)
     {
         FramePool[Slot].FrameSize = static_cast<UINT>(Size);

@@ -184,6 +184,15 @@ struct IOContextExternalChunkPool
     }
 };
 
+struct SubStreamPoolConfig
+{
+    char* Data = nullptr;
+    uint32_t DataSize = 0;
+    uint32_t NumSlots = 0;
+    void (*OnSlotComplete)(void* ctx, uint32_t slot, uint32_t size) = nullptr;
+    void* Ctx = nullptr;
+};
+
 } // namespace OmniNet
 
 #endif // SESSIONTYPES_H

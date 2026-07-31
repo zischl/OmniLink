@@ -1,6 +1,7 @@
 #include "OmniCore.h"
 #include "Helper.h"
 #include "OmniEnums.h"
+#include "OmniInstances.h"
 #include "OmniLogger.h"
 #include "OmniPackets.h"
 #include "OmniTypes.h"
@@ -60,7 +61,7 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
         InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING_WAIT);
 
         FuncArgTypes Args = ConnectionRequest{DeviceID};
-        PushCommandWArgs(Args);
+        PushCommandWArgs(DeviceID, Args);
         NotifyCommandQueue();
         break;
     }
@@ -597,7 +598,9 @@ void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo)
     SystemLink.CreateStreamWindow(WindowInfo);
 }
 
-typedef void (OmniSystemLink::*FeatureHandlerFn)(DeviceMap, FeatureActionRoute, FeatureAction);
+typedef OmniNet::SubStreamPoolConfig (OmniSystemLink::*FeatureHandlerFn)(
+    DeviceMap, FeatureActionRoute, FeatureAction, uint16_t
+);
 
 static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchTable = {
     {FeatureTypes::ScreenLink, &OmniSystemLink::SetScreenLinkState},
@@ -607,56 +610,44 @@ static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchT
     {FeatureTypes::ClipboardLink, &OmniSystemLink::SetClipboardLinkState}
 };
 
-void OmniCore::DispatchFeatureState(
-    FeatureTypes Feature, DeviceMap Device, FeatureActionRoute Direction, FeatureAction Action
+OmniNet::SubStreamPoolConfig OmniCore::DispatchFeatureState(
+    FeatureTypes Feature,
+    DeviceMap Device,
+    FeatureActionRoute Route,
+    FeatureAction Action,
+    uint16_t SubStreamID
 )
 {
     auto iter = FeatureDispatchTable.find(Feature);
     if (iter != FeatureDispatchTable.end() && iter->second) {
-        (SystemLink.*(iter->second))(Device, Direction, Action);
+        return (SystemLink.*(iter->second))(Device, Route, Action, SubStreamID);
     }
+    return OmniNet::SubStreamPoolConfig{};
 }
 
-void OmniCore::SubStreamCleanup(DeviceMap DeviceID, FeatureTypes Feature)
-{
-    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
-        return;
-
-    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
-    if (Instance.GetLinkState(Feature) == FeatureLinkState::Inactive) {
-        Logger::log(
-            "Feature {:d} fully inactive between local and device {:d}. Cleaning up session "
-            "resources.",
-            static_cast<int>(Feature),
-            static_cast<int>(DeviceID)
-        );
-    }
-}
-
-void OmniCore::UpdateFeatureState(
-    DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Direction, FeatureAction Action
+OmniNet::SubStreamPoolConfig OmniCore::UpdateFeatureState(
+    DeviceMap Device,
+    FeatureTypes Feature,
+    FeatureActionRoute Route,
+    FeatureAction Action,
+    uint16_t SubStreamID
 )
 {
     if (!InstanceRegistry.ActiveInstances.contains(Device)) {
-        return;
+        return OmniNet::SubStreamPoolConfig{};
     }
 
     auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
-    bool enable = (Action == FeatureAction::Activate);
+    Instance.SetFeatureState(Feature, Route, Action == FeatureAction::Activate);
 
-    Instance.SetFeatureState(Feature, Direction, enable);
-    DispatchFeatureState(Feature, Device, Direction, Action);
-
-    if (Action == FeatureAction::Deactivate) {
-        SubStreamCleanup(Device, Feature);
-    }
+    return DispatchFeatureState(Feature, Device, Route, Action, SubStreamID);
 }
 
-void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
+void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
 {
-    if (!InstanceRegistry.ActiveInstances.contains(Index)) {
-        std::string instName = InstanceRegistry.AllInstances.contains(Index)
-                                   ? InstanceRegistry.AllInstances[Index].InstanceName
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID)) {
+        std::string instName = InstanceRegistry.AllInstances.contains(DeviceID)
+                                   ? InstanceRegistry.AllInstances[DeviceID].InstanceName
                                    : "Unknown";
         PushNotification(
             Notification{
@@ -669,26 +660,330 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
         return;
     }
 
-    auto& Instance = InstanceRegistry.ActiveInstances.at(Index);
-    bool IsCurrentlyActive = Instance.GetFeatureState(FeatureIndex, FeatureActionRoute::Outbound);
-    FeatureAction targetAction =
-        IsCurrentlyActive ? FeatureAction::Deactivate : FeatureAction::Activate;
+    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+    bool FeatureState = Instance.GetFeatureState(FeatureIndex, FeatureActionRoute::Outbound);
+    FeatureAction TargetAction = FeatureState ? FeatureAction::Deactivate : FeatureAction::Activate;
 
-    FeatureToggleData toggleData{FeatureIndex, targetAction};
-    OmniNetCommand command{
+    FeatureToggleData ToggleData{FeatureIndex, TargetAction};
+
+    const bool SubStreamRequired =
+        (FeatureIndex == FeatureTypes::ScreenLink || FeatureIndex == FeatureTypes::WindowLink ||
+         FeatureIndex == FeatureTypes::AudioLink);
+
+    if (SubStreamRequired) {
+        if (TargetAction == FeatureAction::Activate) {
+            OmniNetSubStream* SubStream = Instance.InstanceSession->OpenSubStream();
+            if (SubStream) {
+                const uint16_t ID =
+                    OmniActiveInstance::NextSubStreamID.fetch_add(1, std::memory_order_relaxed);
+                Instance.SubStreamRegistry[ID] = SubStreamEntry{SubStream, SubStreamState::Pending};
+                Instance.RegisterFeatureSubStream(FeatureIndex, ID);
+
+                ToggleData.SubStreamID = ID;
+
+                SubStreamData CreateData{SubStreamAction::Create, ID, SubStream->GetLocalPort()};
+                OmniNetCommand CreateCmd{
+                    CoreCommandsWArgs::SubStream,
+                    Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
+                    SubStreamData::Serialize(CreateData)
+                };
+                TransmitNetCommand(DeviceID, CreateCmd, 0, OmniNet::Argonized);
+
+                Logger::log(
+                    "Feature {:d} Outbound Activate, SubStreamID={:d} Port={:d}",
+                    static_cast<int>(FeatureIndex),
+                    ID,
+                    SubStream->GetLocalPort()
+                );
+            } else {
+                Logger::log("No free SubStream slots for device {:d}", static_cast<int>(DeviceID));
+            }
+        } else if (TargetAction == FeatureAction::Deactivate) {
+            uint16_t ActiveSubStreamID = Instance.GetFirstSubStreamForFeature(FeatureIndex);
+            if (ActiveSubStreamID != 0) {
+                ToggleData.SubStreamID = ActiveSubStreamID;
+            }
+            CloseSubStreams(DeviceID, FeatureIndex);
+        }
+    }
+
+    OmniNetCommand ToggleCmd{
         CoreCommandsWArgs::ToggleFeature,
         Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
-        FeatureToggleData::Serialize(toggleData)
+        FeatureToggleData::Serialize(ToggleData)
     };
+    TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
 
-    TransmitNetCommand(Index, command, 0, OmniNet::Argonized);
-
-    UpdateFeatureState(Index, FeatureIndex, FeatureActionRoute::Outbound, targetAction);
+    UpdateFeatureState(
+        DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, ToggleData.SubStreamID
+    );
 }
 
-void OmniCore::FeatureStateHandler(DeviceMap SenderID, const FeatureToggleData& ToggleCmd)
+void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& FeatureData)
 {
-    UpdateFeatureState(
-        SenderID, ToggleCmd.FeatureType, FeatureActionRoute::Inbound, ToggleCmd.Action
+    OmniNet::SubStreamPoolConfig PoolConfig = UpdateFeatureState(
+        DeviceID,
+        FeatureData.FeatureType,
+        FeatureActionRoute::Inbound,
+        FeatureData.Action,
+        FeatureData.SubStreamID
     );
+
+    if (FeatureData.Action == FeatureAction::Deactivate && FeatureData.SubStreamID != 0) {
+        CloseSubStream(DeviceID, FeatureData.SubStreamID);
+        return;
+    }
+
+    if (FeatureData.Action == FeatureAction::Activate && FeatureData.SubStreamID != 0) {
+        if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
+            return;
+
+        auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+        SubStreamEntry* Entry = Instance.FindSubStream(FeatureData.SubStreamID);
+
+        if (!Entry || !Entry->SubStream) {
+            Logger::log(
+                "uh.. SubStreamID={:d} not found for device {:d} — "
+                "SubStream Creation Request may not have arrived yet",
+                FeatureData.SubStreamID,
+                static_cast<int>(DeviceID)
+            );
+            return;
+        }
+
+        Instance.RegisterFeatureSubStream(FeatureData.FeatureType, FeatureData.SubStreamID);
+
+        if (PoolConfig.Data != nullptr) {
+            ConfigureSubStream(DeviceID, FeatureData.SubStreamID, PoolConfig);
+        }
+    }
+}
+
+OmniNetSubStream* OmniCore::OpenSubStream(DeviceMap Device, uint16_t SubStreamID)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(Device)) {
+        Logger::log(
+            "SubStream for Non-Existent Device {:d}? How did we get here ?",
+            static_cast<int>(Device)
+        );
+        return nullptr;
+    }
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
+
+    OmniNetSubStream* SubStream = Instance.InstanceSession->OpenSubStream();
+    if (!SubStream) {
+        Logger::log(
+            "No free SubStream slots for device {:d}, hopefully that's the case",
+            static_cast<int>(Device)
+        );
+        return nullptr;
+    }
+
+    Instance.SubStreamRegistry[SubStreamID] = SubStreamEntry{SubStream, SubStreamState::Pending};
+
+    Logger::log(
+        "SubStream Awaiting @SubStreamID={:d} Port={:d} for device {:d}",
+        SubStreamID,
+        SubStream->GetLocalPort(),
+        static_cast<int>(Device)
+    );
+
+    return SubStream;
+}
+
+void OmniCore::ConfigureSubStream(
+    DeviceMap Device, uint16_t SubStreamID, const OmniNet::SubStreamPoolConfig& Config
+)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(Device)) {
+        Logger::log(
+            "SubStream for Non-Existent Device {:d}? How did we get here ?",
+            static_cast<int>(Device)
+        );
+        return;
+    }
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
+
+    SubStreamEntry* Entry = Instance.FindSubStream(SubStreamID);
+    if (!Entry || !Entry->SubStream) {
+        Logger::log(
+            "Can't Configure A Non-Existent SubStreamID={:d} Linked To Device {:d}",
+            SubStreamID,
+            static_cast<int>(Device)
+        );
+        return;
+    }
+
+    if (!Entry->SubStream->BindRecvPool(
+            Config.Data, Config.DataSize, Config.NumSlots, Config.OnSlotComplete, Config.Ctx
+        )) {
+        Logger::log(
+            "BindRecvPool failed for SubStreamID={:d} on Device {:d}",
+            SubStreamID,
+            static_cast<int>(Device)
+        );
+        return;
+    }
+
+    Logger::log(
+        "Recv pool bound for SubStreamID={:d} on Device {:d}", SubStreamID, static_cast<int>(Device)
+    );
+}
+
+void OmniCore::SubStreamHandler(DeviceMap Device, SubStreamData Data)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(Device)) {
+        Logger::log(
+            "SubStream for Non-Existent Device {:d}? How did we get here ?",
+            static_cast<int>(Device)
+        );
+        return;
+    }
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
+
+    switch (Data.Action) {
+    case SubStreamAction::Create: {
+        OmniNetSubStream* SubStream = Instance.InstanceSession->OpenSubStream();
+        if (!SubStream) {
+            Logger::log(
+                "No free SubStream slots for device {:d}, hopefully that's the case",
+                static_cast<int>(Device)
+            );
+            return;
+        }
+
+        Instance.SubStreamRegistry[Data.SubStreamID] =
+            SubStreamEntry{SubStream, SubStreamState::Pending};
+
+        if (Data.Port) {
+            if (!SubStream->Connect(Instance.IPv4_String, Data.Port)) {
+                Logger::log(
+                    "SubStream Connection to {:s}:{:d} failed", Instance.IPv4_String, Data.Port
+                );
+                Instance.SubStreamRegistry.erase(Data.SubStreamID);
+                Instance.InstanceSession->CloseSubStream(SubStream);
+                return;
+            }
+
+            Instance.SubStreamRegistry[Data.SubStreamID].State = SubStreamState::Active;
+
+            SubStreamData StreamConfig{
+                SubStreamAction::Connect, Data.SubStreamID, SubStream->GetLocalPort()
+            };
+            OmniNetCommand NetCommand{
+                CoreCommandsWArgs::SubStream,
+                Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
+                SubStreamData::Serialize(StreamConfig)
+            };
+
+            TransmitNetCommand(Device, NetCommand, 0, OmniNet::Argonized);
+
+            Logger::log(
+                "SubStream Active @SubStreamID={:d} connected to A ({:s}:{:d}), Port={:d}",
+                Data.SubStreamID,
+                Instance.IPv4_String,
+                Data.Port,
+                SubStream->GetLocalPort()
+            );
+        }
+        break;
+    }
+
+    case SubStreamAction::Connect: {
+        SubStreamEntry* Entry = Instance.FindSubStream(Data.SubStreamID);
+        if (!Entry || Entry->State != SubStreamState::Pending) {
+            Logger::log(
+                "SubStream @SubStreamID={:d} not Awaiting for device {:d}",
+                Data.SubStreamID,
+                static_cast<int>(Device)
+            );
+            return;
+        }
+
+        if (!Entry->SubStream->Connect(Instance.IPv4_String, Data.Port)) {
+            Logger::log(
+                "SubStream Connection To {:s}:{:d} Failed", Instance.IPv4_String, Data.Port
+            );
+            return;
+        }
+
+        Entry->State = SubStreamState::Active;
+
+        Logger::log("SubStream on SubStreamID={:d} Fully Connected", Data.SubStreamID);
+        break;
+    }
+
+    case SubStreamAction::Disconnect: {
+        CloseSubStream(Device, Data.SubStreamID, false);
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+
+void OmniCore::CloseSubStream(DeviceMap DeviceID, uint16_t SubStreamID, bool NotifyPeer)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
+        return;
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+
+    SubStreamEntry* Entry = Instance.FindSubStream(SubStreamID);
+    if (!Entry) {
+        Logger::log(
+            "Can't cleanup non-existent SubStreamID={:d} for device {:d}",
+            SubStreamID,
+            static_cast<int>(DeviceID)
+        );
+        return;
+    }
+
+    Entry->State = SubStreamState::Terminating;
+
+    if (NotifyPeer) {
+        SubStreamData DisconnectData{SubStreamAction::Disconnect, SubStreamID, 0};
+        OmniNetCommand DisconnectCmd{
+            CoreCommandsWArgs::SubStream,
+            Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
+            SubStreamData::Serialize(DisconnectData)
+        };
+        TransmitNetCommand(DeviceID, DisconnectCmd, 0, OmniNet::Argonized);
+    }
+
+    if (Entry->SubStream) {
+        Instance.InstanceSession->CloseSubStream(Entry->SubStream);
+        Entry->SubStream = nullptr;
+    }
+
+    Instance.UnregisterFeatureSubStream(SubStreamID);
+    Instance.SubStreamRegistry.erase(SubStreamID);
+
+    Logger::log(
+        "SubStream SubStreamID={:d} For Device {:d} Exterminated !",
+        SubStreamID,
+        static_cast<int>(DeviceID)
+    );
+}
+
+void OmniCore::CloseSubStreams(DeviceMap DeviceID, FeatureTypes Feature)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
+        return;
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+
+    std::vector<uint16_t> SubStreamIDs;
+    auto range = Instance.FeatureSubStreams.equal_range(Feature);
+    for (auto it = range.first; it != range.second; ++it) {
+        SubStreamIDs.push_back(it->second);
+    }
+
+    for (uint16_t ID : SubStreamIDs) {
+        CloseSubStream(DeviceID, ID);
+    }
 }

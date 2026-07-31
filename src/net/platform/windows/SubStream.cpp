@@ -67,6 +67,26 @@ bool OmniNetSubStream::Connect(PCSTR RemoteIP, uint16_t RemotePort)
     return true;
 }
 
+bool OmniNetSubStream::BindRecvPool(
+    char* Data,
+    uint32_t DataSize,
+    uint32_t NumSlots,
+    void (*OnSlotComplete)(void* ctx, uint32_t slot, uint32_t size),
+    void* Ctx
+)
+{
+    if (StreamSocket == INVALID_SOCKET || !Data || DataSize == 0 || NumSlots == 0)
+        return false;
+
+    if (RecvPool.Data != nullptr)
+        return false;
+
+    RecvPool.Init(Data, DataSize, NumSlots, OnSlotComplete, Ctx);
+    PostNextRecv();
+
+    return true;
+}
+
 // Pretty much a copy from the main session :]
 bool OmniNetSubStream::ChunkedSend(
     CHAR* Data, int DataSize, void (*OnComplete)(void*, size_t), void* Arg1, size_t Arg2

@@ -32,6 +32,15 @@ class OmniNetSubStream
     // Connects the socket to the remote peer's sub stream port.
     bool Connect(PCSTR RemoteIP, uint16_t RemotePort);
 
+    // Late binds an external recv pool after the sub-stream is already created and connected.
+    bool BindRecvPool(
+        char* Data,
+        uint32_t DataSize,
+        uint32_t NumSlots,
+        void (*OnSlotComplete)(void* ctx, uint32_t slot, uint32_t size),
+        void* Ctx
+    );
+
     // Pretty much same as the main OmniNetSession's version.
     // Independent send pools to avoid contention on main session
     bool ChunkedSend(

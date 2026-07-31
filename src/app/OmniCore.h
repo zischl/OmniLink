@@ -117,7 +117,14 @@ class OmniCore
     };
 
     BurstQ<CoreCommands, 16> CommandBurstQ = BurstQ<CoreCommands, 16>();
-    BurstQ<FuncArgTypes, 16> CommandBurstQWArgs = BurstQ<FuncArgTypes, 16>();
+
+    struct CommandQItem
+    {
+        DeviceMap DeviceID = DeviceMap::C0;
+        FuncArgTypes Args = ArraySwapLayout{0, 0};
+    };
+
+    BurstQ<CommandQItem, 16> CommandBurstQWArgs = BurstQ<CommandQItem, 16>();
 
     inline void RunCommandQueue()
     {
@@ -174,9 +181,12 @@ class OmniCore
     {
         while (!CommandBurstQWArgs.empty()) {
             unsigned int Tail = CommandBurstQWArgs.Tail;
-            switch (CommandBurstQWArgs.Queue[Tail].index()) {
+            CommandQItem& Command = CommandBurstQWArgs.Queue[Tail];
+            DeviceMap DeviceID = Command.DeviceID;
+
+            switch (Command.Args.index()) {
             case 0: {
-                ArraySwapLayout& args = std::get<0>(CommandBurstQWArgs.Queue[Tail]);
+                ArraySwapLayout& args = std::get<0>(Command.Args);
                 (SwapInstanceLayout)(args.index1, args.index2);
 
                 if (!CommandBurstQWArgs.pop()) {
@@ -187,7 +197,7 @@ class OmniCore
             }
 
             case 1: {
-                ConnectionRequest args = std::get<1>(CommandBurstQWArgs.Queue[Tail]);
+                ConnectionRequest args = std::get<1>(Command.Args);
                 (ConnectInstance)(args.DeviceID);
 
                 if (!CommandBurstQWArgs.pop()) {
@@ -197,7 +207,7 @@ class OmniCore
             }
 
             case 2: {
-                WindowCreationData args = std::get<2>(CommandBurstQWArgs.Queue[Tail]);
+                WindowCreationData args = std::get<2>(Command.Args);
                 (CreateStreamLink)(args);
 
                 if (!CommandBurstQWArgs.pop()) {
@@ -206,7 +216,7 @@ class OmniCore
                 break;
             }
             case 3: {
-                HandshakeData args = std::get<3>(CommandBurstQWArgs.Queue[Tail]);
+                HandshakeData args = std::get<3>(Command.Args);
                 HandshakeHandler(args);
 
                 if (!CommandBurstQWArgs.pop()) {
@@ -216,7 +226,7 @@ class OmniCore
                 break;
             }
             case 4: {
-                HandshakeResponse args = std::get<4>(CommandBurstQWArgs.Queue[Tail]);
+                HandshakeResponse args = std::get<4>(Command.Args);
                 if (args.State == HandshakeResponse::Action::ACCEPT) {
                     AcceptConnection(args.DeviceID, args.Trusted);
                 } else {
@@ -230,8 +240,18 @@ class OmniCore
                 break;
             }
             case 5: {
-                FeatureToggleData args = std::get<5>(CommandBurstQWArgs.Queue[Tail]);
-                FeatureStateHandler(SelectedTargetDevice, args);
+                FeatureToggleData args = std::get<5>(Command.Args);
+                FeatureStateHandler(DeviceID, args);
+
+                if (!CommandBurstQWArgs.pop()) {
+                    Logger::log("Command Execution Failure");
+                }
+
+                break;
+            }
+            case 6: {
+                SubStreamData args = std::get<6>(Command.Args);
+                SubStreamHandler(DeviceID, args);
 
                 if (!CommandBurstQWArgs.pop()) {
                     Logger::log("Command Execution Failure");
@@ -259,9 +279,9 @@ class OmniCore
         }
     }
 
-    inline void PushCommandWArgs(FuncArgTypes& CommandArgs)
+    inline void PushCommandWArgs(DeviceMap DeviceID, FuncArgTypes& CommandArgs)
     {
-        if (!CommandBurstQWArgs.push(CommandArgs)) {
+        if (!CommandBurstQWArgs.push(CommandQItem{DeviceID, CommandArgs})) {
             Logger::log("Failed To Queue Commands With Args");
         }
     }
@@ -296,14 +316,35 @@ class OmniCore
     void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
     void FeatureStateHandler(DeviceMap SenderID, const FeatureToggleData& ToggleConfig);
 
-    void UpdateFeatureState(
-        DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Route, FeatureAction Action
+    OmniNet::SubStreamPoolConfig UpdateFeatureState(
+        DeviceMap Device,
+        FeatureTypes Feature,
+        FeatureActionRoute Route,
+        FeatureAction Action,
+        uint16_t SubStreamID = 0
     );
-    void DispatchFeatureState(
-        FeatureTypes Feature, DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    OmniNet::SubStreamPoolConfig DispatchFeatureState(
+        FeatureTypes Feature,
+        DeviceMap DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction Action,
+        uint16_t SubStreamID = 0
     );
-    void SubStreamCleanup(DeviceMap DeviceID, FeatureTypes Feature);
 
+    // Sub-stream management
+    OmniNetSubStream* OpenSubStream(DeviceMap Device, uint16_t SubStreamID);
+
+    void ConfigureSubStream(
+        DeviceMap Device, uint16_t SubStreamID, const OmniNet::SubStreamPoolConfig& Config
+    );
+
+    void CloseSubStream(DeviceMap DeviceID, uint16_t SubStreamID, bool NotifyPeer = true);
+
+    void CloseSubStreams(DeviceMap DeviceID, FeatureTypes Feature);
+
+    void SubStreamHandler(DeviceMap Device, SubStreamData Data);
+
+    // Action Token Verification
     inline bool VerifyCommandToken(DeviceMap DeviceID, const OmniNetCommand& Command) const
     {
         if (Command.CommandType < CoreCommandsWArgs::AuthlessGate) {

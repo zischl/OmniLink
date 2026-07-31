@@ -9,10 +9,8 @@ void OmniAPI::Ignite(OmniLink& OmniLinkInstance)
 
 void OmniAPI::SwapDeviceLayout(uint8_t index1, uint8_t index2)
 {
-
     FuncArgTypes args = ArraySwapLayout{index1, index2};
-
-    App->PushCommandWArgs(args);
+    App->PushCommandWArgs(DeviceMap::C0, args);
     App->NotifyCommandQueue();
 }
 
@@ -25,7 +23,7 @@ void OmniAPI::Scan()
 void OmniAPI::Connect(ConnectionRequest Request)
 {
     FuncArgTypes args = ConnectionRequest(Request);
-    App->PushCommandWArgs(args);
+    App->PushCommandWArgs(DeviceMap::C0, args);
     App->NotifyCommandQueue();
 }
 
@@ -33,23 +31,23 @@ void OmniAPI::AcceptHandshake(DeviceMap DeviceID, bool trustPermanently)
 {
     FuncArgTypes args =
         HandshakeResponse{DeviceID, HandshakeResponse::Action::ACCEPT, trustPermanently};
-    App->PushCommandWArgs(args);
+    App->PushCommandWArgs(DeviceMap::C0, args);
     App->NotifyCommandQueue();
 }
 
 void OmniAPI::RejectHandshake(DeviceMap DeviceID)
 {
     FuncArgTypes args = HandshakeResponse{DeviceID, HandshakeResponse::Action::REJECT};
-    App->PushCommandWArgs(args);
+    App->PushCommandWArgs(DeviceMap::C0, args);
     App->NotifyCommandQueue();
 }
 
 void OmniAPI::CancelHandshake(DeviceMap DeviceID)
 {
     FuncArgTypes args = HandshakeResponse{DeviceID, HandshakeResponse::Action::CANCEL};
-    App->PushCommandWArgs(args);
+    App->PushCommandWArgs(DeviceMap::C0, args);
     App->NotifyCommandQueue();
-};
+}
 
 void OmniAPI::ExecuteNetCommand(CoreCommands Command)
 {
@@ -59,7 +57,7 @@ void OmniAPI::ExecuteNetCommand(CoreCommands Command)
 
 void OmniAPI::ExecuteNetCommandWArgs(OmniCommand Command)
 {
-    App->PushCommandWArgs(Command.Args);
+    App->PushCommandWArgs(Command.DeviceID, Command.Args);
     App->NotifyCommandQueue();
 }
 
