@@ -11,11 +11,16 @@ OmniSystemLink::OmniSystemLink(
 
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& info)
 {
-    auto* window = new LinuxForge();
-    ActiveWindows.push_back(window);
-    window->Create();
+    auto* Window = new LinuxForge();
+    auto it = std::find(ActiveWindows.begin(), ActiveWindows.end(), nullptr);
+    if (it != ActiveWindows.end()) {
+        *it = Window;
+    } else {
+        ActiveWindows.push_back(Window);
+    }
+    Window->Create();
     (void)info;
-    return window;
+    return Window;
 }
 
 void OmniSystemLink::ToggleEdgeProbe() {}

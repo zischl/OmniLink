@@ -10,7 +10,10 @@
 #include "RenderState.h"
 #include "StreamWindow.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <map>
+#include <utility>
 #include <vector>
 
 template <uint32_t MTU> class OmniNetSession;
@@ -31,6 +34,9 @@ struct OmniSystemLink
 
     OmniRenderState& RenderState;
     std::vector<StreamWindow*> ActiveWindows;
+    std::multimap<std::pair<DeviceMap, FeatureTypes>, StreamWindow*> WindowRegistry;
+    std::multimap<std::pair<DeviceMap, FeatureTypes>, OmniStreamController::StreamID>
+        StreamRegistry;
 
     HINSTANCE hInstance = nullptr;
     int nCmdShow = 0;

@@ -16,13 +16,18 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
 
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& WindowData)
 {
-    auto* window = new WinForge();
-    ActiveWindows.push_back(window);
+    auto* Window = new WinForge();
+    auto iter = std::find(ActiveWindows.begin(), ActiveWindows.end(), nullptr);
+    if (iter != ActiveWindows.end()) {
+        *iter = Window;
+    } else {
+        ActiveWindows.push_back(Window);
+    }
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     std::wstring WindowTitle =
         converter.from_bytes(reinterpret_cast<const char*>(WindowData.GetTitleU8().data()));
-    window->CreateWindowAsync(WindowTitle.c_str(), hInstance, nCmdShow);
-    return window;
+    Window->CreateWindowAsync(WindowTitle.c_str(), hInstance, nCmdShow);
+    return Window;
 }
 
 void OmniSystemLink::ToggleEdgeProbe(ActiveInstanceContainer& ActiveInstances)
@@ -85,7 +90,9 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
                 if (SubStreamID != 0) {
                     SubStreamEntry* Entry = Instance.FindSubStream(SubStreamID);
                     if (Entry && Entry->SubStream) {
-                        AddCaptureStream(Entry->SubStream, DeviceID, CaptureMode::DXGI);
+                        OmniStreamController::StreamID StreamID =
+                            AddCaptureStream(Entry->SubStream, DeviceID, CaptureMode::DXGI);
+                        StreamRegistry.insert({{DeviceID, FeatureTypes::ScreenLink}, StreamID});
                     }
                 }
             }
@@ -93,6 +100,11 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
                 "CaptureStream on ScreenLink started for device {:d}", static_cast<int>(DeviceID)
             );
         } else {
+            auto Range = StreamRegistry.equal_range({DeviceID, FeatureTypes::ScreenLink});
+            for (auto iter = Range.first; iter != Range.second; ++iter) {
+                StreamController.RemoveStream(iter->second);
+            }
+            StreamRegistry.erase(Range.first, Range.second);
             Logger::log("ScreenLink stopped for device {:d}", static_cast<int>(DeviceID));
         }
     } else {
@@ -103,6 +115,7 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
 
             OmniNet::PoolConfig Config{};
             if (Window) {
+                WindowRegistry.insert({{DeviceID, FeatureTypes::ScreenLink}, Window});
                 Window->GetFramePool(
                     Config.Data,
                     Config.DataSize,
@@ -113,11 +126,16 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
             }
             return Config;
         } else {
-            if (!ActiveWindows.empty()) {
-                auto* win = ActiveWindows.back();
-                ActiveWindows.pop_back();
-                delete win;
+            auto Range = WindowRegistry.equal_range({DeviceID, FeatureTypes::ScreenLink});
+            for (auto iter = Range.first; iter != Range.second; ++iter) {
+                StreamWindow* Window = iter->second;
+                auto WindowsIter = std::find(ActiveWindows.begin(), ActiveWindows.end(), Window);
+                if (WindowsIter != ActiveWindows.end()) {
+                    *WindowsIter = nullptr;
+                }
+                delete Window;
             }
+            WindowRegistry.erase(Range.first, Range.second);
             Logger::log("StreamWindow closed for device {:d}", static_cast<int>(DeviceID));
         }
     }
@@ -137,7 +155,9 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
                 if (SubStreamID != 0) {
                     SubStreamEntry* Entry = Instance.FindSubStream(SubStreamID);
                     if (Entry && Entry->SubStream) {
-                        AddCaptureStream(Entry->SubStream, DeviceID, CaptureMode::WGC);
+                        OmniStreamController::StreamID StreamID =
+                            AddCaptureStream(Entry->SubStream, DeviceID, CaptureMode::WGC);
+                        StreamRegistry.insert({{DeviceID, FeatureTypes::WindowLink}, StreamID});
                     }
                 }
             }
@@ -145,17 +165,23 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
                 "CaptureStream on WindowLink started for DeviceID {:d}", static_cast<int>(DeviceID)
             );
         } else {
+            auto Range = StreamRegistry.equal_range({DeviceID, FeatureTypes::WindowLink});
+            for (auto iter = Range.first; iter != Range.second; ++iter) {
+                StreamController.RemoveStream(iter->second);
+            }
+            StreamRegistry.erase(Range.first, Range.second);
             Logger::log("WindowLink stopped for DeviceID {:d}", static_cast<int>(DeviceID));
         }
     } else {
         if (Action == FeatureAction::Activate) {
             WindowCreationData WGC{"Window Stream Window"};
-            StreamWindow* Win = CreateStreamWindow(WGC);
+            StreamWindow* Window = CreateStreamWindow(WGC);
             Logger::log("StreamWindow created for device {:d}", static_cast<int>(DeviceID));
 
             OmniNet::PoolConfig Config{};
-            if (Win) {
-                Win->GetFramePool(
+            if (Window) {
+                WindowRegistry.insert({{DeviceID, FeatureTypes::WindowLink}, Window});
+                Window->GetFramePool(
                     Config.Data,
                     Config.DataSize,
                     Config.NumSlots,
@@ -165,11 +191,16 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
             }
             return Config;
         } else {
-            if (!ActiveWindows.empty()) {
-                auto* win = ActiveWindows.back();
-                ActiveWindows.pop_back();
-                delete win;
+            auto Range = WindowRegistry.equal_range({DeviceID, FeatureTypes::WindowLink});
+            for (auto iter = Range.first; iter != Range.second; ++iter) {
+                StreamWindow* Window = iter->second;
+                auto WindowsIter = std::find(ActiveWindows.begin(), ActiveWindows.end(), Window);
+                if (WindowsIter != ActiveWindows.end()) {
+                    *WindowsIter = nullptr;
+                }
+                delete Window;
             }
+            WindowRegistry.erase(Range.first, Range.second);
             Logger::log("StreamWindow closed for device {:d}", static_cast<int>(DeviceID));
         }
     }

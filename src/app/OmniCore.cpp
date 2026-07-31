@@ -640,7 +640,7 @@ OmniNet::PoolConfig OmniCore::UpdateFeatureState(
 
 void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
 {
-    if (!InstanceRegistry.ActiveInstances.contains(DeviceID)) {
+    if (DeviceID == DeviceMap::C0 || !InstanceRegistry.ActiveInstances.contains(DeviceID)) {
         std::string instName = InstanceRegistry.AllInstances.contains(DeviceID)
                                    ? InstanceRegistry.AllInstances[DeviceID].InstanceName
                                    : "Unknown";
@@ -871,7 +871,7 @@ void OmniCore::SubStreamHandler(DeviceMap Device, SubStreamData Data)
             TransmitNetCommand(Device, NetCommand, 0, OmniNet::Argonized);
 
             Logger::log(
-                "SubStream Active @SubStreamID={:d} connected to A ({:s}:{:d}), Port={:d}",
+                "SubStream Active @SubStreamID={:d} connected to ({:s}:{:d}), Port={:d}",
                 Data.SubStreamID,
                 Instance.IPv4_String,
                 Data.Port,

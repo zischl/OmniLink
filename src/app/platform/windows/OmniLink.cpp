@@ -10,10 +10,13 @@
 static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)
 {
     OmniNet::OmniHeader* Header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
-    StreamWindow* Target = Windows->at(Header->Target);
-
-    Target->SetBufferData(Buffer, BufferSize - OmniHeaderSize);
-    Target->SetRenderEvent();
+    if (Windows && Header->Target < Windows->size()) {
+        StreamWindow* Target = Windows->at(Header->Target);
+        if (Target) {
+            Target->SetBufferData(Buffer, BufferSize - OmniHeaderSize);
+            Target->SetRenderEvent();
+        }
+    }
 }
 
 static void HandleCommand(CHAR* Buffer, DWORD BufferSize, DeviceMap DeviceID)
