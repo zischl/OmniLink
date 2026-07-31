@@ -182,7 +182,11 @@ void OmniNetSubStream::HandleCompletion(OVERLAPPED* OV, DWORD BufferSize)
     }
 
     const char* RBuffer = RecvPool.ContextPool[RecvPool.PoolHead].TransmitBuffer.buf;
-    const uint8_t PType = *(RBuffer + BufferSize - 3);
+    if (BufferSize < OmniHeaderSize || !RBuffer) {
+        return;
+    }
+
+    const uint8_t PType = *(RBuffer + BufferSize - OmniHeaderSize);
 
     switch (PType) {
     case OmniNet::ChunkStart:

@@ -127,14 +127,14 @@ struct IOContextExternalChunkPool
     void Init(
         char* DataPtr,
         uint32_t DataSize,
-        uint32_t SlotCount,
+        uint32_t InSlotCount,
         void (*onSlotComplete)(void*, uint32_t, uint32_t) = nullptr,
         void* SlotCompletionCtx = nullptr
     )
     {
         Data = DataPtr;
-        SlotCount = SlotCount;
-        SlotSize = DataSize / SlotCount;
+        SlotCount = InSlotCount;
+        SlotSize = (InSlotCount > 0) ? (DataSize / InSlotCount) : 0;
         ChunksPerSlot = SlotSize / OmniMTU;
         ActiveSlot = 0;
         ActiveChunk = 0;
@@ -161,11 +161,14 @@ struct IOContextExternalChunkPool
 
     inline void PushFinalChunk(uint32_t BufferSize)
     {
-        const uint32_t size = ActiveChunk * OmniMTU + BufferSize;
+        const uint32_t PayloadSize = (BufferSize >= OmniHeaderSize) ? (BufferSize - OmniHeaderSize) : 0;
+        const uint32_t size = ActiveChunk * OmniMTU + PayloadSize;
         if (OnSlotComplete) {
             OnSlotComplete(SlotCompleteCtx, ActiveSlot, size);
         }
-        ActiveSlot = (ActiveSlot + 1) % SlotCount;
+        if (SlotCount > 0) {
+            ActiveSlot = (ActiveSlot + 1) % SlotCount;
+        }
         ActiveChunk = 0;
         PoolHead = ActiveSlot * ChunksPerSlot;
     }
@@ -184,7 +187,7 @@ struct IOContextExternalChunkPool
     }
 };
 
-struct SubStreamPoolConfig
+struct PoolConfig
 {
     char* Data = nullptr;
     uint32_t DataSize = 0;
