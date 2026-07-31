@@ -316,27 +316,18 @@ class OmniCore
     void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
     void FeatureStateHandler(DeviceMap SenderID, const FeatureToggleData& ToggleConfig);
 
-    OmniNet::SubStreamPoolConfig UpdateFeatureState(
-        DeviceMap Device,
-        FeatureTypes Feature,
-        FeatureActionRoute Route,
-        FeatureAction Action,
-        uint16_t SubStreamID = 0
+    OmniNet::PoolConfig UpdateFeatureState(
+        DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Route, FeatureAction Action
     );
-    OmniNet::SubStreamPoolConfig DispatchFeatureState(
-        FeatureTypes Feature,
-        DeviceMap DeviceID,
-        FeatureActionRoute Route,
-        FeatureAction Action,
-        uint16_t SubStreamID = 0
+    OmniNet::PoolConfig DispatchFeatureState(
+        FeatureTypes Feature, DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
     );
 
     // Sub-stream management
     OmniNetSubStream* OpenSubStream(DeviceMap Device, uint16_t SubStreamID);
 
-    void ConfigureSubStream(
-        DeviceMap Device, uint16_t SubStreamID, const OmniNet::SubStreamPoolConfig& Config
-    );
+    void
+    ConfigureSubStream(DeviceMap Device, uint16_t SubStreamID, const OmniNet::PoolConfig& Config);
 
     void CloseSubStream(DeviceMap DeviceID, uint16_t SubStreamID, bool NotifyPeer = true);
 

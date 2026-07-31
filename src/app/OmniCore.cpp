@@ -14,6 +14,7 @@ DeviceMap OmniCore::SelectedTargetDevice = DeviceMap::C0;
 
 OmniCore::OmniCore()
 {
+    SystemLink.ActiveInstances = &InstanceRegistry.ActiveInstances;
     QryptManager.LoadPairingTokensFromFile();
 }
 
@@ -598,8 +599,8 @@ void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo)
     SystemLink.CreateStreamWindow(WindowInfo);
 }
 
-typedef OmniNet::SubStreamPoolConfig (OmniSystemLink::*FeatureHandlerFn)(
-    DeviceMap, FeatureActionRoute, FeatureAction, uint16_t
+typedef OmniNet::PoolConfig (OmniSystemLink::*FeatureHandlerFn)(
+    DeviceMap, FeatureActionRoute, FeatureAction
 );
 
 static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchTable = {
@@ -610,37 +611,29 @@ static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchT
     {FeatureTypes::ClipboardLink, &OmniSystemLink::SetClipboardLinkState}
 };
 
-OmniNet::SubStreamPoolConfig OmniCore::DispatchFeatureState(
-    FeatureTypes Feature,
-    DeviceMap Device,
-    FeatureActionRoute Route,
-    FeatureAction Action,
-    uint16_t SubStreamID
+OmniNet::PoolConfig OmniCore::DispatchFeatureState(
+    FeatureTypes Feature, DeviceMap Device, FeatureActionRoute Route, FeatureAction Action
 )
 {
     auto iter = FeatureDispatchTable.find(Feature);
     if (iter != FeatureDispatchTable.end() && iter->second) {
-        return (SystemLink.*(iter->second))(Device, Route, Action, SubStreamID);
+        return (SystemLink.*(iter->second))(Device, Route, Action);
     }
-    return OmniNet::SubStreamPoolConfig{};
+    return OmniNet::PoolConfig{};
 }
 
-OmniNet::SubStreamPoolConfig OmniCore::UpdateFeatureState(
-    DeviceMap Device,
-    FeatureTypes Feature,
-    FeatureActionRoute Route,
-    FeatureAction Action,
-    uint16_t SubStreamID
+OmniNet::PoolConfig OmniCore::UpdateFeatureState(
+    DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Route, FeatureAction Action
 )
 {
     if (!InstanceRegistry.ActiveInstances.contains(Device)) {
-        return OmniNet::SubStreamPoolConfig{};
+        return OmniNet::PoolConfig{};
     }
 
     auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
     Instance.SetFeatureState(Feature, Route, Action == FeatureAction::Activate);
 
-    return DispatchFeatureState(Feature, Device, Route, Action, SubStreamID);
+    return DispatchFeatureState(Feature, Device, Route, Action);
 }
 
 void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
@@ -714,19 +707,13 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
     };
     TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
 
-    UpdateFeatureState(
-        DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, ToggleData.SubStreamID
-    );
+    UpdateFeatureState(DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction);
 }
 
 void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& FeatureData)
 {
-    OmniNet::SubStreamPoolConfig PoolConfig = UpdateFeatureState(
-        DeviceID,
-        FeatureData.FeatureType,
-        FeatureActionRoute::Inbound,
-        FeatureData.Action,
-        FeatureData.SubStreamID
+    OmniNet::PoolConfig PoolConfig = UpdateFeatureState(
+        DeviceID, FeatureData.FeatureType, FeatureActionRoute::Inbound, FeatureData.Action
     );
 
     if (FeatureData.Action == FeatureAction::Deactivate && FeatureData.SubStreamID != 0) {
@@ -793,7 +780,7 @@ OmniNetSubStream* OmniCore::OpenSubStream(DeviceMap Device, uint16_t SubStreamID
 }
 
 void OmniCore::ConfigureSubStream(
-    DeviceMap Device, uint16_t SubStreamID, const OmniNet::SubStreamPoolConfig& Config
+    DeviceMap Device, uint16_t SubStreamID, const OmniNet::PoolConfig& Config
 )
 {
     if (!InstanceRegistry.ActiveInstances.contains(Device)) {

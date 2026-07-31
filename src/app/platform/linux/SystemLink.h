@@ -14,6 +14,7 @@
 #include <vector>
 
 template <uint32_t MTU> class OmniNetSession;
+class OmniNetSubStream;
 
 using NetworkPacketHandlerFn = void(char*, uint32_t, uint8_t, void*);
 
@@ -34,10 +35,11 @@ struct OmniSystemLink
     HINSTANCE hInstance = nullptr;
     int nCmdShow = 0;
     HWND WindowID = nullptr;
+    ActiveInstanceContainer* ActiveInstances = nullptr;
 
     OmniSystemLink(OmniRenderState& RenderState);
 
-    void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
+    void SetupSystemLink();
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
 
@@ -46,13 +48,22 @@ struct OmniSystemLink
     void SyncInputFilter();
 
     OmniStreamController::StreamID
-    AddCaptureStream(OmniNetSession<OmniMTU>* netSession, DeviceMap targetID, CaptureMode mode);
+    AddCaptureStream(OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode);
 
-    void SetScreenLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
-    void SetWindowLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
-    void SetInputLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
-    void SetAudioLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
-    void SetClipboardLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    OmniNet::PoolConfig
+    SetScreenLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+
+    OmniNet::PoolConfig
+    SetWindowLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+
+    OmniNet::PoolConfig
+    SetInputLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+
+    OmniNet::PoolConfig
+    SetAudioLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+
+    OmniNet::PoolConfig
+    SetClipboardLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
 };
 
 #endif
