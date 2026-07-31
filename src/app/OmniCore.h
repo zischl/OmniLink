@@ -296,6 +296,16 @@ class OmniCore
                 static_cast<uint8_t>(Command.CommandType),
                 static_cast<uint64_t>(Command.ArgTypeIndex)
             );
+
+            if (Command.ActionToken == 0) {
+                Logger::log(
+                    "Failed to generate ActionToken for command {:d} targeting device {:d}, "
+                    "transmission aborted!",
+                    static_cast<int>(Command.CommandType),
+                    static_cast<int>(TargetDevice)
+                );
+                return;
+            }
         }
 
         OmniNet::OmniHeader header;

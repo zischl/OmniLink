@@ -107,6 +107,8 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
             }
         } else if (Event.LinkState == NetLinkState::LINKED) {
             if (InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKED)) {
+                QryptManager.AuthenticateSession(DeviceID);
+
                 if (HandshakeRetries.count(DeviceID)) {
                     HandshakeRetries.erase(DeviceID);
                 }
