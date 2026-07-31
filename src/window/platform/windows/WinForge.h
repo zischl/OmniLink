@@ -18,6 +18,7 @@
 #include <wrl/client.h>
 
 #include <string>
+#include <thread>
 #include <variant>
 
 using Microsoft::WRL::ComPtr;
@@ -51,6 +52,10 @@ class WinForge
 {
   public:
     WinForge(WNDPROC WindowProc = WProc2);
+    ~WinForge();
+
+    WinForge(const WinForge&) = delete;
+    WinForge& operator=(const WinForge&) = delete;
 
     HWND CreateWindowAsync(
         const wchar_t* window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct = {}
@@ -58,18 +63,23 @@ class WinForge
 
     inline void SetFrameBufferSize(int Size)
     {
-        char* block = new CHAR[FrameQueueSize * FrameSize];
+        if (RawFrameBufferBlock != nullptr) {
+            delete[] RawFrameBufferBlock;
+            RawFrameBufferBlock = nullptr;
+        }
+
+        FrameSize = Size;
+        RawFrameBufferBlock = new CHAR[FrameQueueSize * FrameSize];
         for (int i = 0; i < FrameQueueSize; i++)
-            FramePool[i].FrameBuffer = block + i * FrameSize;
+            FramePool[i].FrameBuffer = RawFrameBufferBlock + i * FrameSize;
     }
 
     inline void SetFramePoolSize(int Size)
     {
-        if (FramePool != nullptr) {
-            delete[] FramePool;
-        }
+        CleanupFramePool();
 
-        FramePool = new Frame[Size];
+        FrameQueueSize = Size;
+        FramePool = new Frame[FrameQueueSize];
         SetFrameBufferSize(FrameSize);
     }
 
@@ -157,6 +167,7 @@ class WinForge
     WNDPROC WProc = NULL;
     HANDLE* Events = nullptr;
     DWORD EventDW = NULL;
+    std::thread WindowThread;
 
     std::chrono::steady_clock::duration FrameTimeLimit =
         std::chrono::nanoseconds(1000000000LL / 75);
@@ -197,6 +208,7 @@ class WinForge
 
     int FrameSize = 2048 * OmniMTU;
     int FrameQueueSize = 4;
+    CHAR* RawFrameBufferBlock = nullptr;
     Frame* FramePool = nullptr;
     uint8_t CurrentFrame = 0;
     uint8_t NextFrame = 0;
@@ -207,6 +219,20 @@ class WinForge
 
     void Render();
     void MainLoop();
+    void CloseWindowThread();
+    void CleanupD3D();
+    void CleanupEvents();
+    inline void CleanupFramePool()
+    {
+        if (RawFrameBufferBlock != nullptr) {
+            delete[] RawFrameBufferBlock;
+            RawFrameBufferBlock = nullptr;
+        }
+        if (FramePool != nullptr) {
+            delete[] FramePool;
+            FramePool = nullptr;
+        }
+    }
 
     __forceinline void null() {}
 

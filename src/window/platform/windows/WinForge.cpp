@@ -7,6 +7,14 @@ WinForge::WinForge(WNDPROC WindowProc)
     SetFramePoolSize(FrameQueueSize);
 }
 
+WinForge::~WinForge()
+{
+    CloseWindowThread();
+    CleanupD3D();
+    CleanupEvents();
+    CleanupFramePool();
+}
+
 HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc)
 {
 
@@ -58,7 +66,7 @@ HWND WinForge::CreateWindowAsync(
 {
 
     std::wstring name(window_name);
-    std::thread test1([this, name, hInstance, nCmdShow, D3DDevStruct] {
+    WindowThread = std::thread([this, name, hInstance, nCmdShow, D3DDevStruct] {
         hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         WinConfig config(L"Linker", 1920, 1080, name.c_str(), NULL);
         hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
@@ -76,19 +84,47 @@ HWND WinForge::CreateWindowAsync(
         RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
         Renderer.RendererInit(hwnd, config.wdWidth, config.wdHeight, RendererPtrs);
         D3D11Device = RendererPtrs.D3D11Device.Get();
+        if (D3D11Device)
+            D3D11Device->AddRef();
+
         D3D11Context = RendererPtrs.D3D11Context.Get();
-        ContextMode = D3D11Context->GetType();
+        if (D3D11Context)
+            D3D11Context->AddRef();
+
+        ContextMode = D3D11Context ? D3D11Context->GetType() : D3D11_DEVICE_CONTEXT_IMMEDIATE;
 
         Swapchain = RendererPtrs.swapchain.Get();
+        if (Swapchain)
+            Swapchain->AddRef();
+
         RenderTargetView = RendererPtrs.renderTargetView.Get();
+        if (RenderTargetView)
+            RenderTargetView->AddRef();
 
         HWNDxShaders ShaderPtrs = Renderer.ShadersInit(D3D11Device);
         PixelShader = ShaderPtrs.pixelShader.Get();
+        if (PixelShader)
+            PixelShader->AddRef();
+
         VertexShader = ShaderPtrs.vertexShader.Get();
+        if (VertexShader)
+            VertexShader->AddRef();
+
         VertexBuffer = ShaderPtrs.vertexBuffer.Get();
+        if (VertexBuffer)
+            VertexBuffer->AddRef();
+
         InputLayout = ShaderPtrs.inputLayout.Get();
+        if (InputLayout)
+            InputLayout->AddRef();
+
         IndexBuffer = ShaderPtrs.IndexBuffer.Get();
+        if (IndexBuffer)
+            IndexBuffer->AddRef();
+
         Sampler = ShaderPtrs.sampler.Get();
+        if (Sampler)
+            Sampler->AddRef();
 
         Stride = ShaderPtrs.VertexBufferStride;
         Offset = ShaderPtrs.VertexBufferOffset;
@@ -136,9 +172,9 @@ HWND WinForge::CreateWindowAsync(
         OmniDecoder.emplace<NvdecSession>(config.wdWidth, config.wdHeight, FrameBufferTex.Get());
 
         MainLoop();
-    });
 
-    test1.detach();
+        CoUninitialize();
+    });
 
     return hwnd;
 }
@@ -200,6 +236,78 @@ void WinForge::MainLoop()
         case WAIT_TIMEOUT:
             break;
         }
+    }
+}
+
+void WinForge::CloseWindowThread()
+{
+    if (hwnd != NULL && IsWindow(hwnd)) {
+        PostMessage(hwnd, WM_CLOSE, 0, 0);
+    }
+    if (Events != nullptr && Events[0] != NULL) {
+        SetEvent(Events[0]);
+    }
+    if (WindowThread.joinable()) {
+        WindowThread.join();
+    }
+}
+
+void WinForge::CleanupD3D()
+{
+    TextureView.Reset();
+    FrameBufferTex.Reset();
+
+    if (Sampler) {
+        Sampler->Release();
+        Sampler = nullptr;
+    }
+    if (IndexBuffer) {
+        IndexBuffer->Release();
+        IndexBuffer = nullptr;
+    }
+    if (InputLayout) {
+        InputLayout->Release();
+        InputLayout = nullptr;
+    }
+    if (VertexBuffer) {
+        VertexBuffer->Release();
+        VertexBuffer = nullptr;
+    }
+    if (VertexShader) {
+        VertexShader->Release();
+        VertexShader = nullptr;
+    }
+    if (PixelShader) {
+        PixelShader->Release();
+        PixelShader = nullptr;
+    }
+    if (RenderTargetView) {
+        RenderTargetView->Release();
+        RenderTargetView = nullptr;
+    }
+    if (Swapchain) {
+        Swapchain->Release();
+        Swapchain = nullptr;
+    }
+    if (D3D11Context) {
+        D3D11Context->Release();
+        D3D11Context = nullptr;
+    }
+    if (D3D11Device) {
+        D3D11Device->Release();
+        D3D11Device = nullptr;
+    }
+}
+
+void WinForge::CleanupEvents()
+{
+    if (Events != nullptr) {
+        if (Events[0] != NULL) {
+            CloseHandle(Events[0]);
+            Events[0] = NULL;
+        }
+        delete[] Events;
+        Events = nullptr;
     }
 }
 
