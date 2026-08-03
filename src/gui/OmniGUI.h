@@ -7,6 +7,7 @@
 #include "BurstQ.h"
 #include "IconLoader.h"
 #include "OmniAPI.h"
+#include "OmniColors.h"
 #include "OmniCore.h"
 #include "OmniEnums.h"
 #include "OmniInstances.h"
@@ -67,9 +68,12 @@ class OmniGUI
 #define IC_AIRPLAY "\xef\x80\x92"
 #define IC_X "\xEF\x80\x93"
 #define IC_MINUS "\xEF\x80\x94"
+#define IC_SLIDERS "\xef\x80\x87"
 
     // Welcome to HELL
     static constexpr ImU32 COL_BG_CHILD_1 = IM_COL32(19, 21, 31, 255);
+    static constexpr ImU32 COL_BG_CHILD_2 = IM_COL32(24, 26, 38, 255);
+    static constexpr ImU32 COL_BORDER = IM_COL32(46, 31, 64, 255);
     static constexpr ImU32 COL_TITLE_BG = IM_COL32(8, 9, 14, 255);
     static constexpr ImVec4 COL4_TEXT_MUTED = ImVec4(0.239f, 0.220f, 0.333f, 1.0f);
     static constexpr ImVec4 COL4_TEXT_ACTIVE = ImVec4(0.753f, 0.722f, 0.831f, 1.0f);
@@ -166,10 +170,14 @@ class OmniGUI
     BurstQ<Notification, 4> NotificationQueue{};
 
     // Fonts
+    ImFont* InterMed12 = nullptr;
     ImFont* InterReg14 = nullptr;
     ImFont* InterReg15 = nullptr;
     ImFont* InterMed14 = nullptr;
+    ImFont* InterMed15 = nullptr;
     ImFont* InterMed16 = nullptr;
+    ImFont* InterBold18 = nullptr;
+    ImFont* InterBold20 = nullptr;
     ImFont* JetBrainsMed15 = nullptr;
     ImFont* JetBrainsBold20 = nullptr;
     ImFont* OmniIconsLarge = nullptr;
@@ -184,11 +192,12 @@ class OmniGUI
     );
 
     void DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstance* DeviceData);
+    bool DeviceAddButton(const char* Label, const ImVec2& CenterPos, ImU32 Color);
+    int ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
 
     bool IconizedButton(const char* Label, const char* Icon, bool state, const ImVec2& ButtonSize);
-    void DeviceAddButton(const ImVec2& CenterPos, ImU32 Color);
     bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
-    int ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
+
     void MetricDashboard(
         const char* ContainerId,
         const MetricItem* Items,
@@ -197,66 +206,151 @@ class OmniGUI
         float Height
     );
 
+    void RenderConnectModal();
+
+    // Da other tabs..
+    void RenderInstancesTab();
+    void RenderKeybindsTab();
+    void RenderSettingsTab();
+
+    // Modal & Config State
+    bool ShowConnectModal = false;
+    DeviceMap TargetSlotForAdd = DeviceMap::C0;
+    char ManualIPBuffer[32] = {};
+
+    int ConfigPort = 62485;
+    int ConfigDiscoveryPort = 58426;
+    bool ConfigAutoProbe = true;
+    int ConfigTargetFPS = 60;
+    bool ConfigLockCursor = true;
+    bool ConfigClipboardSync = true;
+    int ConfigEdgeSensitivity = 5;
+    bool ConfigToastOverlay = true;
+
+    void HandshakeEventHeader(
+        ImDrawList* DrawList,
+        ImVec2 WindowPos,
+        float WindowWidth,
+        const char* HeaderTitle,
+        const char* DeviceName,
+        const char* SubText,
+        const char* Key,
+        int Port,
+        float Timeout
+    );
+
     // Notification Event Handlers
-    static bool HandleEvent(ConnectionRequest& request, float timeout);
-    static bool HandleEvent(Alert& request, float timeout);
+    bool HandleEvent(HandshakeWaitEvent& Request, float Timeout);
+    bool HandleEvent(HandshakeConfirmEvent& Request, float Timeout);
+    bool HandleEvent(Alert& Request, float Timeout);
 
     void CenterItemX(const float ItemWidth);
     void CreateCurvedLine(const char* label, int curve);
 
+    // Just.. make sure to keep a HandleEvent func ready.
+    // HandleEvent must return true to be exterminated.
+    // BeginPopupModal returns true as long as if not clicked or timedout.
     bool NotificationWindow(const char* label, Notification& notification)
     {
-        bool end = false;
-
-        if (notification.Active) {
-            ImGui::OpenPopup(label);
-            notification.Active = false;
-        }
-
-        ImVec2 position;
+        bool Exterminate = false;
 
         if (notification.Layout == Notification::EventLayout::CENTER) {
-            position = ImGui::GetMainViewport()->GetCenter();
-            ImGui::SetNextWindowPos(position, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-            ImGui::SetNextWindowSize(ImVec2(360.0f, 364.0f));
-        } else {
-            const ImGuiViewport* viewport = ImGui::GetMainViewport();
-            ImVec2 size = ImVec2(320.0f, 72.0f);
-            float padding = 10.0f;
-            position.x = viewport->WorkPos.x + viewport->WorkSize.x - size.x - padding;
-            position.y = viewport->WorkPos.y + viewport->WorkSize.y - size.y - padding;
-
-            ImGui::SetNextWindowPos(position, ImGuiCond_Always);
-            ImGui::SetNextWindowSize(size);
-        }
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
-
-        bool clicked = false;
-
-        if (ImGui::BeginPopupModal(label, NULL, DefaultFlags)) {
-
-            notification.Timeout -= ImGui::GetIO().DeltaTime;
-            if (notification.Timeout <= 0.0f) {
-                end = true;
+            if (notification.Active) {
+                ImGui::OpenPopup(label);
+                notification.Active = false;
             }
 
-            clicked = std::visit(
-                [&](auto& args) { return HandleEvent(args, notification.Timeout); },
-                notification.Event
-            );
-            if (clicked)
-                end = true;
+            ImVec2 WindowPos = ImGui::GetMainViewport()->GetCenter();
+            ImGui::SetNextWindowPos(WindowPos, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGui::SetNextWindowSize(ImVec2(390.0f, 0.0f));
 
-            if (end)
-                ImGui::CloseCurrentPopup();
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(18.0f, 18.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 16.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+            ImGui::PushStyleColor(ImGuiCol_PopupBg, COL_BG_CHILD_1);
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.14f, 0.14f, 0.20f, 1.0f));
 
-            ImGui::EndPopup();
+            bool Clicked = false;
+            ImGuiWindowFlags modalFlags = DefaultFlags | ImGuiWindowFlags_AlwaysAutoResize;
+
+            if (ImGui::BeginPopupModal(label, NULL, modalFlags)) {
+
+                notification.Timeout -= ImGui::GetIO().DeltaTime;
+                if (notification.Timeout <= 0.0f) {
+                    Exterminate = true;
+                }
+
+                Clicked = std::visit(
+                    [&](auto& args) { return HandleEvent(args, notification.Timeout); },
+                    notification.Event
+                );
+                if (Clicked)
+                    Exterminate = true;
+
+                if (Exterminate)
+                    ImGui::CloseCurrentPopup();
+
+                ImGui::EndPopup();
+            } else {
+                if (!notification.Active) {
+                    Exterminate = true;
+                }
+            }
+
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(3);
+        } else {
+            const ImGuiViewport* Viewport = ImGui::GetMainViewport();
+            ImVec2 Size = ImVec2(340.0f, 72.0f);
+            float Padding = 14.0f;
+            ImVec2 WindowPos;
+            WindowPos.x = Viewport->WorkPos.x + Viewport->WorkSize.x - Size.x - Padding;
+            WindowPos.y = Viewport->WorkPos.y + Viewport->WorkSize.y - Size.y - Padding;
+
+            ImGui::SetNextWindowPos(WindowPos, ImGuiCond_Always);
+            ImGui::SetNextWindowSize(Size);
+
+            ImGuiWindowFlags WindowFlags =
+                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+                ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollbar |
+                ImGuiWindowFlags_NoScrollWithMouse;
+
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 10.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.5f);
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, COL_BG_CHILD_1);
+            ImGui::PushStyleColor(ImGuiCol_Border, COL_MENU_STRIP);
+
+            bool Clicked = false;
+
+            if (ImGui::Begin(label, NULL, WindowFlags)) {
+
+                notification.Timeout -= ImGui::GetIO().DeltaTime;
+                if (notification.Timeout <= 0.0f) {
+                    Exterminate = true;
+                }
+
+                Clicked = std::visit(
+                    [&](auto& args) { return HandleEvent(args, notification.Timeout); },
+                    notification.Event
+                );
+                if (Clicked)
+                    Exterminate = true;
+
+                ImGui::End();
+            } else {
+                notification.Timeout -= ImGui::GetIO().DeltaTime;
+                if (notification.Timeout <= 0.0f) {
+                    Exterminate = true;
+                }
+            }
+
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(3);
         }
 
-        ImGui::PopStyleVar();
-
-        return end;
+        return Exterminate;
     }
 
   public:
@@ -474,7 +568,10 @@ class OmniGUI
                 ImVec2 size =
                     ImVec2(1 + ((ContentSpaceSize.x - ModeTextSize.x) / 5), FeaturePanelHeight);
 
-                const uint32_t FeatureSates = (*ActiveInstances)[SelectedDevice].ActiveFlags;
+                const uint32_t FeatureSates =
+                    (ActiveInstances && ActiveInstances->contains(SelectedDevice))
+                        ? ActiveInstances->at(SelectedDevice).ActiveFlags
+                        : 0;
                 ImGui::PushFont(InterMed16);
 
                 if (IconizedButton(
@@ -498,7 +595,7 @@ class OmniGUI
                 ImGui::SameLine(0.0f, 0.0f);
 
                 if (IconizedButton(
-                        "Input Link", IC_MOUSE, (FeatureSates & FeatureFlags::fInputLink) != 1, size
+                        "Input Link", IC_MOUSE, (FeatureSates & FeatureFlags::fInputLink) != 0, size
                     )) {
                     OmniAPI::ToggleFeature(FeatureTypes::InputLink, SelectedDevice);
                 }
@@ -569,25 +666,28 @@ class OmniGUI
 
                 MetricDashboard("NetContainer", staticMetrics, 4, AvailableSpace.x, 55.0f);
 
-                if (auto* activeNotif = NotificationQueue.peek()) {
-                    if (NotificationWindow(activeNotif->EventName, *activeNotif)) {
-                        NotificationQueue.pop();
-                    }
-                }
-
-            }
-
-            break;
+            } break;
 
             case 1:
-
+                RenderInstancesTab();
                 break;
 
             case 2:
+                RenderKeybindsTab();
                 break;
 
             case 3:
+                RenderSettingsTab();
                 break;
+            }
+
+            if (auto* activeNotif = NotificationQueue.peek()) {
+                if (activeNotif->Cancelled &&
+                    activeNotif->Cancelled->load(std::memory_order_relaxed)) {
+                    NotificationQueue.pop();
+                } else if (NotificationWindow(activeNotif->EventName, *activeNotif)) {
+                    NotificationQueue.pop();
+                }
             }
         }
 
