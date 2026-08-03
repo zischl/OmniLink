@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.18)
-project(OmniLink LANGUAGES CXX CUDA)
+project(OmniLink LANGUAGES C CXX CUDA)
+
+include(FetchContent)
+FetchContent_Declare(
+  monocypher
+  URL https://github.com/LoupVaillant/Monocypher/archive/refs/tags/4.0.2.tar.gz
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(monocypher)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
@@ -89,17 +96,21 @@ set(COMMON_SOURCES
     src/app/OmniCore.cpp
     src/app/OmniAPI.cpp
     src/gui/OmniGUI.cpp
+    src/gui/IMEventHandlers.cpp
+    src/gui/NexusGUI.cpp
+    src/gui/KeyBindsGUI.cpp
     src/codec/nvenc.cpp
     src/codec/nvdec.cpp
     src/codec/CuKernel.cu
-    src/capture/CaptureController.cpp)
+    src/capture/CaptureController.cpp
+    ${monocypher_SOURCE_DIR}/src/monocypher.c)
 
 set(TEST_SOURCES unit_tests/dummies/DummyInstances.h)
 
 if(WIN32)
   set(PLATFORM_SOURCES
-      src/net/platform/windows/SessionHandler.cpp
-      src/net/platform/windows/PacketHandler.cpp
+      src/net/platform/windows/OmniNetContext.cpp
+      src/net/platform/windows/SubStream.cpp
       src/capture/platform/windows/WinCap.cpp
       src/capture/platform/windows/AudioCap.cpp
       src/render/platform/windows/D3D11Renderer.cpp
@@ -149,7 +160,8 @@ set(UNIT_TEST_SOURCES
     unit_tests/VarianceTest.cpp
     unit_tests/CaptureControllerTest.cpp
     unit_tests/NetSessionTest.cpp
-    unit_tests/NVEncodeDecodeTest.cpp)
+    unit_tests/NVEncodeDecodeTest.cpp
+    unit_tests/QryptTest.cpp)
 
 if(WIN32)
   add_executable(tests ${IMGUI_SOURCES} ${UNIT_TEST_SOURCES} ${COMMON_SOURCES}
@@ -165,6 +177,7 @@ set_target_properties(
              CUDA_SEPARABLE_COMPILATION ON
              CUDA_STANDARD 14)
 
+
 if(MSVC)
   set_target_properties(main PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
   set_target_properties(tests PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
@@ -177,6 +190,7 @@ add_dependencies(tests CompileShaders)
 target_include_directories(
   main
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+          ${monocypher_SOURCE_DIR}/src
           ${CMAKE_CURRENT_SOURCE_DIR}/external/include
           ${CMAKE_CURRENT_SOURCE_DIR}/external/include/nvidia
           ${CMAKE_CURRENT_SOURCE_DIR}/external/include/lz4
@@ -186,6 +200,7 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src
           ${CMAKE_CURRENT_SOURCE_DIR}/src/core
           ${CMAKE_CURRENT_SOURCE_DIR}/src/net
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/qrypt
           ${CMAKE_CURRENT_SOURCE_DIR}/src/capture
           ${CMAKE_CURRENT_SOURCE_DIR}/src/codec
           ${CMAKE_CURRENT_SOURCE_DIR}/src/render
@@ -200,6 +215,7 @@ target_include_directories(
 target_include_directories(
   tests
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+          ${monocypher_SOURCE_DIR}/src
           ${CMAKE_CURRENT_SOURCE_DIR}/external/include
           ${CMAKE_CURRENT_SOURCE_DIR}/external/include/nvidia
           ${CMAKE_CURRENT_SOURCE_DIR}/external/include/lz4
@@ -209,6 +225,7 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src
           ${CMAKE_CURRENT_SOURCE_DIR}/src/core
           ${CMAKE_CURRENT_SOURCE_DIR}/src/net
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/qrypt
           ${CMAKE_CURRENT_SOURCE_DIR}/src/capture
           ${CMAKE_CURRENT_SOURCE_DIR}/src/codec
           ${CMAKE_CURRENT_SOURCE_DIR}/src/render
