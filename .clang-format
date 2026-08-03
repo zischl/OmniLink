@@ -1,0 +1,30 @@
+Language: Cpp
+BasedOnStyle: LLVM
+
+ColumnLimit: 100
+
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+AlignAfterOpenBracket: BlockIndent
+
+Cpp11BracedListStyle: true
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterControlStatement: Never
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: true
+  BeforeElse: false
+
+PointerAlignment: Left
+
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+AllowShortFunctionsOnASingleLine: Inline
+BinPackArguments: false
+BinPackParameters: false

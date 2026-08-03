@@ -61,21 +61,29 @@ class OmniGUI
 #define IC_WIFI "\xef\x80\x8b"
 #define IC_TRASH_2 "\xef\x80\x8c"
 #define IC_ZAP "\xef\x80\x8d"
-#define IC_NETWORK "\xef\x80\xae"
-#define IC_BELL "\xef\x80\xaf"
+#define IC_NETWORK "\xef\x80\x8e"
+#define IC_BELL "\xef\x80\x8f"
 #define IC_INFO "\xef\x80\x90"
 #define IC_DIAMOND_PLUS "\xef\x80\x91"
 #define IC_AIRPLAY "\xef\x80\x92"
-#define IC_X "\xEF\x80\x93"
-#define IC_MINUS "\xEF\x80\x94"
-#define IC_SLIDERS "\xef\x80\x87"
+#define IC_X "\xef\x80\x93"
+#define IC_MINUS "\xef\x80\x94"
+#define IC_SLIDERS_HORIZONTAL "\xef\x80\x95"
+#define IC_SLIDERS IC_SLIDERS_HORIZONTAL
+#define IC_REFRESH_CW "\xef\x80\x96"
+#define IC_GAUGE "\xef\x80\x97"
+#define IC_CIRCLE_CHECK "\xef\x80\x98"
+#define IC_CIRCLE_X "\xef\x80\x99"
+#define IC_CIRCLE_ALERT "\xef\x80\x9a"
+#define IC_LAPTOP "\xef\x80\x9b"
+#define IC_AIRPLAY_THICK "\xef\x80\x9c"
 
     // Welcome to HELL
     static constexpr ImU32 COL_BG_CHILD_1 = IM_COL32(19, 21, 31, 255);
     static constexpr ImU32 COL_BG_CHILD_2 = IM_COL32(24, 26, 38, 255);
     static constexpr ImU32 COL_BORDER = IM_COL32(46, 31, 64, 255);
     static constexpr ImU32 COL_TITLE_BG = IM_COL32(8, 9, 14, 255);
-    static constexpr ImVec4 COL4_TEXT_MUTED = ImVec4(0.239f, 0.220f, 0.333f, 1.0f);
+    static constexpr ImVec4 COL4_TEXT_MUTED = ImVec4(0.600f, 0.580f, 0.700f, 1.0f);
     static constexpr ImVec4 COL4_TEXT_ACTIVE = ImVec4(0.753f, 0.722f, 0.831f, 1.0f);
     static constexpr ImVec4 COL4_BTN_HOVER_DARK = ImVec4(0.250f, 0.250f, 0.350f, 0.5f);
     static constexpr ImVec4 COL4_BTN_HOVER_RED = ImVec4(0.700f, 0.150f, 0.150f, 0.8f);
