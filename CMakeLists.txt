@@ -99,6 +99,7 @@ set(COMMON_SOURCES
     src/gui/IMEventHandlers.cpp
     src/gui/NexusGUI.cpp
     src/gui/KeyBindsGUI.cpp
+    src/gui/SettingsGUI.cpp
     src/codec/nvenc.cpp
     src/codec/nvdec.cpp
     src/codec/CuKernel.cu

@@ -9,6 +9,19 @@ void OmniGUI::RenderKeybindsTab()
         "KeybindsTabChild", ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysUseWindowPadding
     );
 
+    ImGui::PushFont(InterBold20 ? InterBold20 : InterMed16);
+    ImGui::TextColored(COL4_TEXT_ACTIVE, "Keyboard Shortcuts & Hotkeys");
+    ImGui::PopFont();
+    ImGui::PushFont(InterReg14);
+    ImGui::TextColored(
+        COL4_TEXT_MUTED, "Global key bindings for Screen Link, Input Link, and system controls"
+    );
+    ImGui::PopFont();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
     struct KeybindItem
     {
         const char* Name;
@@ -44,13 +57,13 @@ void OmniGUI::RenderKeybindsTab()
 
         // Category Icon with Title
         if (Catog.Icon && Catog.Icon[0] != '\0') {
-            ImGui::PushFont(OmniIconsMedium ? OmniIconsMedium : InterMed16);
-            ImGui::TextColored(ImVec4(0.753f, 0.518f, 0.988f, 1.0f), "%s", Catog.Icon);
+            ImGui::PushFont(OmniIconsMedium);
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(COL_FEAT_TINT_ACT), "%s", Catog.Icon);
             ImGui::PopFont();
             ImGui::SameLine(0, 8.0f);
         }
         ImGui::PushFont(InterBold18 ? InterBold18 : InterMed16);
-        ImGui::TextColored(ImVec4(0.753f, 0.518f, 0.988f, 1.0f), "%s", Catog.Title);
+        ImGui::TextColored(COL4_TEXT_ACTIVE, "%s", Catog.Title);
         ImGui::PopFont();
         ImGui::Dummy(ImVec2(0.0f, 6.0f));
 
@@ -107,8 +120,9 @@ void OmniGUI::RenderKeybindsTab()
             ImVec2 NameSize = ImGui::CalcTextSize(KeyBindings.Name);
             float NameY = RowMin.y + (RowHeight - NameSize.y) * 0.5f;
             DrawList->AddText(
-                ImVec2(RowMin.x + 20.0f, NameY),
-                HoverState ? IM_COL32(255, 255, 255, 255) : IM_COL32(240, 240, 245, 255),
+                ImVec2(RowMin.x + 16.0f, NameY),
+                HoverState ? IM_COL32(255, 255, 255, 255)
+                           : ImGui::ColorConvertFloat4ToU32(COL4_TEXT_ACTIVE),
                 KeyBindings.Name
             );
             ImGui::PopFont();
@@ -134,7 +148,7 @@ void OmniGUI::RenderKeybindsTab()
             }
 
             float KeyStartY = RowMin.y + (RowHeight - KeyPillHeight) * 0.5f;
-            float CurrentKeyX = RowMax.x - 20.0f - TotalKeysWidth;
+            float CurrentKeyX = RowMax.x - 16.0f - TotalKeysWidth;
 
             for (size_t Idx = 0; Idx < KeyBindings.Keys.size(); ++Idx) {
                 float PillW = KeyWidths[Idx];
@@ -142,7 +156,7 @@ void OmniGUI::RenderKeybindsTab()
                 ImVec2 PillMax(CurrentKeyX + PillW, KeyStartY + KeyPillHeight);
 
                 ImU32 PillBg = HoverState ? IM_COL32(40, 36, 60, 255) : IM_COL32(28, 25, 42, 255);
-                ImU32 PillBrd = HoverState ? IM_COL32(85, 70, 120, 255) : IM_COL32(56, 44, 80, 255);
+                ImU32 PillBrd = HoverState ? IM_COL32(75, 60, 110, 255) : IM_COL32(56, 44, 80, 255);
 
                 DrawList->AddRectFilled(PillMin, PillMax, PillBg, 5.0f);
                 DrawList->AddRect(PillMin, PillMax, PillBrd, 5.0f, 0, 1.0f);
@@ -153,7 +167,9 @@ void OmniGUI::RenderKeybindsTab()
                     PillMin.y + (KeyPillHeight - TextSize.y) * 0.5f
                 );
 
-                DrawList->AddText(TextPos, IM_COL32(220, 212, 240, 255), KeyBindings.Keys[Idx]);
+                DrawList->AddText(
+                    TextPos, ImGui::ColorConvertFloat4ToU32(COL4_TEXT_ACTIVE), KeyBindings.Keys[Idx]
+                );
 
                 CurrentKeyX += PillW + KeySpacing;
             }
