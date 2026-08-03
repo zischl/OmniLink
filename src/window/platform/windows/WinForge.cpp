@@ -17,14 +17,20 @@ WinForge::~WinForge()
 
 HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc)
 {
-
     WNDCLASSEXW wc = {};
-    wc.lpfnWndProc = WProc;
-    wc.hInstance = hInstance;
-    wc.lpszClassName = Config.class_name.c_str();
-    wc.cbSize = sizeof(WNDCLASSEXW);
+    if (!GetClassInfoExW(hInstance, Config.class_name.c_str(), &wc)) {
+        wc = {};
+        wc.cbSize = sizeof(WNDCLASSEXW);
+        wc.lpfnWndProc = WProc;
+        wc.hInstance = hInstance;
+        wc.lpszClassName = Config.class_name.c_str();
 
-    ATOM WCAtom = RegisterClassExW(&wc);
+        if (RegisterClassExW(&wc) == 0) {
+            OutputDebugString(
+                (L"Window Class Reg Died: " + std::to_wstring(GetLastError()) + L"\n").c_str()
+            );
+        }
+    }
 
     const int ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
     const int ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -34,7 +40,7 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 
     HWND hwnd_ = CreateWindowExW(
         WS_EX_LAYERED,
-        MAKEINTATOM(WCAtom),
+        Config.class_name.c_str(),
         Config.Window_Name.c_str(),
         WS_POPUP,
         x,
@@ -70,10 +76,14 @@ HWND WinForge::CreateWindowAsync(
         hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         WinConfig config(L"Linker", 1920, 1080, name.c_str(), NULL);
         hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
+        if (hwnd == NULL) {
+            CoUninitialize();
+            return;
+        }
         ShowWindow(hwnd, nCmdShow);
 
         Events = new HANDLE[1];
-        Events[0] = CreateEvent(NULL, FALSE, TRUE, L"OM_RENDER");
+        Events[0] = CreateEvent(NULL, FALSE, TRUE, NULL);
 
         // ###############################################################################//
 
@@ -144,7 +154,9 @@ HWND WinForge::CreateWindowAsync(
         viewport.MinDepth = 0.0f;
         viewport.MaxDepth = 1.0f;
 
-        D3D11Context->RSSetViewports(1, &viewport);
+        if (D3D11Context) {
+            D3D11Context->RSSetViewports(1, &viewport);
+        }
 
         // ###############################################################################//
 
@@ -160,11 +172,15 @@ HWND WinForge::CreateWindowAsync(
         CustommainBufferDesc.MipLevels = 1;
         CustommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
 
-        D3D11Device->CreateTexture2D(&CustommainBufferDesc, nullptr, FrameBufferTex.GetAddressOf());
+        if (D3D11Device) {
+            D3D11Device->CreateTexture2D(
+                &CustommainBufferDesc, nullptr, FrameBufferTex.GetAddressOf()
+            );
 
-        D3D11Device->CreateShaderResourceView(
-            FrameBufferTex.Get(), &SrvDesc, TextureView.GetAddressOf()
-        );
+            D3D11Device->CreateShaderResourceView(
+                FrameBufferTex.Get(), &SrvDesc, TextureView.GetAddressOf()
+            );
+        }
 
         ShowWindow(hwnd, SW_SHOW);
         UpdateWindow(hwnd);
@@ -172,6 +188,9 @@ HWND WinForge::CreateWindowAsync(
         OmniDecoder.emplace<NvdecSession>(config.wdWidth, config.wdHeight, FrameBufferTex.Get());
 
         MainLoop();
+
+        CleanupD3D();
+        CleanupEvents();
 
         CoUninitialize();
     });
