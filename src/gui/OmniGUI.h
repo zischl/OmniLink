@@ -689,6 +689,8 @@ class OmniGUI
                     NotificationQueue.pop();
                 }
             }
+
+            RenderConnectModal();
         }
 
         ImGui::EndGroup();

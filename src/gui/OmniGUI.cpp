@@ -9,6 +9,8 @@
 #include "imgui_internal.h"
 
 #include <bit>
+#include <string>
+#include <vector>
 
 OmniGUI::OmniGUI(OmniCore& OmniCoreInstance)
     : App(OmniCoreInstance), SelectedDevice(OmniCore::SelectedTargetDevice)
@@ -41,6 +43,7 @@ void OmniGUI::SetupImGui(void* hwnd, void* D3D11Device, void* D3D11Context)
 
     ImGuiStyle& style = ImGui::GetStyle();
 
+    style.Colors[ImGuiCol_PopupBg] = ImVec4(0.075f, 0.082f, 0.122f, 1.0f);
     style.Colors[ImGuiCol_ModalWindowDimBg] = COL4_STYLE_MODAL_DIM;
     style.Colors[ImGuiCol_ChildBg] = COL4_STYLE_CHILD_BG;
 
@@ -54,10 +57,14 @@ void OmniGUI::SetupImGui(void* hwnd, void* D3D11Device, void* D3D11Context)
     ImFontConfig FontCFG;
     FontCFG.FontDataOwnedByAtlas = false;
 
+    InterMed12 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 12.0f, &FontCFG);
     InterReg14 = io.Fonts->AddFontFromMemoryTTF(Inter18Regular, Inter18RegularLen, 14.0f, &FontCFG);
     InterReg15 = io.Fonts->AddFontFromMemoryTTF(Inter18Regular, Inter18RegularLen, 15.0f, &FontCFG);
     InterMed14 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 14.0f, &FontCFG);
+    InterMed15 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 15.0f, &FontCFG);
     InterMed16 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 16.0f, &FontCFG);
+    InterBold18 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 18.0f, &FontCFG);
+    InterBold20 = io.Fonts->AddFontFromMemoryTTF(Inter18Medium, Inter18MediumLen, 20.0f, &FontCFG);
     JetBrainsMed15 = io.Fonts->AddFontFromMemoryTTF(
         JetBrainsMonoMedium, JetBrainsMonoMediumLen, 15.0f, &FontCFG
     );
@@ -315,22 +322,42 @@ bool OmniGUI::IconizedButton(
     return clicked;
 }
 
-void OmniGUI::DeviceAddButton(const ImVec2& CenterPos, ImU32 Color)
+bool OmniGUI::DeviceAddButton(const char* Label, const ImVec2& CenterPos, ImU32 Color)
 {
-    // Yes.. It's the Icon again
+    ImGui::PushID(Label);
+
+    const ImGuiID Id = ImGui::GetID(Label);
+
     ImGui::PushFont(OmniIconsLarge);
-    static ImVec2 TextSize = ImGui::CalcTextSize(IC_DIAMOND_PLUS);
+    ImVec2 TextSize = ImGui::CalcTextSize(IC_DIAMOND_PLUS);
     ImVec2 RenderPos = ImVec2(CenterPos.x - (TextSize.x * 0.5f), CenterPos.y - (TextSize.y * 0.5f));
 
-    ImVec2 MinPos = RenderPos;
-    ImVec2 MaxPos = ImVec2(RenderPos.x + TextSize.x, RenderPos.y + TextSize.y);
+    const float Padding = 8.0f;
+    ImRect Bbox = ImRect(
+        ImVec2(RenderPos.x - Padding, RenderPos.y - Padding),
+        ImVec2(RenderPos.x + TextSize.x + Padding, RenderPos.y + TextSize.y + Padding)
+    );
 
-    ImU32 BgColor = ImGui::GetColorU32(ImGuiCol_WindowBg);
-    DrawList->AddRectFilled(MinPos, MaxPos, BgColor);
+    ImGui::ItemAdd(Bbox, Id, NULL, ImGuiItemFlags_None);
 
-    DrawList->AddText(RenderPos, Color, IC_DIAMOND_PLUS);
+    bool Hovered, Held;
+    bool Pressed = ImGui::ButtonBehavior(Bbox, Id, &Hovered, &Held, 0);
+    ImGui::RenderNavCursor(Bbox, Id);
+
+    ImU32 BgColor = Hovered || Held ? COL_MENU_BG_HOVER : ImGui::GetColorU32(ImGuiCol_WindowBg);
+    ImU32 RenderColor = Hovered || Held ? COL_DEV_HOVER : Color;
+
+    DrawList->AddRectFilled(Bbox.Min, Bbox.Max, BgColor, 6.0f);
+    if (Hovered) {
+        DrawList->AddRect(Bbox.Min, Bbox.Max, COL_MENU_STRIP, 6.0f, 0, 1.5f);
+    }
+
+    DrawList->AddText(RenderPos, RenderColor, IC_DIAMOND_PLUS);
 
     ImGui::PopFont();
+    ImGui::PopID();
+
+    return Pressed;
 }
 
 void OmniGUI::CenterItemX(const float ItemWidth)
@@ -395,7 +422,10 @@ int OmniGUI::ConnectionRing(const char* Label, const ImVec2& WidgetSize, const f
             DeviceIcon(layout.Label, target_pos, &dev);
             active_mask |= (1 << i);
         } else {
-            DeviceAddButton(target_pos, COL_DEV_EMPTY);
+            if (DeviceAddButton(layout.Label, target_pos, COL_DEV_EMPTY)) {
+                TargetSlotForAdd = layout.DeviceID;
+                ShowConnectModal = true;
+            }
         }
     }
 
@@ -539,233 +569,6 @@ void OmniGUI::MetricDashboard(
     ImGui::PopStyleColor(1);
 }
 
-bool OmniGUI::HandleEvent(ConnectionRequest& request, float timeout)
-{
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-    ImVec2 windowPos = ImGui::GetWindowPos();
-    float windowWidth = ImGui::GetWindowWidth();
-
-    drawList->AddRectFilled(
-        ImVec2(windowPos.x + 10.0f, windowPos.y),
-        ImVec2(windowPos.x - 10.0f + windowWidth, windowPos.y + 3.0f),
-        COL_MODAL_STRIP,
-        16.0f,
-        ImDrawFlags_RoundCornersTop
-    );
-
-    float paddingTop = 21.0f;
-    ImVec2 circleCenter =
-        ImVec2(windowPos.x + (windowWidth / 2.0f), windowPos.y + 25.0f + paddingTop);
-    const float radius = 14.0f;
-
-    float boxSize = 48.0f;
-    float boxSpacing = 18.0f;
-    float rounding = 12.0f;
-    float boxTop = circleCenter.y - (boxSize / 2.0f);
-    float botBottom = boxTop + boxSize;
-
-    ImVec2 leftRectBegin = ImVec2(circleCenter.x - boxSpacing - boxSize, boxTop);
-    ImVec2 leftRectEnd = ImVec2(circleCenter.x - boxSpacing, botBottom);
-    ImVec2 rightRectBegin = ImVec2(circleCenter.x + boxSpacing, boxTop);
-    ImVec2 rightRectEnd = ImVec2(circleCenter.x + boxSpacing + boxSize, botBottom);
-
-    drawList->AddRectFilled(leftRectBegin, leftRectEnd, COL_MODAL_BOX_BG, rounding);
-    drawList->AddRect(leftRectBegin, leftRectEnd, COL_MODAL_BOX_BRD, rounding, 0, 1.5f);
-
-    drawList->AddRectFilled(rightRectBegin, rightRectEnd, COL_MODAL_BOX_BG, rounding);
-    drawList->AddRect(rightRectBegin, rightRectEnd, COL_MODAL_BOX_BRD, rounding, 0, 1.5f);
-
-    drawList->AddCircleFilled(circleCenter, radius, COL_MODAL_CIRC_BG);
-    drawList->AddCircle(circleCenter, radius, COL_MODAL_CIRC_BRD, 0, 1.5f);
-
-    const char* arrowText = "⇄";
-    ImGui::SetWindowFontScale(11.0f / 18.0f);
-    ImVec2 arrowSize = ImGui::CalcTextSize(arrowText);
-    drawList->AddText(
-        ImVec2(circleCenter.x - (arrowSize.x / 2.0f), circleCenter.y - (arrowSize.y / 2.0f)),
-        IM_COL32_WHITE,
-        arrowText
-    );
-    ImGui::SetWindowFontScale(1.0f);
-
-    ImGui::Dummy(ImVec2(windowWidth, boxSize + paddingTop + 14.0f));
-    const char* txtConnReq = "CONNECTION REQUEST";
-    ImGui::SetWindowFontScale(11.0f / 18.0f);
-    float txtConnReqWidth = ImGui::CalcTextSize(txtConnReq).x;
-    ImGui::SetCursorPosX((windowWidth - txtConnReqWidth) / 2.0f);
-    ImGui::TextColored(COL4_EV_TEXT_MUTED, "%s", txtConnReq);
-    ImGui::Dummy(ImVec2(0.0f, 6.0f));
-
-    const char* deviceName = "DESKTOP-7K3MX2";
-    ImGui::SetWindowFontScale(17.0f / 18.0f);
-    float deviceNameWidth = ImGui::CalcTextSize(deviceName).x;
-    ImGui::SetCursorPosX((windowWidth - deviceNameWidth) / 2.0f);
-    ImGui::TextUnformatted(deviceName);
-    ImGui::Dummy(ImVec2(0.0f, 6.0f));
-
-    const char* ipSub = "192.168.1.42  Local Network";
-    ImGui::SetWindowFontScale(12.0f / 18.0f);
-    float ipSubWidth = ImGui::CalcTextSize(ipSub).x;
-    ImGui::SetCursorPosX((windowWidth - ipSubWidth) / 2.0f);
-    ImGui::TextColored(COL4_EV_TEXT_MUTED, "%s", ipSub);
-    ImGui::SetWindowFontScale(1.0f);
-
-    ImGui::Dummy(ImVec2(0.0f, 14.0f));
-    ImGui::Separator();
-    ImGui::Dummy(ImVec2(0.0f, 14.0f));
-
-    if (ImGui::BeginTable("meta_info_row", 3, ImGuiTableFlags_NoBordersInBody)) {
-        ImGui::TableSetupColumn("C1", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("C2", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("C3", ImGuiTableColumnFlags_WidthStretch);
-
-        ImGui::TableNextRow();
-        ImGui::SetWindowFontScale(10.0f / 18.0f);
-
-        ImGui::TableSetColumnIndex(0);
-        ImGui::SetCursorPosX(
-            ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PROTOCOL").x) * 0.5f
-        );
-        ImGui::TextColored(COL4_EV_TEXT_MUTED, "PROTOCOL");
-
-        ImGui::TableSetColumnIndex(1);
-        ImGui::SetCursorPosX(
-            ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("PORT").x) * 0.5f
-        );
-        ImGui::TextColored(COL4_EV_TEXT_MUTED, "PORT");
-
-        ImGui::TableSetColumnIndex(2);
-        ImGui::SetCursorPosX(
-            ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("LATENCY").x) * 0.5f
-        );
-        ImGui::TextColored(COL4_EV_TEXT_MUTED, "LATENCY");
-
-        ImGui::TableNextRow();
-        ImGui::SetWindowFontScale(13.0f / 18.0f);
-
-        ImGui::TableSetColumnIndex(0);
-        ImGui::SetCursorPosX(
-            ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("[V] [M] [A]").x) * 0.5f
-        );
-        ImGui::TextColored(COL4_EV_ACCENT, "[V] [M] [A]");
-
-        ImGui::TableSetColumnIndex(1);
-        ImGui::SetCursorPosX(
-            ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("7474").x) * 0.5f
-        );
-        ImGui::TextUnformatted("7474");
-
-        ImGui::TableSetColumnIndex(2);
-        ImGui::SetCursorPosX(
-            ImGui::GetCursorPosX() +
-            (ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize("4 ms").x) * 0.5f
-        );
-        ImGui::TextUnformatted("4 ms");
-
-        ImGui::SetWindowFontScale(1.0f);
-        ImGui::EndTable();
-    }
-
-    ImGui::Dummy(ImVec2(0.0f, 14.0f));
-    ImGui::Separator();
-    ImGui::Dummy(ImVec2(0.0f, 14.0f));
-
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, COL4_EV_FRAME_BG);
-    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, COL4_EV_FRAME_BG_HOVER);
-    ImGui::PushStyleColor(ImGuiCol_CheckMark, COL4_EV_ACCENT);
-
-    ImGui::SetWindowFontScale(12.5f / 18.0f);
-    ImGui::Checkbox("Trust this device permanently", &request.Trusted);
-    ImGui::SetWindowFontScale(1.0f);
-
-    ImGui::PopStyleColor(3);
-    ImGui::Dummy(ImVec2(0.0f, 16.0f));
-
-    bool actionState = false;
-    float Spacing = 24.0f;
-    float availableWidth = ImGui::GetContentRegionAvail().x;
-    float individualButtonWidth = (availableWidth - Spacing) / 2.0f;
-    float actionHeight = 40.0f;
-
-    ImGui::SetWindowFontScale(13.0f / 18.0f);
-
-    ImGui::PushStyleColor(ImGuiCol_Button, COL4_EV_BTN_DECLINE);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_EV_BTN_DEC_HOVER);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, COL4_EV_BTN_DEC_ACTIVE);
-    ImGui::PushStyleColor(ImGuiCol_Border, COL4_EV_BTN_DEC_BORDER);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-
-    if (ImGui::Button("Decline", ImVec2(individualButtonWidth, actionHeight))) {
-        ImGui::CloseCurrentPopup();
-    }
-
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor(4);
-
-    ImGui::SameLine(0.0f, Spacing);
-
-    ImGui::PushStyleColor(ImGuiCol_Button, COL4_EV_ACCENT);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_EV_ACCENT_HOVER);
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, COL4_EV_ACCENT_ACTIVE);
-
-    if (ImGui::IsWindowAppearing()) {
-        ImGui::SetKeyboardFocusHere(-1);
-    }
-
-    if (ImGui::Button("Accept", ImVec2(individualButtonWidth, actionHeight))) {
-        ImGui::CloseCurrentPopup();
-        actionState = true;
-    }
-    ImGui::PopStyleColor(3);
-    ImGui::SetWindowFontScale(1.0f);
-
-    ImGui::Dummy(ImVec2(0.0f, 24.0f));
-    ImGui::PopStyleVar(2);
-
-    return actionState;
-}
-
-bool OmniGUI::HandleEvent(Alert& request, float timeout)
-{
-
-    constexpr float WindowWidth = 320.0f;
-    constexpr float WindowHeight = 72.0f;
-    constexpr float ButtonWidth = 30.0f;
-
-    float TextContentWidth = WindowWidth - ButtonWidth - (ImGui::GetStyle().WindowPadding.x * 2.0f);
-
-    ImGui::BeginGroup();
-    ImGui::PushTextWrapPos(TextContentWidth);
-
-    ImGui::PushStyleColor(ImGuiCol_Text, COL4_ALERT_TITLE);
-    ImGui::TextUnformatted(request.Title);
-    ImGui::PopStyleColor();
-
-    ImGui::Separator();
-
-    ImGui::TextWrapped("%s", request.Desc);
-
-    ImGui::PopTextWrapPos();
-    ImGui::EndGroup();
-
-    ImGui::SetCursorPos(ImVec2(WindowWidth - ButtonWidth, 0.0f));
-
-    if (ImGui::Button("X", ImVec2(ButtonWidth, WindowHeight))) {
-        ImGui::CloseCurrentPopup();
-        return true;
-    }
-
-    return false;
-}
-
 void OmniGUI::CreateCurvedLine(const char* label, int curve)
 {
     ImGui::PushID(label);
@@ -795,4 +598,281 @@ void OmniGUI::CreateCurvedLine(const char* label, int curve)
     DrawList->AddBezierCubic(p0, cp0, cp1, p1, color, thickness + glow_range * 2.5, segments);
 
     ImGui::PopID();
+}
+
+void OmniGUI::RenderConnectModal()
+{
+    if (!ShowConnectModal)
+        return;
+
+    ImGui::OpenPopup("Connect Device Prompt");
+
+    ImVec2 Center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(Center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(440.0f, 0.0f));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(24.0f, 22.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 16.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.5f);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, OmniTheme::COL_HANDSHAKE_BADGE_BG);
+    ImGui::PushStyleColor(ImGuiCol_Border, OmniTheme::COL_HANDSHAKE_CARD_BRD);
+    ImGui::PushStyleColor(ImGuiCol_ModalWindowDimBg, ImVec4(0.04f, 0.04f, 0.08f, 0.75f));
+
+    ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize |
+                                   ImGuiWindowFlags_NoSavedSettings;
+
+    if (ImGui::BeginPopupModal("Connect Device Prompt", &ShowConnectModal, WindowFlags)) {
+
+        ImDrawList* DrawList = ImGui::GetWindowDrawList();
+        ImVec2 WinPos = ImGui::GetWindowPos();
+        float WinWidth = ImGui::GetWindowWidth();
+
+        // Accent top line
+        DrawList->AddRectFilled(
+            ImVec2(WinPos.x + 12.0f, WinPos.y),
+            ImVec2(WinPos.x + WinWidth - 12.0f, WinPos.y + 3.0f),
+            OmniTheme::COL_HANDSHAKE_ACCENT,
+            16.0f,
+            ImDrawFlags_RoundCornersTop
+        );
+
+        // Icon + Title + Subtitle
+        ImGui::PushFont(OmniIconsMedium);
+        ImGui::TextColored(OmniTheme::COL4_HANDSHAKE_TITLE, "%s", IC_NETWORK);
+        ImGui::PopFont();
+
+        ImGui::SameLine(0.0f, 10.0f);
+
+        ImGui::BeginGroup();
+        ImGui::PushFont(InterBold20);
+        ImGui::TextColored(COL4_TEXT_ACTIVE, "Connect Device Instance");
+        ImGui::PopFont();
+
+        ImGui::PushFont(InterMed12);
+        ImGui::TextColored(
+            COL4_TEXT_MUTED, "Enter an IPv4 address or select a discovered network node."
+        );
+        ImGui::PopFont();
+        ImGui::EndGroup();
+
+        // Close Button
+        ImGui::SameLine(WinWidth - 52.0f);
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 2.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, COL4_TRANSPARENT);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, COL4_BTN_HOVER_DARK);
+        ImGui::PushFont(OmniIconsSmall);
+        if (ImGui::Button(IC_X, ImVec2(24.0f, 24.0f))) {
+            ShowConnectModal = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::PopFont();
+        ImGui::PopStyleColor(2);
+
+        ImGui::Dummy(ImVec2(0.0f, 10.0f));
+        ImGui::Separator();
+        ImGui::Dummy(ImVec2(0.0f, 10.0f));
+
+        // Manual IPv4 Address
+        ImGui::PushFont(InterMed12);
+        ImGui::TextColored(OmniTheme::COL4_HANDSHAKE_LABEL, "MANUAL IPv4 ADDRESS");
+        ImGui::PopFont();
+
+        ImGui::Dummy(ImVec2(0.0f, 4.0f));
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12.0f, 8.0f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, OmniTheme::COL4_BTN_DECLINE_BG);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, OmniTheme::COL4_BTN_DECLINE_BG_HOVER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, OmniTheme::COL4_BTN_DECLINE_BG_ACTIVE);
+        ImGui::PushStyleColor(ImGuiCol_Border, OmniTheme::COL4_BTN_DECLINE_BRD);
+        ImGui::PushStyleColor(ImGuiCol_Text, COL4_TEXT_ACTIVE);
+
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::PushFont(InterMed14);
+        ImGui::InputText("##IPInput", ManualIPBuffer, sizeof(ManualIPBuffer));
+        ImGui::PopFont();
+
+        ImGui::PopStyleColor(5);
+        ImGui::PopStyleVar(3);
+
+        ImGui::Dummy(ImVec2(0.0f, 14.0f));
+
+        // Discovered Network Devices
+        ImGui::PushFont(InterMed12);
+        ImGui::TextColored(OmniTheme::COL4_HANDSHAKE_LABEL, "DISCOVERED NETWORK DEVICES");
+        ImGui::PopFont();
+
+        ImGui::Dummy(ImVec2(0.0f, 4.0f));
+
+        int DiscoveredCount = 0;
+        if (AvailableInstances && !AvailableInstances->empty()) {
+            for (const auto& [id, instance] : *AvailableInstances) {
+                if (id == DeviceMap::C0)
+                    continue;
+
+                if (instance.InstanceIP != 0 && instance.IPv4_String[0] != '\0') {
+                    DiscoveredCount++;
+
+                    ImGui::PushID(static_cast<int>(id));
+                    bool Selected = (strcmp(ManualIPBuffer, instance.IPv4_String) == 0);
+
+                    ImVec2 CardMin = ImGui::GetCursorScreenPos();
+                    float CardWidth = ImGui::GetContentRegionAvail().x;
+                    float CardHeight = 44.0f;
+                    ImVec2 CardMax = ImVec2(CardMin.x + CardWidth, CardMin.y + CardHeight);
+
+                    ImGui::InvisibleButton("##DevCard", ImVec2(CardWidth, CardHeight));
+                    bool Hovered = ImGui::IsItemHovered();
+                    if (ImGui::IsItemClicked()) {
+                        strncpy(ManualIPBuffer, instance.IPv4_String, sizeof(ManualIPBuffer));
+                    }
+
+                    ImU32 CardBg = Selected  ? OmniTheme::COL_HANDSHAKE_CARD_BG
+                                   : Hovered ? OmniTheme::COL_HANDSHAKE_CHECK_BG_HOVER
+                                             : OmniTheme::COL_HANDSHAKE_CHECK_BG;
+                    ImU32 CardBrd = Selected || Hovered ? OmniTheme::COL_HANDSHAKE_CARD_BRD
+                                                        : OmniTheme::COL_HANDSHAKE_CHECK_BRD;
+
+                    DrawList->AddRectFilled(CardMin, CardMax, CardBg, 10.0f);
+                    DrawList->AddRect(CardMin, CardMax, CardBrd, 10.0f, 0, 1.2f);
+
+                    // Device Icon
+                    ImGui::PushFont(OmniIconsSmall);
+                    ImVec2 IconSize = ImGui::CalcTextSize(IC_AIRPLAY);
+                    DrawList->AddText(
+                        ImVec2(CardMin.x + 14.0f, CardMin.y + (CardHeight - IconSize.y) * 0.5f),
+                        OmniTheme::COL_HANDSHAKE_CARD_ICON,
+                        IC_AIRPLAY
+                    );
+                    ImGui::PopFont();
+
+                    // Device Name
+                    const char* DevName =
+                        instance.InstanceName[0] ? instance.InstanceName : "Device Node";
+                    ImGui::PushFont(InterMed14);
+                    DrawList->AddText(
+                        ImVec2(CardMin.x + 38.0f, CardMin.y + 6.0f),
+                        ImGui::GetColorU32(COL4_TEXT_ACTIVE),
+                        DevName
+                    );
+                    ImGui::PopFont();
+
+                    // Device IP
+                    ImGui::PushFont(InterMed12);
+                    DrawList->AddText(
+                        ImVec2(CardMin.x + 38.0f, CardMin.y + 24.0f),
+                        ImGui::GetColorU32(OmniTheme::COL4_HANDSHAKE_TITLE),
+                        instance.IPv4_String
+                    );
+                    ImGui::PopFont();
+
+                    ImGui::PopID();
+                    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+                }
+            }
+        }
+
+        if (DiscoveredCount == 0) {
+            ImVec2 BoxMin = ImGui::GetCursorScreenPos();
+            float BoxWidth = ImGui::GetContentRegionAvail().x;
+            float BoxHeight = 52.0f;
+            ImVec2 BoxMax = ImVec2(BoxMin.x + BoxWidth, BoxMin.y + BoxHeight);
+
+            DrawList->AddRectFilled(BoxMin, BoxMax, OmniTheme::COL_HANDSHAKE_CHECK_BG, 10.0f);
+            DrawList->AddRect(BoxMin, BoxMax, OmniTheme::COL_HANDSHAKE_CHECK_BRD, 10.0f, 0, 1.0f);
+
+            ImGui::PushFont(OmniIconsSmall);
+            ImVec2 IcSize = ImGui::CalcTextSize(IC_WIFI);
+            DrawList->AddText(
+                ImVec2(BoxMin.x + 16.0f, BoxMin.y + (BoxHeight - IcSize.y) * 0.5f),
+                OmniTheme::COL_HANDSHAKE_TRUST_LABEL,
+                IC_WIFI
+            );
+            ImGui::PopFont();
+
+            ImGui::PushFont(InterMed12);
+            DrawList->AddText(
+                ImVec2(BoxMin.x + 38.0f, BoxMin.y + (BoxHeight - 14.0f) * 0.5f),
+                ImGui::GetColorU32(COL4_TEXT_MUTED),
+                "No active broadcast instances found. Click Scan Network."
+            );
+            ImGui::PopFont();
+
+            ImGui::Dummy(ImVec2(BoxWidth, BoxHeight));
+        }
+
+        ImGui::Dummy(ImVec2(0.0f, 14.0f));
+        ImGui::Separator();
+        ImGui::Dummy(ImVec2(0.0f, 14.0f));
+
+        // Action Buttons
+        float ContentWidth = ImGui::GetContentRegionAvail().x;
+        float BtnHeight = 38.0f;
+
+        ImGui::PushFont(InterMed14);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+
+        // Scan Network
+        ImGui::PushStyleColor(ImGuiCol_Button, OmniTheme::COL4_BTN_DECLINE_BG);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, OmniTheme::COL4_BTN_DECLINE_BG_HOVER);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, OmniTheme::COL4_BTN_DECLINE_BG_ACTIVE);
+        ImGui::PushStyleColor(ImGuiCol_Border, OmniTheme::COL4_BTN_DECLINE_BRD);
+        ImGui::PushStyleColor(ImGuiCol_Text, OmniTheme::COL4_BTN_DECLINE_TXT);
+
+        if (ImGui::Button("Scan Network", ImVec2(125.0f, BtnHeight))) {
+            OmniAPI::Scan();
+        }
+
+        ImGui::PopStyleColor(5);
+
+        // Cancel and Connect
+        float RightButtonsWidth = 90.0f + 10.0f + 105.0f;
+        ImGui::SameLine(ContentWidth - RightButtonsWidth);
+
+        // Cancel
+        ImGui::PushStyleColor(ImGuiCol_Button, OmniTheme::COL4_BTN_DECLINE_BG);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, OmniTheme::COL4_BTN_DECLINE_BG_HOVER);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, OmniTheme::COL4_BTN_DECLINE_BG_ACTIVE);
+        ImGui::PushStyleColor(ImGuiCol_Border, OmniTheme::COL4_BTN_DECLINE_BRD);
+        ImGui::PushStyleColor(ImGuiCol_Text, OmniTheme::COL4_BTN_DECLINE_TXT);
+
+        if (ImGui::Button("Cancel", ImVec2(90.0f, BtnHeight))) {
+            ShowConnectModal = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::PopStyleColor(5);
+
+        ImGui::SameLine(0.0f, 10.0f);
+
+        // Connect
+        ImGui::PushStyleColor(ImGuiCol_Button, OmniTheme::COL4_BTN_ACCEPT_BG);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, OmniTheme::COL4_BTN_ACCEPT_BG_HOVER);
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, OmniTheme::COL4_BTN_ACCEPT_BG_ACTIVE);
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, OmniTheme::COL4_BTN_ACCEPT_TXT);
+
+        if (ImGui::Button("Connect", ImVec2(105.0f, BtnHeight))) {
+            if (ManualIPBuffer[0] != '\0') {
+                ConnectionRequest Req;
+                Req.DeviceID = TargetSlotForAdd;
+                OmniAPI::Connect(Req);
+            }
+            ShowConnectModal = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::PopStyleColor(5);
+
+        ImGui::PopStyleVar(2);
+        ImGui::PopFont();
+
+        ImGui::EndPopup();
+    }
+
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(3);
 }
