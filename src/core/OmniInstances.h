@@ -5,10 +5,13 @@
 #include "OmniConfig.h"
 #include "OmniEnums.h"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 #if defined(_WIN32)
@@ -20,12 +23,6 @@
 template <uint32_t MTU> class OmniNetSession;
 class OmniNetSubStream;
 
-struct OmniIP
-{
-    uint32_t InstanceIP = 0;
-    char IPv4_String[32] = {};
-};
-
 struct OmniInstance
 {
     char InstanceName[OmniDevNameLen + 1] = {};
@@ -34,6 +31,7 @@ struct OmniInstance
     uint8_t DevMapIndex = 0;
     NetLinkState LinkState = NetLinkState::INACTIVE;
     uint32_t HandshakeToken = 0;
+    DeviceType Type = DeviceType::Unknown;
 
     OmniInstance() {}
 
@@ -55,6 +53,28 @@ struct OmniInstance
         strncpy(InstanceName, InstanceName_, (OmniDevNameLen + 1));
         DevMapIndex = static_cast<uint8_t>(DevMapIndex);
     }
+};
+
+struct InstanceGroupEntry
+{
+    char InstanceName[OmniDevNameLen + 1] = {};
+    uint32_t InstanceIP = 0;
+    char IPv4_String[16] = {};
+    DeviceMap DevMapIndex = DeviceMap::END;
+    DeviceType Type = DeviceType::Unknown;
+};
+
+#define OmniGroupNameLen 31
+#define OmniGroupSubLen 47
+
+struct OmniInstanceGroup
+{
+    char GroupName[OmniGroupNameLen + 1] = {};
+    char Subtitle[OmniGroupSubLen + 1] = {};
+    uint64_t DateCreated = 0;
+    uint8_t DeviceCount = 0;
+    bool State = false;
+    std::array<InstanceGroupEntry, 8> Instances = {};
 };
 
 inline FeatureFlags FeatureTypeToFlag(FeatureTypes Feature)

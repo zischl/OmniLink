@@ -506,6 +506,41 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
     }
 }
 
+void OmniCore::ConnectGroup(size_t Index)
+{
+    auto& Groups = InstanceRegistry.GetInstanceGroupsMutable();
+    if (Index >= Groups.size())
+        return;
+
+    for (size_t i = 0; i < Groups.size(); ++i) {
+        Groups[i].State = (i == Index);
+    }
+
+    const auto& Group = Groups[Index];
+    for (uint8_t i = 0; i < Group.DeviceCount; ++i) {
+        const auto& entry = Group.Instances[i];
+        if (entry.InstanceIP == 0 || entry.DevMapIndex == DeviceMap::END ||
+            entry.DevMapIndex == DeviceMap::C0)
+            continue;
+
+        DeviceMap TargetSlot = entry.DevMapIndex;
+
+        InstanceRegistry.AllInstances[TargetSlot].InstanceIP = entry.InstanceIP;
+        strncpy(InstanceRegistry.AllInstances[TargetSlot].IPv4_String, entry.IPv4_String, 16);
+        strncpy(
+            InstanceRegistry.AllInstances[TargetSlot].InstanceName,
+            entry.InstanceName,
+            OmniDevNameLen + 1
+        );
+        InstanceRegistry.AllInstances[TargetSlot].DevMapIndex = static_cast<uint8_t>(TargetSlot);
+        InstanceRegistry.AllInstances[TargetSlot].Type = entry.Type;
+
+        InstanceRegistry.InstanceLookup[entry.InstanceIP] = TargetSlot;
+
+        ConnectInstance(TargetSlot);
+    }
+}
+
 void OmniCore::FailHandshake(DeviceMap DeviceID, const char* Reason)
 {
     Logger::log(

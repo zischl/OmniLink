@@ -17,6 +17,8 @@ enum FeatureFlags {
     fClipBoardLink = 1 << 4
 };
 
+enum class DeviceType : uint8_t { Unknown = 0, Desktop, Laptop, Mobile };
+
 enum FeatureTypes : uint8_t { ScreenLink, WindowLink, InputLink, AudioLink, ClipboardLink };
 
 enum class FeatureActionRoute : uint8_t { Outbound, Inbound };

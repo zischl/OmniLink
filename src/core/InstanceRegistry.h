@@ -33,6 +33,8 @@ struct OmniInstanceRegistry
   public:
     std::unordered_map<DeviceMap, OmniInstance> AllInstances = {};
 
+    std::vector<OmniInstanceGroup> InstanceGroups = {};
+
     ActiveInstanceContainer ActiveInstances;
 
     // IP to DeviceMap Lookup
@@ -286,6 +288,60 @@ struct OmniInstanceRegistry
         }
         AllInstances[DeviceID].LinkState = NetLinkState::INACTIVE;
         AllInstances[DeviceID].HandshakeToken = 0;
+    }
+
+    inline const std::vector<OmniInstanceGroup>& GetInstanceGroups() const
+    {
+        return InstanceGroups;
+    }
+
+    inline std::vector<OmniInstanceGroup>& GetInstanceGroupsMutable() { return InstanceGroups; }
+
+    inline void
+    SaveCurrentGroup(const char* Name = "Preset Group", const char* Subtitle = "Nothing Special")
+    {
+        std::lock_guard<std::mutex> lock(Mutex);
+
+        OmniInstanceGroup NewGroup{};
+        if (Name) {
+            strncpy(NewGroup.GroupName, Name, OmniGroupNameLen);
+        }
+        if (Subtitle) {
+            strncpy(NewGroup.Subtitle, Subtitle, OmniGroupSubLen);
+        }
+        NewGroup.DateCreated = static_cast<uint64_t>(std::time(nullptr));
+        NewGroup.State = true;
+
+        for (auto& Group : InstanceGroups) {
+            Group.State = false;
+        }
+
+        uint8_t Count = 0;
+        for (const auto& [DevMapIdx, Inst] : AllInstances) {
+            if (DevMapIdx == DeviceMap::C0)
+                continue;
+            if (Inst.InstanceIP != 0 && Count < 8) {
+                InstanceGroupEntry Entry{};
+                strncpy(Entry.InstanceName, Inst.InstanceName, OmniDevNameLen);
+                strncpy(Entry.IPv4_String, Inst.IPv4_String, 15);
+                Entry.InstanceIP = Inst.InstanceIP;
+                Entry.DevMapIndex = DevMapIdx;
+                Entry.Type = Inst.Type;
+
+                NewGroup.Instances[Count++] = Entry;
+            }
+        }
+
+        NewGroup.DeviceCount = Count;
+        InstanceGroups.push_back(NewGroup);
+    }
+
+    inline void RemoveInstanceGroup(size_t Index)
+    {
+        std::lock_guard<std::mutex> lock(Mutex);
+        if (Index < InstanceGroups.size()) {
+            InstanceGroups.erase(InstanceGroups.begin() + Index);
+        }
     }
 };
 

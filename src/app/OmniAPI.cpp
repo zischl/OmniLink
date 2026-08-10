@@ -27,6 +27,45 @@ void OmniAPI::Connect(ConnectionRequest Request)
     App->NotifyCommandQueue();
 }
 
+const std::vector<OmniInstanceGroup>& OmniAPI::GetInstanceGroups()
+{
+    static const std::vector<OmniInstanceGroup> EmptyGroups{};
+    return App ? App->GetInstanceGroups() : EmptyGroups;
+}
+
+void OmniAPI::SaveCurrentGroup(const char* name, const char* subtitle)
+{
+    if (App) {
+        App->SaveCurrentGroup(name, subtitle);
+    }
+}
+
+void OmniAPI::ConnectGroup(size_t index)
+{
+    if (App) {
+        App->ConnectGroup(index);
+    }
+}
+
+void OmniAPI::RemoveInstanceGroup(size_t index)
+{
+    if (App) {
+        App->RemoveInstanceGroup(index);
+    }
+}
+
+const OmniQrypt* OmniAPI::GetQryptManager()
+{
+    return App ? App->GetQryptManager() : nullptr;
+}
+
+void OmniAPI::ForgetDevice(DeviceMap DeviceID)
+{
+    if (App) {
+        App->ForgetDevice(DeviceID);
+    }
+}
+
 void OmniAPI::AcceptHandshake(DeviceMap DeviceID, bool trustPermanently)
 {
     FuncArgTypes args =

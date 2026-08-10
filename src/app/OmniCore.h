@@ -88,6 +88,32 @@ class OmniCore
         return &InstanceRegistry.ActiveInstances;
     }
 
+    const std::vector<OmniInstanceGroup>& GetInstanceGroups() const
+    {
+        return InstanceRegistry.GetInstanceGroups();
+    }
+
+    void
+    SaveCurrentGroup(const char* Name = "Preset Group", const char* Subtitle = "Nothing Special")
+    {
+        InstanceRegistry.SaveCurrentGroup(Name, Subtitle);
+    }
+
+    void ConnectGroup(size_t Index);
+
+    void RemoveInstanceGroup(size_t Index) { InstanceRegistry.RemoveInstanceGroup(Index); }
+
+    void AddManualInstance(uint32_t IP, DeviceMap DeviceID = DeviceMap::END)
+    {
+        InstanceRegistry.AddInstance(IP, DeviceID);
+    }
+
+    OmniQrypt* GetQryptManager() { return &QryptManager; }
+
+    const OmniQrypt* GetQryptManager() const { return &QryptManager; }
+
+    void ForgetDevice(DeviceMap deviceID) { QryptManager.ClearSession(deviceID); }
+
     inline void OmniCmdStatus() { Logger::log("CMD Queue Status Test"); }
 
     void DiscoveryPacketHandler(ProbeEvent Event);

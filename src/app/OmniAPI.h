@@ -2,11 +2,14 @@
 #define OMNIAPI_H
 
 #pragma once
+#include "OmniInstances.h"
 #include "OmniPackets.h"
 #include <chrono>
 #include <iostream>
+#include <vector>
 
 class OmniLink;
+class OmniQrypt;
 
 class OmniAPI
 {
@@ -18,6 +21,19 @@ class OmniAPI
     static void Scan();
 
     static void Connect(ConnectionRequest Rquest);
+
+    static const std::vector<OmniInstanceGroup>& GetInstanceGroups();
+
+    static void
+    SaveCurrentGroup(const char* name = "Preset Group", const char* subtitle = "Nothing Special");
+
+    static void ConnectGroup(size_t index);
+
+    static void RemoveInstanceGroup(size_t index);
+
+    static const OmniQrypt* GetQryptManager();
+
+    static void ForgetDevice(DeviceMap DeviceID);
 
     static void AcceptHandshake(DeviceMap DeviceID, bool TrustPermanently = false);
 
