@@ -857,9 +857,17 @@ void OmniGUI::RenderConnectModal()
 
         if (ImGui::Button("Connect", ImVec2(105.0f, BtnHeight))) {
             if (ManualIPBuffer[0] != '\0') {
-                ConnectionRequest Req;
-                Req.DeviceID = TargetSlotForAdd;
-                OmniAPI::Connect(Req);
+                uint32_t ParsedIP = Char2IP(ManualIPBuffer);
+                if (ParsedIP != 0) {
+                    DeviceMap TargetSlot = TargetSlotForAdd;
+                    if (TargetSlot == DeviceMap::C0 || TargetSlot == DeviceMap::END) {
+                        TargetSlot = DeviceMap::L1;
+                    }
+                    App.AddManualInstance(ParsedIP, TargetSlot);
+                    ConnectionRequest Request;
+                    Request.DeviceID = TargetSlot;
+                    OmniAPI::Connect(Request);
+                }
             }
             ShowConnectModal = false;
             ImGui::CloseCurrentPopup();

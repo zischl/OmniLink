@@ -96,6 +96,29 @@ class OmniGUI
     ImFont* OmniIconsMedium = nullptr;
     ImFont* OmniIconsSmall = nullptr;
 
+    // Setting Row State
+    ImVec2 SettingRowStartPos{0.0f, 0.0f};
+    float SettingRowAvailWidth = 0.0f;
+    bool SettingRowShowSeparator = true;
+
+    // UI Widgets
+    bool
+    IconButton(const char* Icon, const char* Label, const ImVec2& Size, const ButtonColors& Colors);
+
+    void SectionHeader(const char* Icon, const char* Title, const char* Subtitle = nullptr);
+
+    void Mini3x3GridWidget(ImVec2 GridTopLeft, int SlotIdx);
+
+    void ToggleSwitch(const char* StrId, bool* Val);
+
+    void BeginGroupCard(const char* Icon, const char* Title, float Height);
+
+    void BeginSettingRow(
+        const char* title, const char* subtitle, float controlWidth, bool showSeparator = true
+    );
+
+    void EndSettingRow();
+
     void DeviceIconPreview(
         const ImVec2& Pos,
         const ImU32& Col,
@@ -122,6 +145,41 @@ class OmniGUI
         uint32_t FeatureFlags, const ImVec2& ContentSpaceSize, const ImVec2& ContentSpaceStart
     );
     void RenderMetricsBar(int DeviceCount, size_t ActiveCount, float AvailableWidth);
+
+    void InstancesHeader(ImVec2 StartPos, float HeaderWidth);
+    void RenderNavItem(
+        const char* Icon, const char* Label, int TabIdx, float ItemWidth, float ItemHeight
+    );
+    void InstanceGroupsSection(float AvailableWidth);
+    void ActiveInstancesSection(float AvailableWidth);
+    void TrustedNodesSection(float AvailableWidth);
+
+    GroupCardAction InstanceGroupCard(
+        const OmniInstanceGroup& Group,
+        size_t CardIdx,
+        ImVec2 CardPos,
+        float CardWidth,
+        float CardHeight
+    );
+
+    ActiveCardAction ActiveInstanceCard(
+        DeviceMap DevId,
+        const OmniInstance& Instance,
+        size_t CardIdx,
+        ImVec2 CardPos,
+        float CardWidth,
+        float CardHeight
+    );
+
+    TrustedCardAction TrustedNodeCard(
+        DeviceMap DevId,
+        const std::array<uint8_t, 32>& Token,
+        const OmniInstance* Instance,
+        size_t CardIdx,
+        ImVec2 CardPos,
+        float CardWidth,
+        float CardHeight
+    );
 
     void KeycapPills(
         ImFont* KeyFont,

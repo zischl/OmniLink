@@ -3,26 +3,10 @@
 
 #pragma once
 
-enum class GroupCardAction
-{
-    None,
-    ConnectSettings,
-    DeleteGroup
-};
+enum class GroupCardAction { None, ConnectGroup, ConfigureSettings, DeleteGroup };
 
-enum class ActiveCardAction
-{
-    None,
-    Connect,
-    Disconnect,
-    ConfigureSettings
-};
+enum class ActiveCardAction { None, Connect, Disconnect, ConfigureSettings };
 
-enum class TrustedCardAction
-{
-    None,
-    Connect,
-    Forget
-};
+enum class TrustedCardAction { None, Connect, Forget };
 
 #endif // GUI_ENUMS_H

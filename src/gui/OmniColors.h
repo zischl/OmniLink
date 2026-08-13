@@ -2,7 +2,26 @@
 #define OMNICOLORS_H
 
 #pragma once
+#include "GUITypes.h"
 #include <imgui.h>
+
+inline constexpr ButtonColors SecondaryDarkBtnCols = {
+    IM_COL32(24, 26, 38, 255),
+    IM_COL32(36, 39, 56, 255),
+    IM_COL32(48, 52, 75, 255),
+    IM_COL32(46, 31, 64, 255),
+    IM_COL32(255, 255, 255, 255),
+    1.0f
+};
+
+inline constexpr ButtonColors PrimaryPurpleBtnCols = {
+    IM_COL32(140, 80, 240, 255),
+    IM_COL32(160, 95, 255, 255),
+    IM_COL32(120, 65, 220, 255),
+    IM_COL32(0, 0, 0, 0),
+    IM_COL32(255, 255, 255, 255),
+    0.0f
+};
 
 namespace OmniTheme {
 

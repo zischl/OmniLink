@@ -10,31 +10,28 @@ void OmniGUI::NetworkSettingsSection()
     BeginGroupCard(IC_NETWORK, "Network & Protocol", 230.0f);
 
     ImGui::PushID("Net1");
-    SettingRow(
-        "UDP Streaming Port",
-        "Primary port used for low-latency session streams",
-        100.0f,
-        [this]() { ImGui::InputInt("##UDPPort", &ConfigPort, 0, 0); }
-    );
+    BeginSettingRow("UDP Link Port", "Port used for sessions", 100.0f);
+    ImGui::InputInt("##UDPPort", &ConfigPort, 0, 0);
+    EndSettingRow();
     ImGui::PopID();
 
     ImGui::PushID("Net2");
-    SettingRow(
-        "Discovery Broadcast Port",
-        "Beacon port used for automatic instance discovery",
-        100.0f,
-        [this]() { ImGui::InputInt("##DiscPort", &ConfigDiscoveryPort, 0, 0); }
+    BeginSettingRow(
+        "Discovery Broadcast Port", "Port used for automatic instance discovery", 100.0f
     );
+    ImGui::InputInt("##DiscPort", &ConfigDiscoveryPort, 0, 0);
+    EndSettingRow();
     ImGui::PopID();
 
     ImGui::PushID("Net3");
-    SettingRow(
+    BeginSettingRow(
         "Automatic Background Probe",
         "Periodically scan local network for new devices",
         44.0f,
-        [this]() { ToggleSwitch("##AutoProbe", &ConfigAutoProbe); },
         false
     );
+    ToggleSwitch("##AutoProbe", &ConfigAutoProbe);
+    EndSettingRow();
     ImGui::PopID();
 
     ImGui::SetCursorScreenPos(ImVec2(CardPos.x, CardPos.y + 245.0f));
@@ -44,35 +41,29 @@ void OmniGUI::NetworkSettingsSection()
 void OmniGUI::StreamingSettingsSection(int* currentFPSIdx)
 {
     ImVec2 cardPos = ImGui::GetCursorScreenPos();
-    BeginGroupCard(IC_GAUGE, "Streaming & Framerate", 110.0f);
+    BeginGroupCard(IC_GAUGE, "Streaming Framerate", 110.0f);
 
     static const char* FpsOptions[] = {
         "30 FPS", "60 FPS", "75 FPS", "90 FPS", "120 FPS", "144 FPS"
     };
 
     ImGui::PushID("FPS1");
-    SettingRow(
-        "Target Framerate Cap",
-        "Maximum frame rate cap for streams",
-        110.0f,
-        [this, currentFPSIdx]() {
-            if (ImGui::Combo("##FPSCap", currentFPSIdx, FpsOptions, IM_ARRAYSIZE(FpsOptions))) {
-                if (*currentFPSIdx == 0)
-                    ConfigTargetFPS = 30;
-                else if (*currentFPSIdx == 1)
-                    ConfigTargetFPS = 60;
-                else if (*currentFPSIdx == 2)
-                    ConfigTargetFPS = 75;
-                else if (*currentFPSIdx == 3)
-                    ConfigTargetFPS = 90;
-                else if (*currentFPSIdx == 4)
-                    ConfigTargetFPS = 120;
-                else if (*currentFPSIdx == 5)
-                    ConfigTargetFPS = 144;
-            }
-        },
-        false
-    );
+    BeginSettingRow("Target Framerate Cap", "Maximum frame rate cap for streams", 110.0f, false);
+    if (ImGui::Combo("##FPSCap", currentFPSIdx, FpsOptions, IM_ARRAYSIZE(FpsOptions))) {
+        if (*currentFPSIdx == 0)
+            ConfigTargetFPS = 30;
+        else if (*currentFPSIdx == 1)
+            ConfigTargetFPS = 60;
+        else if (*currentFPSIdx == 2)
+            ConfigTargetFPS = 75;
+        else if (*currentFPSIdx == 3)
+            ConfigTargetFPS = 90;
+        else if (*currentFPSIdx == 4)
+            ConfigTargetFPS = 120;
+        else if (*currentFPSIdx == 5)
+            ConfigTargetFPS = 144;
+    }
+    EndSettingRow();
     ImGui::PopID();
 
     ImGui::SetCursorScreenPos(ImVec2(cardPos.x, cardPos.y + 125.0f));
@@ -85,16 +76,16 @@ void OmniGUI::InterfaceSettingsSection()
     BeginGroupCard(IC_BELL, "Interface & Notifications", 110.0f);
 
     ImGui::PushID("UI1");
-    SettingRow(
+    BeginSettingRow(
         "Enable Notifications",
         "Enable or disable system wide notifications and event alerts",
         44.0f,
-        [this]() { ToggleSwitch("##EnableNotifications", &ConfigToastOverlay); },
         false
     );
+    ToggleSwitch("##EnableNotifications", &ConfigToastOverlay);
+    EndSettingRow();
     ImGui::PopID();
 
     ImGui::SetCursorScreenPos(ImVec2(cardPos.x, cardPos.y + 125.0f));
     ImGui::Dummy(ImVec2(0, 0));
 }
-

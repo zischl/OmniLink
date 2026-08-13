@@ -44,24 +44,4 @@ struct KeybindCategoryGroup
     std::vector<KeybindItem> Items;
 };
 
-struct UIActiveCard
-{
-    DeviceMap DevId;
-    int SlotComboIdx;
-    const char* Hostname;
-    const char* Subtitle;
-    const char* IPAddress;
-    bool State;
-};
-
-struct TrustedNodeUI
-{
-    DeviceMap DevId;
-    const char* Name;
-    const char* IP;
-    char Fingerprint[64];
-    const char* LastSeen;
-    bool State;
-};
-
 #endif // GUI_TYPES_H
