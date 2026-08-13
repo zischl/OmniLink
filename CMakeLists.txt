@@ -98,8 +98,14 @@ set(COMMON_SOURCES
     src/gui/OmniGUI.cpp
     src/gui/IMEventHandlers.cpp
     src/gui/NexusGUI.cpp
+    src/gui/InstancesGUI.cpp
     src/gui/KeyBindsGUI.cpp
     src/gui/SettingsGUI.cpp
+    src/gui/components/UIWidgets.cpp
+    src/gui/components/InstanceComponents.cpp
+    src/gui/components/SettingsComponents.cpp
+    src/gui/components/KeybindComponents.cpp
+    src/gui/components/NexusComponents.cpp
     src/codec/nvenc.cpp
     src/codec/nvdec.cpp
     src/codec/CuKernel.cu
