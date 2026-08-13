@@ -45,6 +45,17 @@ class OmniQrypt : public QryptEngine<DeviceMap>
         return TrustedPairingTokens.find(DeviceID) != TrustedPairingTokens.end();
     }
 
+    void RemovePairingToken(DeviceMap DeviceID)
+    {
+        TrustedPairingTokens.erase(DeviceID);
+        SavePairingTokensToFile();
+    }
+
+    const std::unordered_map<DeviceMap, std::array<uint8_t, 32>>& GetTrustedPairingTokens() const
+    {
+        return TrustedPairingTokens;
+    }
+
     bool SavePairingTokensToFile(const char* FilePath = "liss.dat")
     {
         std::ofstream File(FilePath, std::ios::binary);
