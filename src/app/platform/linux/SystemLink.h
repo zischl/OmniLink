@@ -49,7 +49,10 @@ struct OmniSystemLink
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
 
-    void ToggleEdgeProbe(ActiveInstanceContainer& ActiveInstances);
+    void ToggleEdgeProbe();
+
+    void BindSession(DeviceMap DeviceID);
+    void UnbindSession(DeviceMap DeviceID);
 
     void SyncInputFilter();
 

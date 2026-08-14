@@ -10,10 +10,9 @@ class Variance
 {
   public:
     template <typename Variant, std::size_t... SequenceIndex>
-    inline void static VariantDeserializer(Variant& Dest,
-                                           size_t Index,
-                                           std::index_sequence<SequenceIndex...>,
-                                           const void* Buffer)
+    inline void static VariantDeserializer(
+        Variant& Dest, size_t Index, std::index_sequence<SequenceIndex...>, const void* Buffer
+    )
     {
         ((Index == SequenceIndex &&
           (Dest =
@@ -48,14 +47,11 @@ template <typename Type1, typename Type2, typename KeyType> struct FlowMorph
 
     inline void Remove(const KeyType& name) { conditions.erase(name); }
 
-    inline bool Find(const KeyType& name)
-    {
-        if (conditions.find(name) == conditions.end()) {
-            return false;
-        } else {
-            return true;
-        }
-    }
+    inline bool Find(const KeyType& name) { return conditions.find(name) != conditions.end(); }
+
+    inline bool Empty() const { return conditions.empty(); }
+
+    inline std::size_t Size() const { return conditions.size(); }
 };
 
 #endif

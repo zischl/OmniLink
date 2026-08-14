@@ -30,9 +30,9 @@ StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& Windo
     return Window;
 }
 
-void OmniSystemLink::ToggleEdgeProbe(ActiveInstanceContainer& ActiveInstances)
+void OmniSystemLink::ToggleEdgeProbe()
 {
-    IOCapture.ToggleEdgeProbe(WindowID, ActiveInstances);
+    IOCapture.ToggleEdgeProbe(WindowID);
 }
 
 void OmniSystemLink::SyncInputFilter()
@@ -75,6 +75,19 @@ OmniSystemLink::AddCaptureStream(OmniNetSubStream* SubStream, DeviceMap DeviceID
     return StreamController.AddStream(
         StreamingDevice.Get(), StreamingContext.Get(), SubStream, DeviceID, Mode
     );
+}
+
+void OmniSystemLink::BindIOLinkSession(DeviceMap DeviceID)
+{
+    if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
+        auto& instance = ActiveInstances->at(DeviceID);
+        IOCtx.RegisterSession(DeviceID, instance.InstanceSession.get());
+    }
+}
+
+void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
+{
+    IOCtx.UnregisterSession(DeviceID);
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
@@ -207,21 +220,38 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
     return OmniNet::PoolConfig{};
 }
 
+// Register/Unregister the edge trigger condition for this device and bind/Unbind the net session.
+// Setup Edge Probe and Input Shields if not active.. or... remove.
 OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
     DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
 )
 {
     if (Route == FeatureActionRoute::Outbound) {
-        SyncInputFilter();
-        Logger::log(
-            "{:s} IOLink for DeviceID {:d}",
-            Action == FeatureAction::Activate ? "Enabled" : "Disabled",
-            static_cast<int>(DeviceID)
-        );
+        if (Action == FeatureAction::Activate) {
+            IOCapture.AddEdgeCondition(DeviceID);
+            BindIOLinkSession(DeviceID);
+
+            if (!IOCapture.GetEdgeProbeState())
+                IOCapture.ToggleEdgeProbe(WindowID);
+
+            SyncInputFilter();
+
+            Logger::log("InputLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
+        } else {
+            UnbindIOLinkSession(DeviceID);
+            IOCapture.ConditionManager.Remove(DeviceID);
+
+            if (IOCapture.ConditionManager.Empty() && IOCapture.GetEdgeProbeState())
+                IOCapture.ToggleEdgeProbe(WindowID);
+
+            SyncInputFilter();
+
+            Logger::log("InputLink disabled for DeviceID {:d}", static_cast<int>(DeviceID));
+        }
     } else {
         Logger::log(
-            "{:s} InputSynth for DeviceID {:d}",
-            Action == FeatureAction::Activate ? "Enabled" : "Disabled",
+            "InputLink {:s} (Inbound) for DeviceID {:d}",
+            Action == FeatureAction::Activate ? "enabled" : "disabled",
             static_cast<int>(DeviceID)
         );
     }

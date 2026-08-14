@@ -1,11 +1,10 @@
-#ifndef SYSTEMLINK_H
-#define SYSTEMLINK_H
-
 #pragma once
 
 #include "CaptureController.h"
 #include "IOLink.h"
+#include "IOLinkContext.h"
 #include "OmniEnums.h"
+#include "OmniInstances.h"
 #include "OmniPackets.h"
 #include "RenderState.h"
 #include "StreamWindow.h"
@@ -30,9 +29,10 @@ NetworkPacketHandlerFn NetworkPacketHandler;
 
 struct OmniSystemLink
 {
+    IOLinkContext IOCtx;
+    OmniIOCap IOCapture{IOCtx};
+    OmniIOShield IOShield{IOCtx};
     OmniStreamController StreamController;
-    OmniIOCap IOCapture;
-    OmniIOShield IOShield;
 
     ComPtr<ID3D11Device> StreamingDevice = nullptr;
     ComPtr<ID3D11DeviceContext> StreamingContext = nullptr;
@@ -54,7 +54,10 @@ struct OmniSystemLink
 
     StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
 
-    void ToggleEdgeProbe(ActiveInstanceContainer& ActiveInstances);
+    void ToggleEdgeProbe();
+
+    void BindIOLinkSession(DeviceMap DeviceID);
+    void UnbindIOLinkSession(DeviceMap DeviceID);
 
     void SyncInputFilter();
 
@@ -76,5 +79,3 @@ struct OmniSystemLink
     OmniNet::PoolConfig
     SetClipboardLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
 };
-
-#endif

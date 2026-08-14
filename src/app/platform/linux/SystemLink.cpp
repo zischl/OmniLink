@@ -25,6 +25,9 @@ StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& info)
 
 void OmniSystemLink::ToggleEdgeProbe() {}
 
+void OmniSystemLink::BindSession(DeviceMap DeviceID) { (void)DeviceID; }
+void OmniSystemLink::UnbindSession(DeviceMap DeviceID) { (void)DeviceID; }
+
 void OmniSystemLink::SyncInputFilter() {}
 
 OmniStreamController::StreamID
