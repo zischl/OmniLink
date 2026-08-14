@@ -1,31 +1,25 @@
-#ifndef IOLINK_H
-#define IOLINK_H
+#pragma once
 
-#include "OmniConfig.h"
+#include "Helper.h"
+#include "IOLinkContext.h"
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-
-#pragma once
-#include "Helper.h"
-#include "OmniInstances.h"
 
 #include <Windows.h>
 #include <array>
 #include <atomic>
 #include <hidusage.h>
 #include <mutex>
+#include <thread>
 
 struct MouseXY
 {
     int32_t X;
     int32_t Y;
 
-    MouseXY(int x, int y)
-    {
-        X = x;
-        Y = y;
-    }
+    MouseXY(int X, int Y) : X(X), Y(Y) {}
 };
 
 struct KeyData
@@ -36,10 +30,11 @@ struct KeyData
 
 struct Point
 {
-    LONG x;
-    LONG y;
+    LONG X;
+    LONG Y;
 };
 
+// Absolute cursor positions for each screen edge
 static constexpr std::array<Point, 9> PointCache = {{
     {32767, 32767}, // C0
     {65535, 32767}, // L1
@@ -54,160 +49,120 @@ static constexpr std::array<Point, 9> PointCache = {{
 
 template <uint32_t MTU> class OmniNetSession;
 
-extern std::atomic<bool> LockState;
-
+// Installs keyboard/mouse hooks that suppress local input base on InputLocked
 class OmniIOShield
 {
   public:
-    OmniIOShield();
+    explicit OmniIOShield(IOLinkContext& Ctx);
 
     void InvokeInputFilter();
-
     void ReleaseInputFilter();
 
-    static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
-
-    static LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam);
-
   private:
+    IOLinkContext& IOCtx;
+
     HHOOK KeyboardBlock = NULL;
     HHOOK MouseBlock = NULL;
+
+    static LRESULT CALLBACK KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam);
+    static LRESULT CALLBACK MouseProc(int NCode, WPARAM WParam, LPARAM LParam);
+
+    static IOLinkContext* IOContext;
 };
 
+// Handles screen-edge detection and high-performance raw input capture.
 class OmniIOCap
 {
-  private:
-    std::atomic_bool InputLinkStatus = false;
+  public:
+    explicit OmniIOCap(IOLinkContext& Ctx);
+    ~OmniIOCap();
 
-    DeviceMap ActiveEdgeCondition;
-    OmniNetSession<OmniMTU>* ActiveSession = nullptr;
+    // Mouse cursor position tracked locally for edge detection and delta math.
+    int MouseX = 0;
+    int MouseY = 0;
+
+    FlowMorph<int, int, DeviceMap> ConditionManager;
+
+    void ToggleEdgeProbe(HWND Hwnd);
+    bool GetEdgeProbeState();
+    void AddEdgeCondition(DeviceMap Index);
+
+    // High Performance Input Capture
+
+    void (OmniIOCap::*InputProc)(LPARAM& LParam) = nullptr;
+
+    void ToggleInputCapture(HWND Hwnd, bool State);
+
+    // Queries raw input struct size, sends initial warp packet.
+    void InputProcInit(LPARAM& LParam);
+
+    // Called for every raw mouse/keyboard event while captured.
+    void InputProcCallback(LPARAM& LParam);
+
+    // Drain callback used during the teardown window.
+    void VoidExitCallback(LPARAM& LParam);
+
+    // Window Move Detection
+    void WindowMoveListener(bool State = false);
+
+  private:
+    IOLinkContext& IOCtx;
+
+    std::atomic_bool InputLinkStatus{false};
+    std::atomic_bool MouseEventCapStatus{false};
+
+    DeviceMap ActiveEdgeCondition{DeviceMap::C0};
 
     std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
         ConditionManager.conditions;
 
     std::mutex ConditionMutex;
 
-    std::atomic_bool MouseEventCapStatus;
     HWINEVENTHOOK WinCapHook = NULL;
     UINT RawInputSize;
 
-    // Callback for window movement detection
+    std::thread ProbeThread;
+
+    void CreateEdgeProbe(HWND Hwnd);
+    void StopEdgeProbe();
+
     static void CALLBACK WinMvEventProc(
-        HWINEVENTHOOK hWinEventHook,
-        DWORD event,
-        HWND hwnd,
-        LONG idObject,
-        LONG idChild,
-        DWORD idEventThread,
-        DWORD dwmsEventTime
+        HWINEVENTHOOK HWinEventHook,
+        DWORD Event,
+        HWND Hwnd,
+        LONG IDObject,
+        LONG IDChild,
+        DWORD IDEventThread,
+        DWORD DWMSEventTime
     );
-
-  public:
-    OmniIOCap();
-
-    // Mouse cursor position used by both edge detection and high performance
-    // input capture
-    int MouseX = 0;
-    int MouseY = 0;
-
-    /// ##########################################################################################
-    /// ///
-    ///	Display Edge Detection For the Mouse
-    //////
-    /// ##########################################################################################
-    /// ///
-
-    unsigned int ResWidth = 0;
-    unsigned int ResHeight = 0;
-
-    FlowMorph<int, int, DeviceMap> ConditionManager;
-
-    void ToggleEdgeProbe(HWND hwnd, ActiveInstanceContainer& ActiveInstances);
-
-    bool GetEdgeProbeState();
-
-    void CreateEdgeProbe(HWND hwnd, ActiveInstanceContainer& ActiveInstances);
-
-    void AddEdgeCondition(DeviceMap Index);
-
-    /// ##########################################################################################
-    /// /// High Perofrmance Input Capture
-    /// ///
-    /// ##########################################################################################
-    /// ///
-
-    void (OmniIOCap::*InputProc)(LPARAM& lParam) = nullptr;
-    void ToggleInputCapture(HWND hwnd, bool state = false);
-
-    // Initial mouse input event proc used for calculating the size of the raw
-    // input struct
-    void InputProcInit(LPARAM& lParam);
-
-    // Default mouse input event proc for high performance input capturing
-    void InputProcCallback(LPARAM& lParam);
-
-    // Termination sequence for input capturing process
-    void VoidExitCallback(LPARAM& lParam);
-
-    // for future usage if dynamic assignment of input capture handling is needed
-    /*void (*OnMouseCapture)(RAWINPUT& Input) = nullptr;
-
-    void (*OnKeyboardCapture)(RAWINPUT& RawInput) = nullptr;
-
-    void (*OnInitialMouseCapture)(int MouseX, int MouseY) = nullptr;*/
-
-    /// ##########################################################################################
-    /// /// Window Move Event Detection
-    /// ///
-    /// ##########################################################################################
-    /// ///
-
-    void WindowMoveListener(bool state = false);
-
-    inline void SetActiveSession(OmniNetSession<OmniMTU>* target) { ActiveSession = target; }
 };
 
-class OmniSynth
+// Pure input synthesis that translates received network packets into local
+// SendInput / SetCursorPos calls. Fully stateless btw.
+namespace OmniSynth {
+// Move cursor to absolute pixel position.
+void ProcMouse(int X, int Y);
+
+// Dispatch a INPUT struct either mouse or keyboard.
+void ProcInput(INPUT& Input);
+
+// Simulate a keyboard event from a INPUT struct.
+void ProcKey(INPUT& Input);
+
+// Simulate a keyboard event from a raw KeyData.
+void ProcKey(KeyData& Input);
+
+// Move cursor by a pixel delta relative to a known base position.
+inline void MvMouse(int& CurrentX, int& CurrentY, int DX, int DY)
 {
-  public:
-    int MouseX = 0;
-    int MouseY = 0;
+    CurrentX += DX;
+    CurrentY += DY;
+    SetCursorPos(CurrentX, CurrentY);
+}
 
-    // Sets current cursor position using absolute pixel cordinates
-    void static ProcMouse(int x, int y);
-
-    void static ProcInput(INPUT& input);
-
-    // Simulate keyboard button actions
-    void static ProcKey(INPUT& input);
-
-    // Simulate keyboard button actions
-    void static ProcKey(KeyData& input);
-
-    void SetMouseCursor(int MouseX, int MouseY);
-
-    // Move cursor by pixel count rather than set cursor to an exact position
-    // Set current cursor position before using this function in order to avoid
-    // incorrect starting points
-    void inline MvMouse(int toX, int toY)
-    {
-        MouseX += toX;
-        MouseY += toY;
-
-        SetCursorPos(MouseX, MouseY);
-    }
-
-    // Returns true if the current registered mouse position matches with the give
-    // positions
-    bool inline CheckMousePos(int MX, int MY)
-    {
-        if (MX != MouseX && MY != MouseY) {
-            return false;
-        } else
-            return true;
-    }
-
-    // MouseXY inline GetCursorPos() {}
-};
-
-#endif
+// Returns true only when both coordinates match.
+inline bool CheckMousePos(int TrackedX, int TrackedY, int MX, int MY)
+{
+    return MX == TrackedX && MY == TrackedY;
+}
+} // namespace OmniSynth
