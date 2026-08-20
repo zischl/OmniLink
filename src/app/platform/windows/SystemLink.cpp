@@ -282,6 +282,28 @@ OmniNet::PoolConfig OmniSystemLink::SetClipboardLinkState(
     DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
 )
 {
+    bool OutboundActive = false;
+    if (ActiveInstances) {
+        for (const auto& [DevID, Instance] : *ActiveInstances) {
+            if (Instance.GetFeatureState(
+                    FeatureTypes::ClipboardLink, FeatureActionRoute::Outbound
+                )) {
+                OutboundActive = true;
+                break;
+            }
+        }
+    }
+
+    if (Action == FeatureAction::Activate && Route == FeatureActionRoute::Outbound) {
+        if (!ClipboardService.GetState()) {
+            ClipboardService.StartMonitoring(WindowID, [this](const std::string& Text) {
+                TransmitClipboard(Text);
+            });
+        }
+    } else if (!OutboundActive) {
+        ClipboardService.StopMonitoring();
+    }
+
     Logger::log(
         "{:s} ClipboardSync {:s} for DeviceID {:d}",
         Action == FeatureAction::Activate ? "Enabled" : "Disabled",
@@ -289,4 +311,39 @@ OmniNet::PoolConfig OmniSystemLink::SetClipboardLinkState(
         static_cast<int>(DeviceID)
     );
     return OmniNet::PoolConfig{};
+}
+
+void OmniSystemLink::TransmitClipboard(const std::string& Text)
+{
+    if (Text.empty() || !ActiveInstances)
+        return;
+
+    if (Text.size() > QUICKCLIP_MAX_SIZE) {
+        Logger::log(
+            "Clipboard text size ({:d} bytes) exceeds quick clip limit ({:d} bytes)",
+            Text.size(),
+            QUICKCLIP_MAX_SIZE
+        );
+        return;
+    }
+
+    OmniNet::OmniHeader Header;
+    Header.PacketType = OmniNet::PacketType::ProcClipboard;
+    Header.Target = 0;
+    Header.Flags = 0;
+
+    for (auto& [DevID, Instance] : *ActiveInstances) {
+        if (Instance.GetFeatureState(FeatureTypes::ClipboardLink, FeatureActionRoute::Outbound)) {
+            if (Instance.InstanceSession) {
+                Instance.InstanceSession->SessionSend(
+                    const_cast<char*>(Text.data()), static_cast<int>(Text.size()), Header
+                );
+                Logger::log(
+                    "Clipboard Transmit Completed to DeviceID {:d} ({:d} bytes)",
+                    static_cast<int>(DevID),
+                    Text.size()
+                );
+            }
+        }
+    }
 }

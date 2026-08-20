@@ -125,6 +125,7 @@ if(WIN32)
       src/input/platform/windows/IOLink.cpp
       src/window/platform/windows/WinForge.cpp
       src/app/platform/windows/SystemLink.cpp
+      src/app/platform/windows/ClipBoardLink.cpp
       src/misc/platform/windows/system_probe.cpp
       src/app/platform/windows/OmniLink.cpp
       src/render/platform/windows/IconLoader.cpp)

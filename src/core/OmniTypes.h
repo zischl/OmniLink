@@ -8,7 +8,15 @@
 namespace OmniNet {
 enum BufferType : uint8_t { OP_RECV, OP_SEND };
 
-enum PacketType : uint8_t { ChunkStart, ChunkData, ChunkEnd, Command, ProcMouse, ProcKey };
+enum PacketType : uint8_t {
+    ChunkStart,
+    ChunkData,
+    ChunkEnd,
+    Command,
+    ProcMouse,
+    ProcKey,
+    ProcClipboard
+};
 
 enum FlagTypes : uint8_t { VoidArg, Argonized };
 

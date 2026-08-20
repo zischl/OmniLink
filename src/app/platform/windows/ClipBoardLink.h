@@ -20,8 +20,8 @@ class ClipBoardLink
 
     void OnClipboardUpdate();
 
-    bool SetClipTypeText(const std::string& Text);
-    std::string GetClipTypeText();
+    static bool SetClipTypeText(const std::string& Text);
+    static std::string GetClipTypeText();
 
     bool GetState() const { return HookState.load(); }
 
@@ -30,7 +30,7 @@ class ClipBoardLink
     std::atomic<bool> HookState{false};
     ClipboardChangeCallback ChangeCallback;
 
-    DWORD LastSequenceNumber = 0;
-    std::string LastText;
-    std::mutex TextMutex;
+    static inline DWORD LastSequenceNumber = 0;
+    static inline std::string LastText = "";
+    static inline std::mutex TextMutex;
 };

@@ -1,4 +1,5 @@
 #include "OmniLink.h"
+#include "ClipBoardLink.h"
 #include "NetVariance.h"
 #include "OmniEnums.h"
 #include "OmniPackets.h"
@@ -53,6 +54,15 @@ static void HandleInput(CHAR* Buffer)
     OmniSynth::ProcInput(*Payload);
 }
 
+static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
+{
+    if (!Buffer || BufferSize <= 3)
+        return;
+
+    std::string Text(Buffer, BufferSize - 3);
+    ClipBoardLink::SetClipTypeText(Text);
+}
+
 void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)
 {
     OmniNet::SessionPacketContext* SessionCtx =
@@ -70,6 +80,10 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
     }
     case OmniNet::PacketType::ProcMouse:
     case OmniNet::PacketType::ProcKey: {
+        break;
+    }
+    case OmniNet::PacketType::ProcClipboard: {
+        HandleClipboard(Buffer, BufferSize);
         break;
     }
     }

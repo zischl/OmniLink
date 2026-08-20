@@ -75,7 +75,7 @@ void OmniGUI::RenderFeatureControlBar(
     if (IconizedButton(
             "Clipboard Link", IC_CLIPBOARD, (featureFlags & FeatureFlags::fClipBoardLink) != 0, size
         )) {
-        // Reserved for Clipboard event handler
+        OmniAPI::ToggleFeature(FeatureTypes::ClipboardLink, SelectedDevice);
     }
 
     if (InterMed16)

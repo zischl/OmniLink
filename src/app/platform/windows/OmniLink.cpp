@@ -1,3 +1,4 @@
+#include "ClipBoardLink.h"
 #include "D3D11Renderer.h"
 #include "NetVariance.h"
 #include "OmniDiscovery.h"
@@ -63,6 +64,15 @@ static void HandleInput(CHAR* Buffer)
     OmniSynth::ProcInput(*Payload);
 }
 
+static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
+{
+    if (!Buffer || BufferSize <= OmniHeaderSize)
+        return;
+
+    std::string Text(Buffer, BufferSize - OmniHeaderSize);
+    ClipBoardLink::SetClipTypeText(Text);
+}
+
 void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)
 {
     OmniNet::SessionPacketContext* SessionCtx =
@@ -82,6 +92,10 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
     case OmniNet::PacketType::ProcMouse:
     case OmniNet::PacketType::ProcKey: {
         HandleInput(Buffer);
+        break;
+    }
+    case OmniNet::PacketType::ProcClipboard: {
+        HandleClipboard(Buffer, BufferSize);
         break;
     }
     }
@@ -277,12 +291,17 @@ ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
 
 LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    OmniLink* omni = reinterpret_cast<OmniLink*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+    OmniLink* Omni = reinterpret_cast<OmniLink*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
 
     if (ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam))
         return true;
 
     switch (uMsg) {
+    case WM_CLIPBOARDUPDATE:
+        if (Omni) {
+            Omni->SystemLink.ClipboardService.OnClipboardUpdate();
+        }
+        return 0;
     case WM_TRAYICON:
         if (lParam == WM_LBUTTONDBLCLK) {
             ShowWindow(hwnd, SW_SHOW);
@@ -314,8 +333,8 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         }
         break;
     case WM_DESTROY:
-        if (omni) {
-            Shell_NotifyIcon(NIM_DELETE, &(omni->TrayIconData));
+        if (Omni) {
+            Shell_NotifyIcon(NIM_DELETE, &(Omni->TrayIconData));
         }
         PostQuitMessage(0);
         ImGui_ImplDX11_Shutdown();
@@ -329,11 +348,11 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         SetCursor(LoadCursor(NULL, IDC_ARROW));
         return true;
     case WM_INPUT:
-        (omni->SystemLink.IOCapture.*(omni->SystemLink.IOCapture.InputProc))(lParam);
+        (Omni->SystemLink.IOCapture.*(Omni->SystemLink.IOCapture.InputProc))(lParam);
         break;
     case WM_NCCREATE:
-        omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(omni));
+        Omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(Omni));
         break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
