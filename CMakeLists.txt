@@ -118,6 +118,7 @@ if(WIN32)
   set(PLATFORM_SOURCES
       src/net/platform/windows/OmniNetContext.cpp
       src/net/platform/windows/SubStream.cpp
+      src/net/platform/windows/OmniTCPStream.cpp
       src/capture/platform/windows/WinCap.cpp
       src/capture/platform/windows/AudioCap.cpp
       src/render/platform/windows/D3D11Renderer.cpp
@@ -132,11 +133,13 @@ if(WIN32)
 elseif(UNIX)
   set(PLATFORM_SOURCES
       src/net/platform/linux/SessionHandler.cpp
+      src/net/platform/linux/OmniTCPStream.cpp
       src/capture/platform/linux/PipeWireCap.cpp
       src/render/platform/linux/VkRenderer.cpp
       src/input/platform/linux/IOLink.cpp
       src/window/platform/linux/LinuxForge.cpp
       src/app/platform/linux/SystemLink.cpp
+      src/app/platform/linux/ClipBoardLink.cpp
       src/misc/platform/unix/system_probe.cpp
       src/app/platform/linux/OmniLink.cpp
       src/render/platform/linux/IconLoader.cpp)
