@@ -2,6 +2,7 @@
 
 #include "CaptureController.h"
 #include "ClipBoardLink.h"
+#include "ClipboardTypes.h"
 #include "IOLink.h"
 #include "IOLinkContext.h"
 #include "OmniEnums.h"

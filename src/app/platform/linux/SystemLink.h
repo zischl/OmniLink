@@ -4,6 +4,8 @@
 #pragma once
 
 #include "CaptureController.h"
+#include "ClipBoardLink.h"
+#include "ClipboardTypes.h"
 #include "IOLink.h"
 #include "OmniEnums.h"
 #include "OmniPackets.h"
@@ -28,6 +30,7 @@ struct OmniSystemLink
     OmniStreamController StreamController;
     OmniIOCap IOCapture;
     OmniIOShield IOShield;
+    ClipBoardLink ClipboardService;
 
     void* StreamingDevice = nullptr;
     void* StreamingContext = nullptr;
@@ -73,6 +76,9 @@ struct OmniSystemLink
 
     OmniNet::PoolConfig
     SetClipboardLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+
+    void TransmitClipboard(const std::string& Text);
+    void TransmitClipboardManifest(const ClipboardManifest& Manifest);
 };
 
 #endif

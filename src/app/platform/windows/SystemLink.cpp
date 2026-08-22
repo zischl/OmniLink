@@ -296,9 +296,11 @@ OmniNet::PoolConfig OmniSystemLink::SetClipboardLinkState(
 
     if (Action == FeatureAction::Activate && Route == FeatureActionRoute::Outbound) {
         if (!ClipboardService.GetState()) {
-            ClipboardService.StartMonitoring(WindowID, [this](const std::string& Text) {
-                TransmitClipboard(Text);
-            });
+            ClipboardService.StartMonitoring(
+                WindowID,
+                [this](const std::string& Text) { TransmitClipboard(Text); },
+                [this](const ClipboardManifest& Manifest) { TransmitClipboardManifest(Manifest); }
+            );
         }
     } else if (!OutboundActive) {
         ClipboardService.StopMonitoring();
@@ -318,14 +320,9 @@ void OmniSystemLink::TransmitClipboard(const std::string& Text)
     if (Text.empty() || !ActiveInstances)
         return;
 
-    if (Text.size() > QUICKCLIP_MAX_SIZE) {
-        Logger::log(
-            "Clipboard text size ({:d} bytes) exceeds quick clip limit ({:d} bytes)",
-            Text.size(),
-            QUICKCLIP_MAX_SIZE
-        );
-        return;
-    }
+    std::vector<uint8_t> Payload(1 + Text.size());
+    Payload[0] = static_cast<uint8_t>(ClipboardOp::LightGram);
+    std::memcpy(Payload.data() + 1, Text.data(), Text.size());
 
     OmniNet::OmniHeader Header;
     Header.PacketType = OmniNet::PacketType::ProcClipboard;
@@ -336,12 +333,49 @@ void OmniSystemLink::TransmitClipboard(const std::string& Text)
         if (Instance.GetFeatureState(FeatureTypes::ClipboardLink, FeatureActionRoute::Outbound)) {
             if (Instance.InstanceSession) {
                 Instance.InstanceSession->SessionSend(
-                    const_cast<char*>(Text.data()), static_cast<int>(Text.size()), Header
+                    reinterpret_cast<char*>(Payload.data()),
+                    static_cast<int>(Payload.size()),
+                    Header
                 );
                 Logger::log(
-                    "Clipboard Transmit Completed to DeviceID {:d} ({:d} bytes)",
-                    static_cast<int>(DevID),
-                    Text.size()
+                    "Transmit completed for {:d} bytes of clipboard data to DeviceID {:d}",
+                    Text.size(),
+                    static_cast<int>(DevID)
+                );
+            }
+        }
+    }
+}
+
+void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest)
+{
+    if (!ActiveInstances)
+        return;
+
+    std::vector<uint8_t> Serialized = ClipboardManifest::Serialize(Manifest);
+    std::vector<uint8_t> Payload(1 + Serialized.size());
+    Payload[0] = static_cast<uint8_t>(ClipboardOp::Manifest);
+    std::memcpy(Payload.data() + 1, Serialized.data(), Serialized.size());
+
+    OmniNet::OmniHeader Header;
+    Header.PacketType = OmniNet::PacketType::ProcClipboard;
+    Header.Target = 0;
+    Header.Flags = 0;
+
+    for (auto& [DevID, Instance] : *ActiveInstances) {
+        if (Instance.GetFeatureState(FeatureTypes::ClipboardLink, FeatureActionRoute::Outbound)) {
+            if (Instance.InstanceSession) {
+                Instance.InstanceSession->SessionSend(
+                    reinterpret_cast<char*>(Payload.data()),
+                    static_cast<int>(Payload.size()),
+                    Header
+                );
+                Logger::log(
+                    "Transmit completed for ClipboardManifest promises ({:s}, Size: {:d} bytes) to "
+                    "DeviceID {:d}",
+                    Manifest.FormatMime.c_str(),
+                    Manifest.TotalSizeBytes,
+                    static_cast<int>(DevID)
                 );
             }
         }
