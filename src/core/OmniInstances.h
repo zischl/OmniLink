@@ -22,6 +22,7 @@
 
 template <uint32_t MTU> class OmniNetSession;
 class OmniNetSubStream;
+class OmniTCPStream;
 
 struct OmniInstance
 {
@@ -100,6 +101,9 @@ struct OmniActiveInstance : OmniInstance
     std::unordered_multimap<FeatureTypes, uint16_t> FeatureSubStreams;
     static inline std::atomic<uint16_t> NextSubStreamID{1};
 
+    std::unordered_map<uint32_t, std::shared_ptr<OmniTCPStream>> TCPStreamRegistry;
+    static inline std::atomic<uint32_t> NextTCPStreamID{1};
+
     SubStreamEntry* FindSubStream(uint16_t ID)
     {
         auto iter = SubStreamRegistry.find(ID);
@@ -128,6 +132,22 @@ struct OmniActiveInstance : OmniInstance
             return Range.first->second;
         }
         return 0;
+    }
+
+    std::shared_ptr<OmniTCPStream> FindTCPStream(uint32_t StreamID)
+    {
+        auto iter = TCPStreamRegistry.find(StreamID);
+        return (iter != TCPStreamRegistry.end()) ? iter->second : nullptr;
+    }
+
+    inline void RegisterTCPStream(uint32_t StreamID, std::shared_ptr<OmniTCPStream> Stream)
+    {
+        TCPStreamRegistry[StreamID] = std::move(Stream);
+    }
+
+    inline void CloseTCPStream(uint32_t StreamID)
+    {
+        TCPStreamRegistry.erase(StreamID);
     }
 
     OmniActiveInstance() {}
