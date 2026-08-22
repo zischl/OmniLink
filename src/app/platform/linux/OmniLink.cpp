@@ -1,5 +1,6 @@
 #include "OmniLink.h"
 #include "ClipBoardLink.h"
+#include "ClipboardTypes.h"
 #include "NetVariance.h"
 #include "OmniEnums.h"
 #include "OmniPackets.h"
@@ -59,8 +60,19 @@ static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
     if (!Buffer || BufferSize <= 3)
         return;
 
-    std::string Text(Buffer, BufferSize - 3);
-    ClipBoardLink::SetClipTypeText(Text);
+    uint32_t PayloadSize = BufferSize - 3;
+    if (PayloadSize < 1)
+        return;
+
+    uint8_t Op = static_cast<uint8_t>(Buffer[0]);
+    if (Op == static_cast<uint8_t>(ClipboardOp::LightGram)) {
+        std::string Text(Buffer + 1, PayloadSize - 1);
+        ClipBoardLink::SetClipTypeText(Text);
+    } else if (Op == static_cast<uint8_t>(ClipboardOp::Manifest)) {
+        ByteStreamReader Reader{PayloadSize - 1, reinterpret_cast<uint8_t*>(Buffer + 1)};
+        ClipboardManifest Manifest = ClipboardManifest::Deserialize(Reader);
+        ClipBoardLink::AddClipItemPromise(Manifest);
+    }
 }
 
 void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)

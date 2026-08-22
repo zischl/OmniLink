@@ -1,4 +1,5 @@
 #include "ClipBoardLink.h"
+#include "ClipboardTypes.h"
 #include "D3D11Renderer.h"
 #include "NetVariance.h"
 #include "OmniDiscovery.h"
@@ -69,8 +70,19 @@ static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
     if (!Buffer || BufferSize <= OmniHeaderSize)
         return;
 
-    std::string Text(Buffer, BufferSize - OmniHeaderSize);
-    ClipBoardLink::SetClipTypeText(Text);
+    uint32_t PayloadSize = BufferSize - OmniHeaderSize;
+    if (PayloadSize < 1)
+        return;
+
+    uint8_t Op = static_cast<uint8_t>(Buffer[0]);
+    if (Op == static_cast<uint8_t>(ClipboardOp::LightGram)) {
+        std::string Text(Buffer + 1, PayloadSize - 1);
+        ClipBoardLink::SetClipTypeText(Text);
+    } else if (Op == static_cast<uint8_t>(ClipboardOp::Manifest)) {
+        ByteStreamReader Reader{PayloadSize - 1, reinterpret_cast<uint8_t*>(Buffer + 1)};
+        ClipboardManifest Manifest = ClipboardManifest::Deserialize(Reader);
+        ClipBoardLink::AddClipItemPromise(Manifest);
+    }
 }
 
 void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeader, void* Context)
@@ -300,6 +312,16 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     case WM_CLIPBOARDUPDATE:
         if (Omni) {
             Omni->SystemLink.ClipboardService.OnClipboardUpdate();
+        }
+        return 0;
+    case WM_RENDERFORMAT:
+        if (Omni) {
+            Omni->SystemLink.ClipboardService.OnPasteRequest(static_cast<UINT>(wParam));
+        }
+        return 0;
+    case WM_DESTROYCLIPBOARD:
+        if (Omni) {
+            Omni->SystemLink.ClipboardService.OnRequestInvalidation();
         }
         return 0;
     case WM_TRAYICON:
