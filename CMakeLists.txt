@@ -126,7 +126,7 @@ if(WIN32)
       src/input/platform/windows/IOLink.cpp
       src/window/platform/windows/WinForge.cpp
       src/app/platform/windows/SystemLink.cpp
-      src/app/platform/windows/ClipBoardLink.cpp
+      src/clipboard/platform/windows/ClipBoardLink.cpp
       src/misc/platform/windows/system_probe.cpp
       src/app/platform/windows/OmniLink.cpp
       src/render/platform/windows/IconLoader.cpp)
@@ -139,7 +139,7 @@ elseif(UNIX)
       src/input/platform/linux/IOLink.cpp
       src/window/platform/linux/LinuxForge.cpp
       src/app/platform/linux/SystemLink.cpp
-      src/app/platform/linux/ClipBoardLink.cpp
+      src/clipboard/platform/linux/ClipBoardLink.cpp
       src/misc/platform/unix/system_probe.cpp
       src/app/platform/linux/OmniLink.cpp
       src/render/platform/linux/IconLoader.cpp)
@@ -219,6 +219,7 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/window
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
           ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard
           ${CMAKE_CURRENT_SOURCE_DIR}/src/misc
           ${CMAKE_CURRENT_SOURCE_DIR}/assets
           ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/dummies)
@@ -244,6 +245,7 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/window
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
           ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard
           ${CMAKE_CURRENT_SOURCE_DIR}/src/misc
           ${CMAKE_CURRENT_SOURCE_DIR}/assets
           ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests/dummies
@@ -257,6 +259,7 @@ if(WIN32)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
   target_include_directories(
@@ -266,6 +269,7 @@ if(WIN32)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
 elseif(UNIX)
@@ -276,6 +280,7 @@ elseif(UNIX)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/unix)
   target_include_directories(
@@ -285,6 +290,7 @@ elseif(UNIX)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/linux
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/unix)
 endif()

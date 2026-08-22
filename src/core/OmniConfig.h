@@ -6,4 +6,4 @@ inline constexpr uint16_t OmniDiscoveryPort = 58426;
 inline constexpr uint32_t OmniMTU = 1450;
 inline constexpr uint32_t OmniHeaderSize = 3;
 inline constexpr uint32_t MaxInstances = 9;
-inline static constexpr size_t QUICKCLIP_MAX_SIZE = 1400;
+inline static constexpr size_t LIGHTGRAM_MAX_SIZE = 1400;
