@@ -8,18 +8,21 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 class ClipBoardLink
 {
   public:
     using ClipboardChangeCallback = std::function<void(const std::string&)>;
     using ClipboardManifestCallback = std::function<void(const ClipboardManifest&)>;
+    using PasteRequestCallback =
+        std::function<std::vector<uint8_t>(const ClipboardManifest&, uint32_t)>;
 
     ClipBoardLink() = default;
     ~ClipBoardLink();
 
     void StartMonitoring(
-        ClipboardChangeCallback FastTextCB, ClipboardManifestCallback ManifestCB = nullptr
+        ClipboardChangeCallback LightGramCB, ClipboardManifestCallback ManifestCB = nullptr
     );
     void StopMonitoring();
 
@@ -27,6 +30,7 @@ class ClipBoardLink
     static std::string GetClipTypeText();
 
     static void AddClipItemPromise(const ClipboardManifest& Manifest);
+    static void SetPasteRequestCallback(PasteRequestCallback Callback);
 
     bool GetState() const { return Monitoring.load(); }
 
@@ -44,4 +48,5 @@ class ClipBoardLink
 
     static inline ClipboardManifest PendingManifest;
     static inline std::mutex ManifestMutex;
+    static inline PasteRequestCallback PRequestCallback = nullptr;
 };

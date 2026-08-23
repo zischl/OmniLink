@@ -11,6 +11,21 @@ enum class ClipboardCategory : uint8_t { Text = 1, Image = 2, FileList = 3, Rich
 // LightGram is just messages under udp MTU
 enum class ClipboardOp : uint8_t { LightGram = 0, Manifest = 1 };
 
+enum ClipboardItemFlags : uint32_t {
+    ItemFlag_None = 0,
+    ItemFlag_Directory = 1 << 0,
+    ItemFlag_Virtual = 1 << 1
+};
+
+struct ClipboardItemEntry
+{
+    std::string ItemName;
+    std::string FormatMime;
+    uint32_t FormatID = 0;
+    uint64_t SizeBytes = 0;
+    uint32_t Flags = ItemFlag_None;
+};
+
 struct ClipboardManifest
 {
     uint32_t StreamID = 0;
@@ -19,14 +34,18 @@ struct ClipboardManifest
     std::string FormatMime;
     uint32_t WinFormatID = 0;
     uint64_t TotalSizeBytes = 0;
-    uint32_t ItemCount = 1;
-    std::string ItemName;
+    std::vector<ClipboardItemEntry> Items;
 
     static std::vector<uint8_t> Serialize(const ClipboardManifest& Manifest)
     {
         uint32_t MimeLen = static_cast<uint32_t>(Manifest.FormatMime.size());
-        uint32_t NameLen = static_cast<uint32_t>(Manifest.ItemName.size());
-        uint32_t TotalPayloadSize = 4 + 2 + 1 + 4 + MimeLen + 4 + 8 + 4 + 4 + NameLen;
+        uint32_t ItemCount = static_cast<uint32_t>(Manifest.Items.size());
+
+        uint32_t TotalPayloadSize = 4 + 2 + 1 + 4 + MimeLen + 4 + 8 + 4;
+        for (const auto& Item : Manifest.Items) {
+            TotalPayloadSize += 4 + static_cast<uint32_t>(Item.ItemName.size()) + 4 +
+                                static_cast<uint32_t>(Item.FormatMime.size()) + 4 + 8 + 4;
+        }
 
         ByteVecStreamEx Writer{TotalPayloadSize};
         Writer.WriteU32Ex(Manifest.StreamID);
@@ -38,10 +57,24 @@ struct ClipboardManifest
         }
         Writer.WriteU32Ex(Manifest.WinFormatID);
         Writer.WriteU64Ex(Manifest.TotalSizeBytes);
-        Writer.WriteU32Ex(Manifest.ItemCount);
-        Writer.WriteU32Ex(NameLen);
-        if (NameLen > 0) {
-            Writer.WriteString(Manifest.ItemName);
+        Writer.WriteU32Ex(ItemCount);
+
+        for (const auto& Item : Manifest.Items) {
+            uint32_t NameLen = static_cast<uint32_t>(Item.ItemName.size());
+            Writer.WriteU32Ex(NameLen);
+            if (NameLen > 0) {
+                Writer.WriteString(Item.ItemName);
+            }
+
+            uint32_t ItemMimeLen = static_cast<uint32_t>(Item.FormatMime.size());
+            Writer.WriteU32Ex(ItemMimeLen);
+            if (ItemMimeLen > 0) {
+                Writer.WriteString(Item.FormatMime);
+            }
+
+            Writer.WriteU32Ex(Item.FormatID);
+            Writer.WriteU64Ex(Item.SizeBytes);
+            Writer.WriteU32Ex(Item.Flags);
         }
 
         return Writer.Data;
@@ -64,12 +97,30 @@ struct ClipboardManifest
 
         Reader.ReadU32Ex(Manifest.WinFormatID);
         Reader.ReadU64Ex(Manifest.TotalSizeBytes);
-        Reader.ReadU32Ex(Manifest.ItemCount);
 
-        uint32_t NameLen = 0;
-        Reader.ReadU32Ex(NameLen);
-        if (NameLen > 0) {
-            Reader.ReadString(Manifest.ItemName, NameLen);
+        uint32_t ItemCount = 0;
+        Reader.ReadU32Ex(ItemCount);
+        Manifest.Items.reserve(ItemCount);
+
+        for (uint32_t i = 0; i < ItemCount; ++i) {
+            ClipboardItemEntry Item;
+            uint32_t NameLen = 0;
+            Reader.ReadU32Ex(NameLen);
+            if (NameLen > 0) {
+                Reader.ReadString(Item.ItemName, NameLen);
+            }
+
+            uint32_t ItemMimeLen = 0;
+            Reader.ReadU32Ex(ItemMimeLen);
+            if (ItemMimeLen > 0) {
+                Reader.ReadString(Item.FormatMime, ItemMimeLen);
+            }
+
+            Reader.ReadU32Ex(Item.FormatID);
+            Reader.ReadU64Ex(Item.SizeBytes);
+            Reader.ReadU32Ex(Item.Flags);
+
+            Manifest.Items.push_back(std::move(Item));
         }
 
         return Manifest;

@@ -79,36 +79,66 @@ void ClipBoardLink::OnClipboardUpdate()
     bool HDropState = IsClipboardFormatAvailable(CF_HDROP);
     bool TextState = IsClipboardFormatAvailable(CF_UNICODETEXT);
 
+    // Handling files/folders
     if (HDropState && ManifestCallback) {
         HANDLE DropHandle = GetClipboardData(CF_HDROP);
         if (DropHandle) {
             HDROP Drop = static_cast<HDROP>(GlobalLock(DropHandle));
             if (Drop) {
                 UINT FileCount = DragQueryFileW(Drop, 0xFFFFFFFF, nullptr, 0);
-                wchar_t FirstFileName[MAX_PATH]{};
-                if (FileCount > 0) {
-                    DragQueryFileW(Drop, 0, FirstFileName, MAX_PATH);
-                }
-                GlobalUnlock(DropHandle);
-                CloseClipboard();
-
-                int Utf8Len = WideCharToMultiByte(
-                    CP_UTF8, 0, FirstFileName, -1, nullptr, 0, nullptr, nullptr
-                );
-                std::string NameStr;
-                if (Utf8Len > 1) {
-                    NameStr.resize(Utf8Len - 1);
-                    WideCharToMultiByte(
-                        CP_UTF8, 0, FirstFileName, -1, NameStr.data(), Utf8Len, nullptr, nullptr
-                    );
-                }
-
                 ClipboardManifest Manifest;
                 Manifest.Category = ClipboardCategory::FileList;
                 Manifest.FormatMime = "CF_HDROP";
                 Manifest.WinFormatID = CF_HDROP;
-                Manifest.ItemCount = FileCount;
-                Manifest.ItemName = NameStr;
+                Manifest.TotalSizeBytes = 0;
+
+                for (UINT i = 0; i < FileCount; ++i) {
+                    wchar_t FilePath[MAX_PATH]{};
+                    if (DragQueryFileW(Drop, i, FilePath, MAX_PATH) > 0) {
+                        WIN32_FILE_ATTRIBUTE_DATA FileData{};
+                        bool IsDirectory = false;
+                        uint64_t FileSize = 0;
+
+                        if (GetFileAttributesExW(FilePath, GetFileExInfoStandard, &FileData)) {
+                            IsDirectory = (FileData.dwFileAttributes != INVALID_FILE_ATTRIBUTES) &&
+                                          (FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+                            if (!IsDirectory) {
+                                FileSize = (static_cast<uint64_t>(FileData.nFileSizeHigh) << 32) |
+                                           FileData.nFileSizeLow;
+                            }
+                        }
+
+                        const wchar_t* BaseName = wcsrchr(FilePath, L'\\');
+                        if (!BaseName) {
+                            BaseName = wcsrchr(FilePath, L'/');
+                        }
+                        BaseName = BaseName ? (BaseName + 1) : FilePath;
+
+                        int Utf8Len = WideCharToMultiByte(
+                            CP_UTF8, 0, BaseName, -1, nullptr, 0, nullptr, nullptr
+                        );
+                        std::string NameStr;
+                        if (Utf8Len > 1) {
+                            NameStr.resize(Utf8Len - 1);
+                            WideCharToMultiByte(
+                                CP_UTF8, 0, BaseName, -1, NameStr.data(), Utf8Len, nullptr, nullptr
+                            );
+                        }
+
+                        ClipboardItemEntry Entry;
+                        Entry.ItemName = std::move(NameStr);
+                        Entry.FormatMime = "CF_HDROP";
+                        Entry.FormatID = CF_HDROP;
+                        Entry.SizeBytes = FileSize;
+                        Entry.Flags = IsDirectory ? ItemFlag_Directory : ItemFlag_None;
+
+                        Manifest.TotalSizeBytes += FileSize;
+                        Manifest.Items.push_back(std::move(Entry));
+                    }
+                }
+
+                GlobalUnlock(DropHandle);
+                CloseClipboard();
 
                 ManifestCallback(Manifest);
                 return;
@@ -128,7 +158,14 @@ void ClipBoardLink::OnClipboardUpdate()
             Manifest.FormatMime = (Format == CF_DIBV5) ? "CF_DIBV5" : "CF_DIB";
             Manifest.WinFormatID = Format;
             Manifest.TotalSizeBytes = DataSize;
-            Manifest.ItemName = "temp.bmp";
+
+            ClipboardItemEntry Entry;
+            Entry.ItemName = "clipboard_image.bmp";
+            Entry.FormatMime = Manifest.FormatMime;
+            Entry.FormatID = Format;
+            Entry.SizeBytes = DataSize;
+            Entry.Flags = ItemFlag_None;
+            Manifest.Items.push_back(std::move(Entry));
 
             ManifestCallback(Manifest);
             return;
@@ -157,7 +194,14 @@ void ClipBoardLink::OnClipboardUpdate()
                 Manifest.FormatMime = "text/plain";
                 Manifest.WinFormatID = CF_UNICODETEXT;
                 Manifest.TotalSizeBytes = CurrentText.size();
-                Manifest.ItemName = "temp.txt";
+
+                ClipboardItemEntry Entry;
+                Entry.ItemName = CurrentText.substr(0, (std::min)(CurrentText.size(), size_t(32)));
+                Entry.FormatMime = "text/plain";
+                Entry.FormatID = CF_UNICODETEXT;
+                Entry.SizeBytes = CurrentText.size();
+                Entry.Flags = ItemFlag_None;
+                Manifest.Items.push_back(std::move(Entry));
 
                 ManifestCallback(Manifest);
             }
@@ -166,6 +210,12 @@ void ClipBoardLink::OnClipboardUpdate()
     }
 
     CloseClipboard();
+}
+
+void ClipBoardLink::SetPasteRequestCallback(PasteRequestCallback Callback)
+{
+    std::lock_guard<std::mutex> Lock(ManifestMutex);
+    PRequestCallback = std::move(Callback);
 }
 
 void ClipBoardLink::AddClipItemPromise(const ClipboardManifest& Manifest)
@@ -214,15 +264,56 @@ void ClipBoardLink::AddClipItemPromise(const ClipboardManifest& Manifest)
 
 void ClipBoardLink::OnPasteRequest(UINT uFormat)
 {
-    (void)uFormat;
-    Logger::log("Clipboard paste triggered for format {:d}", uFormat);
+    ClipboardManifest Manifest;
+    PasteRequestCallback Callback;
+
+    {
+        std::lock_guard<std::mutex> Lock(ManifestMutex);
+        Manifest = PendingManifest;
+        Callback = PRequestCallback;
+    }
+
+    if (!Callback || Manifest.TotalSizeBytes == 0) {
+        Logger::log("Clipboard paste request failed due to no pull callback or empty manifest");
+        return;
+    }
+
+    Logger::log("Fetching remote clipboard data for format {:d}...", uFormat);
+    std::vector<uint8_t> Data = Callback(Manifest, uFormat);
+
+    if (Data.empty()) {
+        Logger::log("Failed to retrieve remote clipboard stream for format {:d}", uFormat);
+        return;
+    }
+
+    HGLOBAL HMem = GlobalAlloc(GMEM_MOVEABLE, Data.size());
+    if (!HMem) {
+        Logger::log("Failed to allocate HGLOBAL for clipboard render");
+        return;
+    }
+
+    void* Ptr = GlobalLock(HMem);
+    if (!Ptr) {
+        GlobalFree(HMem);
+        return;
+    }
+
+    std::memcpy(Ptr, Data.data(), Data.size());
+    GlobalUnlock(HMem);
+
+    if (SetClipboardData(uFormat, HMem) == nullptr) {
+        GlobalFree(HMem);
+        Logger::log("SetClipboardData failed during WM_RENDERFORMAT");
+    } else {
+        Logger::log("WM_RENDERFORMAT completed successfully for format {:d}", uFormat);
+    }
 }
 
 void ClipBoardLink::OnRequestInvalidation()
 {
     std::lock_guard<std::mutex> Lock(ManifestMutex);
     PendingManifest = ClipboardManifest{};
-    Logger::log("Clipboard content superseded / destroyed");
+    Logger::log("Clipboard request invalidation event processed");
 }
 
 std::string ClipBoardLink::GetClipTypeText()

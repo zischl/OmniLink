@@ -8,12 +8,15 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <vector>
 
 class ClipBoardLink
 {
   public:
     using ClipboardChangeCallback = std::function<void(const std::string&)>;
     using ClipboardManifestCallback = std::function<void(const ClipboardManifest&)>;
+    using PasteRequestCallback =
+        std::function<std::vector<uint8_t>(const ClipboardManifest&, UINT)>;
 
     ClipBoardLink() = default;
     ~ClipBoardLink();
@@ -33,6 +36,7 @@ class ClipBoardLink
     static std::string GetClipTypeText();
 
     static void AddClipItemPromise(const ClipboardManifest& Manifest);
+    static void SetPasteRequestCallback(PasteRequestCallback CB);
 
     bool GetState() const { return HookState.load(); }
 
@@ -41,6 +45,7 @@ class ClipBoardLink
     std::atomic<bool> HookState{false};
     ClipboardChangeCallback ChangeCallback;
     ClipboardManifestCallback ManifestCallback;
+    static inline PasteRequestCallback PRequestCallback = nullptr;
 
     static inline DWORD LastSequenceNumber = 0;
     static inline std::string LastText = "";
