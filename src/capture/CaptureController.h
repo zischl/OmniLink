@@ -8,11 +8,12 @@
 
 #if defined(_WIN32)
 
-enum CaptureMode { DXGI, WGC };
+enum CaptureMode { DXGI, WGC, WGC_Window };
 
 using EncodeStreamTypes = std::variant<
     EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>,    OmniNetSubStream>,
-    EncodeStream<ScreenCaptureWGC,  BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>;
+    EncodeStream<ScreenCaptureWGC,  BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>,
+    EncodeStream<WindowCaptureWGC,  BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>;
 #elif defined(__linux__)
 
 enum CaptureMode { PW, X11_SHM };

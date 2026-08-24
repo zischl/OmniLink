@@ -1,8 +1,9 @@
 #ifndef WINCAP_H
 #define WINCAP_H
 
-#include "CaptureTypes.h"
 #pragma once
+#include "CaptureTypes.h"
+
 #include <functional>
 #include <mutex>
 
@@ -102,6 +103,14 @@ class WGCapture
 
     void GetActiveMonitorCaptureItem(
         winrt::Windows::Graphics::Capture::GraphicsCaptureItem& CaptureItem
+    );
+
+    void GetWindowCaptureItem(
+        HWND WindowHandle, winrt::Windows::Graphics::Capture::GraphicsCaptureItem& CaptureItem
+    );
+
+    void SetCaptureBorderState(
+        winrt::Windows::Graphics::Capture::GraphicsCaptureSession& Session, bool State
     );
 
     // Only needed in copy based WGScreenCapture, otherwise the resource's D3DTexture2D interface
@@ -209,6 +218,152 @@ class WGScreenCaptureRTV : public WGCapture
         ComPtr<ID3D11ShaderResourceView> TextureView = nullptr;
     };
     std::array<SRVCacheSlot, 3> SRVCache;
+};
+
+// This class will be handling window capture based on WGC Copy Based, not optimized for networking,
+// best for testing purposes, Create a session, Start and and Setup Buffer, Use AcquireFrame
+class WGWindowCapture : public WGCapture
+{
+  private:
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
+    winrt::event_token ClosedToken;
+
+    std::mutex FrameMutex;
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame LatestFrame{nullptr};
+    bool FrameAvailability = false;
+
+    ID3D11Texture2D* WBuffer = nullptr;
+    HWND TargetHwnd = NULL;
+    int CurrentWidth = 0;
+    int CurrentHeight = 0;
+
+  public:
+    WGWindowCapture(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11Context_);
+    ~WGWindowCapture();
+
+    void CreateWindowCapSession(
+        HWND WindowHandle, ID3D11Texture2D* Buffer, UINT Width = 0, UINT Height = 0
+    );
+
+    inline void CreateMonitorCapSession(ID3D11Texture2D* Buffer, UINT Width = 0, UINT Height = 0)
+    {
+        CreateWindowCapSession(GetForegroundWindow(), Buffer, Width, Height);
+    }
+
+    // Copies the latest WGC frame into WBuffer on the calling thread.
+    // Returns true if a new frame was available and successfully copied.
+    bool AcquireFrame();
+
+    void StartSession();
+    void CloseSession();
+};
+
+// Optimised WGC window capture with no mutex, no copies, no states, no extra threads
+// Callback accepted in session creation which receives ID3D11Texture2D*
+// Do release that texture after use which frees up WGC Pool Slot for a new frame
+class WGWindowCaptureEx : public WGCapture
+{
+  public:
+    static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
+    static constexpr CaptureAPI Type = CaptureAPI::WGC;
+
+    using FrameCallback = std::function<void(ID3D11Texture2D*)>;
+
+    explicit WGWindowCaptureEx(ID3D11Device* D3D11DevicePtr);
+    ~WGWindowCaptureEx();
+
+    // Registers the callback, builds the 3 slot frame pool, and
+    // creates the capture session. Call StartSession() to.. uh... start.
+    // And.. CloseSession() to.. well.. close and cleanup
+    // 3 slots designed each for processing state, ready state and latest frame capture
+    // DO EFFING REMEMBER TO RELEASE THE TEXTURE2D WHEN DONE USING
+    void CreateWindowCapSession(
+        HWND WindowHandle, UINT Width, UINT Height, FrameCallback OnFrameCallback
+    );
+    void CreateWindowCapSession(HWND WindowHandle, FrameCallback OnFrameCallback);
+
+    inline void CreateMonitorCapSession(UINT Width, UINT Height, FrameCallback OnFrameCallback)
+    {
+        CreateWindowCapSession(GetForegroundWindow(), Width, Height, std::move(OnFrameCallback));
+    }
+
+    void StartSession();
+    void CloseSession();
+
+  private:
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
+    winrt::event_token ClosedToken;
+
+    FrameCallback OnFrameArrived;
+    HWND TargetHWnd = NULL;
+    int CurrentWidth = 0;
+    int CurrentHeight = 0;
+};
+
+// Same as WGWindowCaptureEx on optimizations but mainly for displaying to a Render Target View
+// while utilizing an SRV Cache.
+class WGWindowCaptureRTV : public WGCapture
+{
+  public:
+    static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
+    static constexpr CaptureAPI Type = CaptureAPI::WGC;
+
+    WGWindowCaptureRTV(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11ContextPtr);
+    ~WGWindowCaptureRTV();
+
+    void CreateWindowCapSession(
+        HWND WindowHandle,
+        UINT Width,
+        UINT Height,
+        ID3D11RenderTargetView* RenderTargetView,
+        IDXGISwapChain* Swapchain,
+        const float ClearColor[4] = nullptr
+    );
+
+    inline void CreateMonitorCapSession(
+        UINT Width,
+        UINT Height,
+        ID3D11RenderTargetView* RenderTargetView,
+        IDXGISwapChain* Swapchain,
+        const float ClearColor[4] = nullptr
+    )
+    {
+        CreateWindowCapSession(
+            GetForegroundWindow(), Width, Height, RenderTargetView, Swapchain, ClearColor
+        );
+    }
+
+    void StartSession();
+    void CloseSession();
+
+  private:
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
+    winrt::event_token ClosedToken;
+
+    ID3D11Device* D3D11Device = nullptr;
+    ID3D11DeviceContext* D3D11Context = nullptr;
+    ID3D11RenderTargetView* RTV = nullptr;
+    IDXGISwapChain* SwapChain = nullptr;
+    float ClearCol[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+
+    HWND TargetHWnd = NULL;
+    int CurrentWidth = 0;
+    int CurrentHeight = 0;
+
+    struct SRVCacheSlot
+    {
+        IUnknown* SurfacePtr = nullptr;
+        ComPtr<ID3D11ShaderResourceView> TextureView = nullptr;
+    };
+    std::array<SRVCacheSlot, 3> SRVCache;
+
+    void ClearSRVCache();
 };
 
 #endif
