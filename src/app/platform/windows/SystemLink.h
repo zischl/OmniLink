@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <Windows.h>
+#include <shellapi.h>
 #include <wrl/client.h>
 
 using Microsoft::WRL::ComPtr;
@@ -83,4 +84,5 @@ struct OmniSystemLink
     SetClipboardLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
 
     void TransmitClipboard(const std::string& Text);
+    void TransmitClipboardManifest(const ClipboardManifest& Manifest);
 };

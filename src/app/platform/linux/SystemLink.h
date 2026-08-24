@@ -2,12 +2,12 @@
 #define SYSTEMLINK_H
 
 #pragma once
-
 #include "CaptureController.h"
 #include "ClipBoardLink.h"
 #include "ClipboardTypes.h"
 #include "IOLink.h"
 #include "OmniEnums.h"
+#include "OmniInstances.h"
 #include "OmniPackets.h"
 #include "RenderState.h"
 #include "StreamWindow.h"

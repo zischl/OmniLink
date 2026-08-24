@@ -1,12 +1,43 @@
 #include "SystemLink.h"
 #include "CaptureController.h"
 #include "LinuxForge.h"
+#include "OmniTCPStream.h"
 
 OmniSystemLink::OmniSystemLink(
     RenderState& renderState, CaptureController& captureCtrl, IOLink& inputLink
 )
     : render(renderState), capture(captureCtrl), input(inputLink)
 {
+}
+
+void OmniSystemLink::SetupSystemLink()
+{
+    ClipBoardLink::SetPasteRequestCallback(
+        [this](const ClipboardManifest& Manifest, uint32_t Format) -> std::vector<uint8_t> {
+            (void)Format;
+            if (!ActiveInstances || Manifest.ServerPort == 0 || Manifest.TotalSizeBytes == 0) {
+                return {};
+            }
+
+            for (auto& [DevID, Instance] : *ActiveInstances) {
+                if (Instance.GetFeatureState(
+                        FeatureTypes::ClipboardLink, FeatureActionRoute::Inbound
+                    )) {
+                    auto Stream = std::make_shared<OmniTCPStream>(Manifest.StreamID);
+                    if (Stream->Connect(Instance.IPv4_String, Manifest.ServerPort, 5000)) {
+                        std::vector<uint8_t> Buffer;
+                        if (Stream->ReceiveToBuffer(
+                                Buffer, static_cast<size_t>(Manifest.TotalSizeBytes)
+                            )) {
+                            Stream->End();
+                            return Buffer;
+                        }
+                    }
+                }
+            }
+            return {};
+        }
+    );
 }
 
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& info)
@@ -126,7 +157,29 @@ void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest
     if (!ActiveInstances)
         return;
 
-    std::vector<uint8_t> Serialized = ClipboardManifest::Serialize(Manifest);
+    static std::atomic<uint32_t> GlobalStreamID{1};
+    uint32_t StreamID = GlobalStreamID.fetch_add(1);
+
+    auto Stream = std::make_shared<OmniTCPStream>(StreamID);
+    if (!Stream->StartServer(0)) {
+        return;
+    }
+
+    ClipboardManifest CManifest = Manifest;
+    CManifest.StreamID = StreamID;
+    CManifest.ServerPort = Stream->GetLocalPort();
+
+    std::string LocalText = ClipBoardLink::GetClipTypeText();
+    std::thread([Stream, Text = std::move(LocalText)]() {
+        if (Stream->AcceptClient(15000)) {
+            if (!Text.empty()) {
+                Stream->StreamBuffer(reinterpret_cast<const uint8_t*>(Text.data()), Text.size());
+            }
+        }
+        Stream->End();
+    }).detach();
+
+    std::vector<uint8_t> Serialized = ClipboardManifest::Serialize(CManifest);
     std::vector<uint8_t> Payload(1 + Serialized.size());
     Payload[0] = static_cast<uint8_t>(ClipboardOp::Manifest);
     std::memcpy(Payload.data() + 1, Serialized.data(), Serialized.size());

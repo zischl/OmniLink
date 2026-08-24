@@ -1,4 +1,5 @@
 #include "SystemLink.h"
+#include "OmniTCPStream.h"
 #include "SessionTypes.h"
 #include "WinForge.h"
 
@@ -12,6 +13,33 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
     hInstance = hInstance_;
     nCmdShow = nCmdShow_;
     WindowID = WindowID_;
+
+    ClipBoardLink::SetPasteRequestCallback(
+        [this](const ClipboardManifest& Manifest, UINT Format) -> std::vector<uint8_t> {
+            (void)Format;
+            if (!ActiveInstances || Manifest.ServerPort == 0 || Manifest.TotalSizeBytes == 0) {
+                return {};
+            }
+
+            for (auto& [DevID, Instance] : *ActiveInstances) {
+                if (Instance.GetFeatureState(
+                        FeatureTypes::ClipboardLink, FeatureActionRoute::Inbound
+                    )) {
+                    auto Stream = std::make_shared<OmniTCPStream>(Manifest.StreamID);
+                    if (Stream->Connect(Instance.IPv4_String, Manifest.ServerPort, 5000)) {
+                        std::vector<uint8_t> Buffer;
+                        if (Stream->ReceiveToBuffer(
+                                Buffer, static_cast<size_t>(Manifest.TotalSizeBytes)
+                            )) {
+                            Stream->End();
+                            return Buffer;
+                        }
+                    }
+                }
+            }
+            return {};
+        }
+    );
 }
 
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& WindowData)
@@ -352,7 +380,79 @@ void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest
     if (!ActiveInstances)
         return;
 
-    std::vector<uint8_t> Serialized = ClipboardManifest::Serialize(Manifest);
+    static std::atomic<uint32_t> GlobalStreamID{1};
+    uint32_t StreamID = GlobalStreamID.fetch_add(1);
+
+    auto Stream = std::make_shared<OmniTCPStream>(StreamID);
+    if (!Stream->StartServer(0)) {
+        Logger::log("Failed to start TCP stream server for clipboard link");
+        return;
+    }
+
+    ClipboardManifest CManifest = Manifest;
+    CManifest.StreamID = StreamID;
+    CManifest.ServerPort = Stream->GetLocalPort();
+
+    for (auto& [DevID, Instance] : *ActiveInstances) {
+        Instance.RegisterTCPStream(StreamID, Stream);
+    }
+
+    std::vector<uint8_t> LocalBuffer;
+    std::vector<std::wstring> LocalFilePaths;
+
+    int Retries = 5;
+    while (!OpenClipboard(nullptr) && Retries-- > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    if (OpenClipboard(nullptr)) {
+        if (CManifest.Category == ClipboardCategory::Image ||
+            CManifest.Category == ClipboardCategory::Text) {
+            HANDLE HData = GetClipboardData(CManifest.WinFormatID);
+            if (HData) {
+                size_t Size = GlobalSize(HData);
+                void* Ptr = GlobalLock(HData);
+                if (Ptr) {
+                    if (Size > 0) {
+                        LocalBuffer.resize(Size);
+                        std::memcpy(LocalBuffer.data(), Ptr, Size);
+                    }
+                    GlobalUnlock(HData);
+                }
+            }
+        } else if (CManifest.Category == ClipboardCategory::FileList) {
+            HANDLE DropHandle = GetClipboardData(CF_HDROP);
+            if (DropHandle) {
+                HDROP Drop = static_cast<HDROP>(GlobalLock(DropHandle));
+                if (Drop) {
+                    UINT FileCount = DragQueryFileW(Drop, 0xFFFFFFFF, nullptr, 0);
+                    for (UINT i = 0; i < FileCount; ++i) {
+                        wchar_t FilePath[MAX_PATH]{};
+                        if (DragQueryFileW(Drop, i, FilePath, MAX_PATH) > 0) {
+                            LocalFilePaths.push_back(FilePath);
+                        }
+                    }
+                    GlobalUnlock(DropHandle);
+                }
+            }
+        }
+        CloseClipboard();
+    }
+
+    std::thread([Stream, Buffer = std::move(LocalBuffer), FilePaths = std::move(LocalFilePaths)]() {
+        if (Stream->AcceptClient(15000)) {
+            if (!Buffer.empty()) {
+                Stream->StreamBuffer(Buffer.data(), Buffer.size());
+            } else if (!FilePaths.empty()) {
+                for (const auto& FilePath : FilePaths) {
+                    Stream->StreamFile(FilePath);
+                }
+            }
+        }
+        Stream->End();
+    }).detach();
+
+    std::vector<uint8_t> Serialized = ClipboardManifest::Serialize(CManifest);
     std::vector<uint8_t> Payload(1 + Serialized.size());
     Payload[0] = static_cast<uint8_t>(ClipboardOp::Manifest);
     std::memcpy(Payload.data() + 1, Serialized.data(), Serialized.size());
@@ -371,10 +471,12 @@ void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest
                     Header
                 );
                 Logger::log(
-                    "Transmit completed for ClipboardManifest promises ({:s}, Size: {:d} bytes) to "
+                    "Transmit completed for ClipboardManifest promises ({:s}, Size: {:d} bytes, "
+                    "Port: {:d}) to "
                     "DeviceID {:d}",
-                    Manifest.FormatMime.c_str(),
-                    Manifest.TotalSizeBytes,
+                    CManifest.FormatMime.c_str(),
+                    CManifest.TotalSizeBytes,
+                    CManifest.ServerPort,
                     static_cast<int>(DevID)
                 );
             }
