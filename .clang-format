@@ -8,6 +8,7 @@ TabWidth: 4
 UseTab: Never
 
 AlignAfterOpenBracket: BlockIndent
+AlignConsecutiveDeclarations: Consecutive
 
 Cpp11BracedListStyle: true
 

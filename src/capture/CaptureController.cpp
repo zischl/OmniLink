@@ -15,7 +15,29 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
 {
     StreamID id = StreamCount++;
 
-    if (Mode == CaptureMode::WGC) {
+    if (Mode == CaptureMode::WGC_Window ||
+        (Mode == CaptureMode::WGC && Config.WindowHandle != NULL)) {
+        WindowCaptureWGC* WGWinCapture = new WindowCaptureWGC(D3D11Device);
+
+        BufferedNvencSession<CachedPoolNvencSession>* Encoder =
+            new BufferedNvencSession<CachedPoolNvencSession>(
+                D3D11Device, NvEncodeAPI.NVFunctions, Config.Width, Config.Height, 3
+            );
+
+        Streams.try_emplace(
+            id,
+            std::in_place_type<EncodeStream<
+                WindowCaptureWGC,
+                BufferedNvencSession<CachedPoolNvencSession>,
+                OmniNetSubStream>>
+        );
+        std::get<EncodeStream<
+            WindowCaptureWGC,
+            BufferedNvencSession<CachedPoolNvencSession>,
+            OmniNetSubStream>>(Streams[id])
+            .Start(WGWinCapture, Encoder, SubStream, TargetID, Config);
+
+    } else if (Mode == CaptureMode::WGC) {
         ScreenCaptureWGC* WGSCapture = new ScreenCaptureWGC(D3D11Device);
 
         BufferedNvencSession<CachedPoolNvencSession>* Encoder =
@@ -25,12 +47,15 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
 
         Streams.try_emplace(
             id,
-            std::in_place_type<
-                EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>
+            std::in_place_type<EncodeStream<
+                ScreenCaptureWGC,
+                BufferedNvencSession<CachedPoolNvencSession>,
+                OmniNetSubStream>>
         );
-        std::get<EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>(
-            Streams[id]
-        )
+        std::get<EncodeStream<
+            ScreenCaptureWGC,
+            BufferedNvencSession<CachedPoolNvencSession>,
+            OmniNetSubStream>>(Streams[id])
             .Start(WGSCapture, Encoder, SubStream, TargetID, Config);
 
     } else if (Mode == CaptureMode::DXGI) {
@@ -45,12 +70,15 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
 
         Streams.try_emplace(
             id,
-            std::in_place_type<
-                EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>, OmniNetSubStream>>
+            std::in_place_type<EncodeStream<
+                ScreenCaptureDXGI,
+                BufferedNvencSession<StaticNvencSession>,
+                OmniNetSubStream>>
         );
-        std::get<EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>, OmniNetSubStream>>(
-            Streams[id]
-        )
+        std::get<EncodeStream<
+            ScreenCaptureDXGI,
+            BufferedNvencSession<StaticNvencSession>,
+            OmniNetSubStream>>(Streams[id])
             .Start(DXGISCapture, Encoder, SubStream, TargetID, Config);
     }
 

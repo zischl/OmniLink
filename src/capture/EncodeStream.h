@@ -92,17 +92,37 @@ struct EncodeStream
         TargetDevice = TargetDevice_;
 
         if constexpr (CaptureSource::Type == CaptureAPI::WGC) {
-            Source->CreateMonitorCapSession(
-                Config.Width, Config.Height, [OmniEncode = Encoder, OmniNet = Target](auto* Tex2D) {
-                    if constexpr (requires { OmniEncode->ResolveCachedResource(Tex2D); }) {
-                        OmniEncode->ResolveCachedResource(Tex2D);
-                    }
-                    Zencode(OmniNet, OmniEncode);
-                    if constexpr (requires { Tex2D->Release(); }) {
-                        Tex2D->Release();
-                    }
+            auto FrameCallback = [OmniEncode = Encoder, OmniNet = Target](auto* Tex2D) {
+                if constexpr (requires { OmniEncode->ResolveCachedResource(Tex2D); }) {
+                    OmniEncode->ResolveCachedResource(Tex2D);
                 }
-            );
+                Zencode(OmniNet, OmniEncode);
+                if constexpr (requires { Tex2D->Release(); }) {
+                    Tex2D->Release();
+                }
+            };
+#if defined(_WIN32)
+            if (Config.WindowHandle != NULL) {
+                if constexpr (requires {
+                                  Source->CreateWindowCapSession(
+                                      Config.WindowHandle,
+                                      Config.Width,
+                                      Config.Height,
+                                      FrameCallback
+                                  );
+                              }) {
+                    Source->CreateWindowCapSession(
+                        Config.WindowHandle, Config.Width, Config.Height, FrameCallback
+                    );
+                } else {
+                    Source->CreateMonitorCapSession(Config.Width, Config.Height, FrameCallback);
+                }
+            } else {
+                Source->CreateMonitorCapSession(Config.Width, Config.Height, FrameCallback);
+            }
+#else
+            Source->CreateMonitorCapSession(Config.Width, Config.Height, frameCallback);
+#endif
             Source->StartSession();
         } else if constexpr (CaptureSource::Type == CaptureAPI::PipeWire) {
             Source->SetupCapturePipeline(
