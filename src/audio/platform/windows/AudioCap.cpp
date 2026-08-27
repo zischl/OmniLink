@@ -120,7 +120,7 @@ void AudioCapture::CaptureWorkerThread()
     HResult = Device->Activate(__uuidof(IAudioClient3), CLSCTX_ALL, NULL, (void**)&AudioClient3);
     if (SUCCEEDED(HResult)) {
         AudioClient = AudioClient3;
-    } else { // else 1.. take it or leave it
+    } else {
         HResult = Device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void**)&AudioClient);
         if (FAILED(HResult))
             return;
@@ -146,7 +146,7 @@ void AudioCapture::CaptureWorkerThread()
 
     if (!InitializedWithClient3) {
         // Fallback to standard WASAPI shared event driven mode
-        REFERENCE_TIME RequestedDuration = REFTIMES_PER_MILLISEC * 20; // 20ms buffer
+        REFERENCE_TIME RequestedDuration = REFTIMES_PER_MILLISEC * 20;
         HResult = AudioClient->Initialize(
             AUDCLNT_SHAREMODE_SHARED, StreamFlags, RequestedDuration, 0, WVFormat, NULL
         );
@@ -204,9 +204,7 @@ void AudioCapture::CaptureWorkerThread()
     AudioClient->Stop();
 }
 
-// Only bit that may need a comment
 // Supporting both 16 bit stereo and 32 bit float outputs
-// Only stereo meaning 2 channels tho, maybe more later
 void AudioCapture::ProcessAudioPacket(
     const uint8_t* InputData, uint32_t NumFrames, const WAVEFORMATEX* WVFormat
 )
