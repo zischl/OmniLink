@@ -94,7 +94,6 @@ class AudioCapture
     AudioPacketCallback Callback;
 
     uint32_t             FrameIndex = 0;
-    std::vector<uint8_t> PcmConversionBuffer;
     std::vector<uint8_t> PacketBuffer;
 };
 

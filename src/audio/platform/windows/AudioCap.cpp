@@ -232,12 +232,15 @@ void AudioCapture::ProcessAudioPacket(
     size_t   PcmPayloadSize = S16NormalizerState ? (TotalOutSamples * sizeof(int16_t))
                                                  : (TotalOutSamples * sizeof(float));
 
-    if (PcmConversionBuffer.size() < PcmPayloadSize) {
-        PcmConversionBuffer.resize(PcmPayloadSize);
+    size_t TotalPacketSize = sizeof(AudioFrameHeader) + PcmPayloadSize;
+    if (PacketBuffer.size() < TotalPacketSize) {
+        PacketBuffer.resize(TotalPacketSize);
     }
 
+    uint8_t* PayloadPtr = PacketBuffer.data() + sizeof(AudioFrameHeader);
+
     if (S16NormalizerState) {
-        int16_t* OutputSamples = reinterpret_cast<int16_t*>(PcmConversionBuffer.data());
+        int16_t* OutputSamples = reinterpret_cast<int16_t*>(PayloadPtr);
 
         if (InputData == nullptr) {
             std::fill(OutputSamples, OutputSamples + TotalOutSamples, static_cast<int16_t>(0));
@@ -272,7 +275,7 @@ void AudioCapture::ProcessAudioPacket(
             std::fill(OutputSamples, OutputSamples + TotalOutSamples, static_cast<int16_t>(0));
         }
     } else {
-        float* OutputSamples = reinterpret_cast<float*>(PcmConversionBuffer.data());
+        float* OutputSamples = reinterpret_cast<float*>(PayloadPtr);
         if (InputData == nullptr) {
             std::fill(OutputSamples, OutputSamples + TotalOutSamples, 0.0f);
         } else if (WVFormatFloat && BitsPerSample == 32) {
@@ -301,17 +304,9 @@ void AudioCapture::ProcessAudioPacket(
     Header.TimestampUs = std::chrono::duration_cast<std::chrono::microseconds>(now).count();
     Header.FrameIndex = FrameIndex++;
 
-    size_t totalPacketSize = sizeof(AudioFrameHeader) + PcmPayloadSize;
-    if (PacketBuffer.size() < totalPacketSize) {
-        PacketBuffer.resize(totalPacketSize);
-    }
-
     std::memcpy(PacketBuffer.data(), &Header, sizeof(AudioFrameHeader));
-    std::memcpy(
-        PacketBuffer.data() + sizeof(AudioFrameHeader), PcmConversionBuffer.data(), PcmPayloadSize
-    );
 
     if (Callback) {
-        Callback(PacketBuffer.data(), totalPacketSize, Header);
+        Callback(PacketBuffer.data(), TotalPacketSize, Header);
     }
 }
