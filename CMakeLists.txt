@@ -12,6 +12,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
 cmake_policy(SET CMP0104 NEW)
 
+# Enables full AVX2 vectorizer
+if(MSVC)
+  add_compile_options(/O2 /arch:AVX2)
+else()
+  add_compile_options(-O3 -mavx2)
+endif()
+
 # Gimme CUDA
 find_package(CUDAToolkit REQUIRED)
 set(CMAKE_CUDA_ARCHITECTURES
@@ -120,7 +127,8 @@ if(WIN32)
       src/net/platform/windows/SubStream.cpp
       src/net/platform/windows/OmniTCPStream.cpp
       src/capture/platform/windows/WinCap.cpp
-      src/capture/platform/windows/AudioCap.cpp
+      src/audio/platform/windows/AudioCap.cpp
+      src/audio/platform/windows/AudioRender.cpp
       src/render/platform/windows/D3D11Renderer.cpp
       src/render/platform/windows/D3D11RendererCore.cpp
       src/input/platform/windows/IOLink.cpp
@@ -215,6 +223,7 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/capture
           ${CMAKE_CURRENT_SOURCE_DIR}/src/codec
           ${CMAKE_CURRENT_SOURCE_DIR}/src/render
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/audio
           ${CMAKE_CURRENT_SOURCE_DIR}/src/input
           ${CMAKE_CURRENT_SOURCE_DIR}/src/window
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
@@ -241,6 +250,7 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/src/capture
           ${CMAKE_CURRENT_SOURCE_DIR}/src/codec
           ${CMAKE_CURRENT_SOURCE_DIR}/src/render
+          ${CMAKE_CURRENT_SOURCE_DIR}/src/audio
           ${CMAKE_CURRENT_SOURCE_DIR}/src/input
           ${CMAKE_CURRENT_SOURCE_DIR}/src/window
           ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
@@ -257,6 +267,7 @@ if(WIN32)
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/windows
@@ -267,6 +278,7 @@ if(WIN32)
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/input/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/app/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/windows

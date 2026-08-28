@@ -20,12 +20,14 @@ AudioRender::~AudioRender()
     Stop();
 }
 
-bool AudioRender::Init(uint32_t InSampleRate, uint16_t InChannels)
+bool AudioRender::Init(uint32_t SampleRate, uint16_t Channels)
 {
     if (GetState() != AudioRenderState::Inactive)
         return false;
-    TargetSampleRate = InSampleRate;
-    TargetChannels = InChannels;
+
+    TargetSampleRate = SampleRate;
+    TargetChannels = Channels;
+
     return true;
 }
 
@@ -66,51 +68,61 @@ void AudioRender::PushSample(const uint8_t* Data, size_t ByteCount)
     if (!Data || ByteCount == 0)
         return;
 
-    std::lock_guard<std::mutex> Lock(RingBufferMutex);
+    uint64_t Written = TotalBytesWritten.load(std::memory_order_relaxed);
+    uint64_t Read = TotalBytesRead.load(std::memory_order_acquire);
+    uint64_t Buffered = (Written >= Read) ? (Written - Read) : 0;
+    size_t   FreeSpace =
+        (Buffered < RingBufferCapacity) ? (RingBufferCapacity - static_cast<size_t>(Buffered)) : 0;
 
     if (ByteCount > RingBufferCapacity) {
         Data += (ByteCount - RingBufferCapacity);
         ByteCount = RingBufferCapacity;
     }
 
-    size_t PrimaryChunk = (std::min)(ByteCount, RingBufferCapacity - WriteByteIndex);
+    if (ByteCount > FreeSpace) {
+        uint64_t Overflow = ByteCount - FreeSpace;
+        TotalBytesRead.store(Read + Overflow, std::memory_order_release);
+    }
+
+    size_t WriteIdx = static_cast<size_t>(Written & RingBufferMask);
+    size_t PrimaryChunk = (std::min)(ByteCount, RingBufferCapacity - WriteIdx);
     size_t SecondaryChunk = ByteCount - PrimaryChunk;
 
-    std::memcpy(&SamplesRingBuffer[WriteByteIndex], Data, PrimaryChunk);
+    std::memcpy(&SamplesRingBuffer[WriteIdx], Data, PrimaryChunk);
     if (SecondaryChunk > 0) {
         std::memcpy(&SamplesRingBuffer[0], Data + PrimaryChunk, SecondaryChunk);
     }
 
-    WriteByteIndex = (WriteByteIndex + ByteCount) & RingBufferMask;
-    BufferedBytes += ByteCount;
-
-    if (BufferedBytes > RingBufferCapacity) {
-        BufferedBytes = RingBufferCapacity;
-        ReadByteIndex = WriteByteIndex;
-    }
+    TotalBytesWritten.store(Written + ByteCount, std::memory_order_release);
 }
 
+// Bit Perfect Float32 to Float32 Direct Copy into WASAPI buffers
 size_t AudioRender::PopSample32To32(float* Buffer, size_t RequestedFrames, uint32_t DeviceChannels)
 {
     if (!Buffer || RequestedFrames == 0 || DeviceChannels == 0)
         return 0;
 
-    std::lock_guard<std::mutex> Lock(RingBufferMutex);
-    uint32_t                    Channels = ActiveChannels.load(std::memory_order_relaxed);
+    uint64_t Written = TotalBytesWritten.load(std::memory_order_acquire);
+    uint64_t Read = TotalBytesRead.load(std::memory_order_relaxed);
+    uint64_t Buffered = (Written >= Read) ? (Written - Read) : 0;
+
+    uint32_t Channels = ActiveChannels.load(std::memory_order_relaxed);
     if (Channels == 0)
         Channels = 2;
 
     size_t FrameSizeBytes = Channels * sizeof(float);
-    size_t FramesAvailable = BufferedBytes / FrameSizeBytes;
+    size_t FramesAvailable = static_cast<size_t>(Buffered) / FrameSizeBytes;
     size_t FramesToRead = (std::min)(RequestedFrames, FramesAvailable);
 
     if (FramesToRead > 0) {
+        size_t BytesToRead = FramesToRead * FrameSizeBytes;
+        size_t ReadIdx = static_cast<size_t>(Read & RingBufferMask);
+
         if (Channels == DeviceChannels) {
-            size_t BytesToRead = FramesToRead * FrameSizeBytes;
-            size_t FirstChunk = (std::min)(BytesToRead, RingBufferCapacity - ReadByteIndex);
+            size_t FirstChunk = (std::min)(BytesToRead, RingBufferCapacity - ReadIdx);
             size_t SecondChunk = BytesToRead - FirstChunk;
 
-            std::memcpy(Buffer, &SamplesRingBuffer[ReadByteIndex], FirstChunk);
+            std::memcpy(Buffer, &SamplesRingBuffer[ReadIdx], FirstChunk);
             if (SecondChunk > 0) {
                 std::memcpy(
                     reinterpret_cast<uint8_t*>(Buffer) + FirstChunk,
@@ -118,17 +130,14 @@ size_t AudioRender::PopSample32To32(float* Buffer, size_t RequestedFrames, uint3
                     SecondChunk
                 );
             }
-            ReadByteIndex = (ReadByteIndex + BytesToRead) & RingBufferMask;
-            BufferedBytes -= BytesToRead;
         } else {
             for (size_t Frame = 0; Frame < FramesToRead; ++Frame) {
-                float Left = *reinterpret_cast<const float*>(&SamplesRingBuffer[ReadByteIndex]);
-                ReadByteIndex = (ReadByteIndex + sizeof(float)) & RingBufferMask;
-
-                float Right = Left;
+                size_t CurrentIdx = (ReadIdx + Frame * FrameSizeBytes) & RingBufferMask;
+                float  Left = *reinterpret_cast<const float*>(&SamplesRingBuffer[CurrentIdx]);
+                float  Right = Left;
                 if (Channels >= 2) {
-                    Right = *reinterpret_cast<const float*>(&SamplesRingBuffer[ReadByteIndex]);
-                    ReadByteIndex = (ReadByteIndex + sizeof(float)) & RingBufferMask;
+                    size_t RightIdx = (CurrentIdx + sizeof(float)) & RingBufferMask;
+                    Right = *reinterpret_cast<const float*>(&SamplesRingBuffer[RightIdx]);
                 }
 
                 if (DeviceChannels == 1) {
@@ -141,11 +150,11 @@ size_t AudioRender::PopSample32To32(float* Buffer, size_t RequestedFrames, uint3
                     }
                 }
             }
-            BufferedBytes -= (FramesToRead * FrameSizeBytes);
         }
+
+        TotalBytesRead.store(Read + BytesToRead, std::memory_order_release);
     }
 
-    // Pad underrun with silence
     if (FramesToRead < RequestedFrames) {
         size_t SilenceStart = FramesToRead * DeviceChannels;
         size_t TotalSamples = RequestedFrames * DeviceChannels;
@@ -155,46 +164,77 @@ size_t AudioRender::PopSample32To32(float* Buffer, size_t RequestedFrames, uint3
     return FramesToRead;
 }
 
+// S16 to Float32 direct convert and copy
 size_t AudioRender::PopSample16To32(float* Buffer, size_t RequestedFrames, uint32_t DeviceChannels)
 {
     if (!Buffer || RequestedFrames == 0 || DeviceChannels == 0)
         return 0;
 
-    std::lock_guard<std::mutex> Lock(RingBufferMutex);
-    uint32_t                    Channels = ActiveChannels.load(std::memory_order_relaxed);
+    uint64_t Written = TotalBytesWritten.load(std::memory_order_acquire);
+    uint64_t Read = TotalBytesRead.load(std::memory_order_relaxed);
+    uint64_t Buffered = (Written >= Read) ? (Written - Read) : 0;
+
+    uint32_t Channels = ActiveChannels.load(std::memory_order_relaxed);
     if (Channels == 0)
         Channels = 2;
 
     size_t FrameSizeBytes = Channels * sizeof(int16_t);
-    size_t FramesAvailable = BufferedBytes / FrameSizeBytes;
+    size_t FramesAvailable = static_cast<size_t>(Buffered) / FrameSizeBytes;
     size_t FramesToRead = (std::min)(RequestedFrames, FramesAvailable);
 
     constexpr float Scale = 1.0f / 32768.0f;
 
-    for (size_t f = 0; f < FramesToRead; ++f) {
-        int16_t LeftRaw = *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[ReadByteIndex]);
-        ReadByteIndex = (ReadByteIndex + sizeof(int16_t)) & RingBufferMask;
-        float Left = static_cast<float>(LeftRaw) * Scale;
+    if (FramesToRead > 0) {
+        size_t BytesToRead = FramesToRead * FrameSizeBytes;
+        size_t ReadIdx = static_cast<size_t>(Read & RingBufferMask);
 
-        float Right = Left;
-        if (Channels >= 2) {
-            int16_t RightRaw = *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[ReadByteIndex]);
-            ReadByteIndex = (ReadByteIndex + sizeof(int16_t)) & RingBufferMask;
-            Right = static_cast<float>(RightRaw) * Scale;
-        }
+        if (Channels == 2 && DeviceChannels == 2) {
+            size_t         FirstChunkBytes = (std::min)(BytesToRead, RingBufferCapacity - ReadIdx);
+            size_t         FirstChunkFrames = FirstChunkBytes / 4;
+            const int16_t* Src1 = reinterpret_cast<const int16_t*>(&SamplesRingBuffer[ReadIdx]);
 
-        if (DeviceChannels == 1) {
-            Buffer[f] = (Left + Right) * 0.5f;
-        } else if (DeviceChannels >= 2) {
-            Buffer[f * DeviceChannels] = Left;
-            Buffer[f * DeviceChannels + 1] = Right;
-            for (uint32_t c = 2; c < DeviceChannels; ++c) {
-                Buffer[f * DeviceChannels + c] = 0.0f;
+            for (size_t f = 0; f < FirstChunkFrames; ++f) {
+                Buffer[f * 2] = static_cast<float>(*Src1++) * Scale;
+                Buffer[f * 2 + 1] = static_cast<float>(*Src1++) * Scale;
+            }
+
+            size_t SecondChunkBytes = BytesToRead - FirstChunkBytes;
+            if (SecondChunkBytes > 0) {
+                size_t         SecondChunkFrames = SecondChunkBytes / 4;
+                const int16_t* Src2 = reinterpret_cast<const int16_t*>(&SamplesRingBuffer[0]);
+                for (size_t f = 0; f < SecondChunkFrames; ++f) {
+                    Buffer[(FirstChunkFrames + f) * 2] = static_cast<float>(*Src2++) * Scale;
+                    Buffer[(FirstChunkFrames + f) * 2 + 1] = static_cast<float>(*Src2++) * Scale;
+                }
+            }
+        } else {
+            for (size_t Frame = 0; Frame < FramesToRead; ++Frame) {
+                size_t  CurrentIdx = (ReadIdx + Frame * FrameSizeBytes) & RingBufferMask;
+                int16_t LeftRaw = *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[CurrentIdx]);
+                float   Left = static_cast<float>(LeftRaw) * Scale;
+
+                float Right = Left;
+                if (Channels >= 2) {
+                    size_t  RightIdx = (CurrentIdx + sizeof(int16_t)) & RingBufferMask;
+                    int16_t RightRaw =
+                        *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[RightIdx]);
+                    Right = static_cast<float>(RightRaw) * Scale;
+                }
+
+                if (DeviceChannels == 1) {
+                    Buffer[Frame] = (Left + Right) * 0.5f;
+                } else if (DeviceChannels >= 2) {
+                    Buffer[Frame * DeviceChannels] = Left;
+                    Buffer[Frame * DeviceChannels + 1] = Right;
+                    for (uint32_t c = 2; c < DeviceChannels; ++c) {
+                        Buffer[Frame * DeviceChannels + c] = 0.0f;
+                    }
+                }
             }
         }
-    }
 
-    BufferedBytes -= (FramesToRead * FrameSizeBytes);
+        TotalBytesRead.store(Read + BytesToRead, std::memory_order_release);
+    }
 
     if (FramesToRead < RequestedFrames) {
         size_t SilenceStart = FramesToRead * DeviceChannels;
@@ -205,28 +245,34 @@ size_t AudioRender::PopSample16To32(float* Buffer, size_t RequestedFrames, uint3
     return FramesToRead;
 }
 
+// Int16 to Int16 Direct Copy into WASAPI buffers
 size_t
 AudioRender::PopSample16To16(int16_t* Buffer, size_t RequestedFrames, uint32_t DeviceChannels)
 {
     if (!Buffer || RequestedFrames == 0 || DeviceChannels == 0)
         return 0;
 
-    std::lock_guard<std::mutex> Lock(RingBufferMutex);
-    uint32_t                    Channels = ActiveChannels.load(std::memory_order_relaxed);
+    uint64_t Written = TotalBytesWritten.load(std::memory_order_acquire);
+    uint64_t Read = TotalBytesRead.load(std::memory_order_relaxed);
+    uint64_t Buffered = (Written >= Read) ? (Written - Read) : 0;
+
+    uint32_t Channels = ActiveChannels.load(std::memory_order_relaxed);
     if (Channels == 0)
         Channels = 2;
 
     size_t FrameSizeBytes = Channels * sizeof(int16_t);
-    size_t FramesAvailable = BufferedBytes / FrameSizeBytes;
+    size_t FramesAvailable = static_cast<size_t>(Buffered) / FrameSizeBytes;
     size_t FramesToRead = (std::min)(RequestedFrames, FramesAvailable);
 
     if (FramesToRead > 0) {
+        size_t BytesToRead = FramesToRead * FrameSizeBytes;
+        size_t ReadIdx = static_cast<size_t>(Read & RingBufferMask);
+
         if (Channels == DeviceChannels) {
-            size_t BytesToRead = FramesToRead * FrameSizeBytes;
-            size_t FirstChunk = (std::min)(BytesToRead, RingBufferCapacity - ReadByteIndex);
+            size_t FirstChunk = (std::min)(BytesToRead, RingBufferCapacity - ReadIdx);
             size_t SecondChunk = BytesToRead - FirstChunk;
 
-            std::memcpy(Buffer, &SamplesRingBuffer[ReadByteIndex], FirstChunk);
+            std::memcpy(Buffer, &SamplesRingBuffer[ReadIdx], FirstChunk);
             if (SecondChunk > 0) {
                 std::memcpy(
                     reinterpret_cast<uint8_t*>(Buffer) + FirstChunk,
@@ -234,31 +280,29 @@ AudioRender::PopSample16To16(int16_t* Buffer, size_t RequestedFrames, uint32_t D
                     SecondChunk
                 );
             }
-            ReadByteIndex = (ReadByteIndex + BytesToRead) & RingBufferMask;
-            BufferedBytes -= BytesToRead;
         } else {
-            for (size_t f = 0; f < FramesToRead; ++f) {
-                int16_t Left = *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[ReadByteIndex]);
-                ReadByteIndex = (ReadByteIndex + sizeof(int16_t)) & RingBufferMask;
-
+            for (size_t Frame = 0; Frame < FramesToRead; ++Frame) {
+                size_t  CurrentIdx = (ReadIdx + Frame * FrameSizeBytes) & RingBufferMask;
+                int16_t Left = *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[CurrentIdx]);
                 int16_t Right = Left;
                 if (Channels >= 2) {
-                    Right = *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[ReadByteIndex]);
-                    ReadByteIndex = (ReadByteIndex + sizeof(int16_t)) & RingBufferMask;
+                    size_t RightIdx = (CurrentIdx + sizeof(int16_t)) & RingBufferMask;
+                    Right = *reinterpret_cast<const int16_t*>(&SamplesRingBuffer[RightIdx]);
                 }
 
                 if (DeviceChannels == 1) {
-                    Buffer[f] = static_cast<int16_t>((static_cast<int32_t>(Left) + Right) / 2);
+                    Buffer[Frame] = static_cast<int16_t>((static_cast<int32_t>(Left) + Right) / 2);
                 } else if (DeviceChannels >= 2) {
-                    Buffer[f * DeviceChannels] = Left;
-                    Buffer[f * DeviceChannels + 1] = Right;
+                    Buffer[Frame * DeviceChannels] = Left;
+                    Buffer[Frame * DeviceChannels + 1] = Right;
                     for (uint32_t c = 2; c < DeviceChannels; ++c) {
-                        Buffer[f * DeviceChannels + c] = 0;
+                        Buffer[Frame * DeviceChannels + c] = 0;
                     }
                 }
             }
-            BufferedBytes -= (FramesToRead * FrameSizeBytes);
         }
+
+        TotalBytesRead.store(Read + BytesToRead, std::memory_order_release);
     }
 
     if (FramesToRead < RequestedFrames) {
@@ -270,46 +314,80 @@ AudioRender::PopSample16To16(int16_t* Buffer, size_t RequestedFrames, uint32_t D
     return FramesToRead;
 }
 
+// Float32 to S16 Clamp.. Convert.. and.. into the WASAPI buffers
 size_t
 AudioRender::PopSample32To16(int16_t* Buffer, size_t RequestedFrames, uint32_t DeviceChannels)
 {
     if (!Buffer || RequestedFrames == 0 || DeviceChannels == 0)
         return 0;
 
-    std::lock_guard<std::mutex> Lock(RingBufferMutex);
-    uint32_t                    Channels = ActiveChannels.load(std::memory_order_relaxed);
+    uint64_t Written = TotalBytesWritten.load(std::memory_order_acquire);
+    uint64_t Read = TotalBytesRead.load(std::memory_order_relaxed);
+    uint64_t Buffered = (Written >= Read) ? (Written - Read) : 0;
+
+    uint32_t Channels = ActiveChannels.load(std::memory_order_relaxed);
     if (Channels == 0)
         Channels = 2;
 
     size_t FrameSizeBytes = Channels * sizeof(float);
-    size_t FramesAvailable = BufferedBytes / FrameSizeBytes;
+    size_t FramesAvailable = static_cast<size_t>(Buffered) / FrameSizeBytes;
     size_t FramesToRead = (std::min)(RequestedFrames, FramesAvailable);
 
-    for (size_t f = 0; f < FramesToRead; ++f) {
-        float LeftRaw = *reinterpret_cast<const float*>(&SamplesRingBuffer[ReadByteIndex]);
-        ReadByteIndex = (ReadByteIndex + sizeof(float)) & RingBufferMask;
-        float Left = (std::max)(-1.0f, (std::min)(1.0f, LeftRaw));
+    if (FramesToRead > 0) {
+        size_t BytesToRead = FramesToRead * FrameSizeBytes;
+        size_t ReadIdx = static_cast<size_t>(Read & RingBufferMask);
 
-        float Right = Left;
-        if (Channels >= 2) {
-            float RightRaw = *reinterpret_cast<const float*>(&SamplesRingBuffer[ReadByteIndex]);
-            ReadByteIndex = (ReadByteIndex + sizeof(float)) & RingBufferMask;
-            Right = (std::max)(-1.0f, (std::min)(1.0f, RightRaw));
-        }
+        if (Channels == 2 && DeviceChannels == 2) {
+            size_t       FirstChunkBytes = (std::min)(BytesToRead, RingBufferCapacity - ReadIdx);
+            size_t       FirstChunkFrames = FirstChunkBytes / 8;
+            const float* Src1 = reinterpret_cast<const float*>(&SamplesRingBuffer[ReadIdx]);
 
-        if (DeviceChannels == 1) {
-            float Mono = (Left + Right) * 0.5f;
-            Buffer[f] = static_cast<int16_t>(Mono * 32767.0f);
-        } else if (DeviceChannels >= 2) {
-            Buffer[f * DeviceChannels] = static_cast<int16_t>(Left * 32767.0f);
-            Buffer[f * DeviceChannels + 1] = static_cast<int16_t>(Right * 32767.0f);
-            for (uint32_t c = 2; c < DeviceChannels; ++c) {
-                Buffer[f * DeviceChannels + c] = 0;
+            for (size_t f = 0; f < FirstChunkFrames; ++f) {
+                float Left = (std::max)(-1.0f, (std::min)(1.0f, *Src1++));
+                float Right = (std::max)(-1.0f, (std::min)(1.0f, *Src1++));
+                Buffer[f * 2] = static_cast<int16_t>(Left * 32767.0f);
+                Buffer[f * 2 + 1] = static_cast<int16_t>(Right * 32767.0f);
+            }
+
+            size_t SecondChunkBytes = BytesToRead - FirstChunkBytes;
+            if (SecondChunkBytes > 0) {
+                size_t       SecondChunkFrames = SecondChunkBytes / 8;
+                const float* Src2 = reinterpret_cast<const float*>(&SamplesRingBuffer[0]);
+                for (size_t f = 0; f < SecondChunkFrames; ++f) {
+                    float Left = (std::max)(-1.0f, (std::min)(1.0f, *Src2++));
+                    float Right = (std::max)(-1.0f, (std::min)(1.0f, *Src2++));
+                    Buffer[(FirstChunkFrames + f) * 2] = static_cast<int16_t>(Left * 32767.0f);
+                    Buffer[(FirstChunkFrames + f) * 2 + 1] = static_cast<int16_t>(Right * 32767.0f);
+                }
+            }
+        } else {
+            for (size_t Frame = 0; Frame < FramesToRead; ++Frame) {
+                size_t CurrentIdx = (ReadIdx + Frame * FrameSizeBytes) & RingBufferMask;
+                float  LeftRaw = *reinterpret_cast<const float*>(&SamplesRingBuffer[CurrentIdx]);
+                float  Left = (std::max)(-1.0f, (std::min)(1.0f, LeftRaw));
+
+                float Right = Left;
+                if (Channels >= 2) {
+                    size_t RightIdx = (CurrentIdx + sizeof(float)) & RingBufferMask;
+                    float  RightRaw = *reinterpret_cast<const float*>(&SamplesRingBuffer[RightIdx]);
+                    Right = (std::max)(-1.0f, (std::min)(1.0f, RightRaw));
+                }
+
+                if (DeviceChannels == 1) {
+                    float Mono = (Left + Right) * 0.5f;
+                    Buffer[Frame] = static_cast<int16_t>(Mono * 32767.0f);
+                } else if (DeviceChannels >= 2) {
+                    Buffer[Frame * DeviceChannels] = static_cast<int16_t>(Left * 32767.0f);
+                    Buffer[Frame * DeviceChannels + 1] = static_cast<int16_t>(Right * 32767.0f);
+                    for (uint32_t c = 2; c < DeviceChannels; ++c) {
+                        Buffer[Frame * DeviceChannels + c] = 0;
+                    }
+                }
             }
         }
-    }
 
-    BufferedBytes -= (FramesToRead * FrameSizeBytes);
+        TotalBytesRead.store(Read + BytesToRead, std::memory_order_release);
+    }
 
     if (FramesToRead < RequestedFrames) {
         size_t SilenceStart = FramesToRead * DeviceChannels;
@@ -342,24 +420,24 @@ void AudioRender::WritePacket(const uint8_t* PacketData, size_t PacketSize)
 }
 
 void AudioRender::GetBufferPool(
-    char*&    OutData,
-    uint32_t& OutDataSize,
-    uint32_t& OutSlotCount,
-    void (**OutOnSlotComplete)(void*, uint32_t, uint32_t),
-    void*& OutCtx
+    char*&    DataPtr,
+    uint32_t& DataSize,
+    uint32_t& SlotCount,
+    void (**OnSlotComplete)(void*, uint32_t, uint32_t),
+    void*& Ctx
 )
 {
-    OutData = reinterpret_cast<char*>(RecvPoolBuffer.data());
-    OutDataSize = static_cast<uint32_t>(RecvPoolBuffer.size());
-    OutSlotCount = RecvSlotCount;
-    *OutOnSlotComplete = [](void* Ctx, uint32_t Slot, uint32_t Size) {
-        auto* Renderer = reinterpret_cast<AudioRender*>(Ctx);
+    DataPtr = reinterpret_cast<char*>(RecvPoolBuffer.data());
+    DataSize = static_cast<uint32_t>(RecvPoolBuffer.size());
+    SlotCount = RecvSlotCount;
+    *OnSlotComplete = [](void* Context, uint32_t Slot, uint32_t Size) {
+        auto* Renderer = reinterpret_cast<AudioRender*>(Context);
         if (Renderer && Slot < RecvSlotCount) {
             const uint8_t* SlotData = Renderer->RecvPoolBuffer.data() + (Slot * RecvSlotSize);
             Renderer->WritePacket(SlotData, Size);
         }
     };
-    OutCtx = this;
+    Ctx = this;
 }
 
 void AudioRender::RenderWorkerThread()

@@ -82,17 +82,17 @@ class AudioRender
 
     std::thread WorkerThread;
 
-    // Format Agnostic Raw Byte Ring Buffer , power of 2 for speed :)
+    // Lock Free SPSC Raw Byte Ring Buffer , 512 KB tho, power of 2
     static constexpr size_t RingBufferCapacity = 524288;
     static constexpr size_t RingBufferMask = RingBufferCapacity - 1;
 
     std::vector<uint8_t> SamplesRingBuffer;
-    size_t               ReadByteIndex = 0;
-    size_t               WriteByteIndex = 0;
-    size_t               BufferedBytes = 0;
-    std::mutex           RingBufferMutex;
 
-    // SubStream Receive Buffer Pool
+    // Aligned onto separate 64-byte L1 cache lines to eliminate False Sharing
+    alignas(64) std::atomic<uint64_t> TotalBytesWritten{0};
+    alignas(64) std::atomic<uint64_t> TotalBytesRead{0};
+
+    // RecvBuffer Pool
     static constexpr uint32_t RecvSlotCount = 32;
     static constexpr uint32_t RecvSlotSize = 4096;
     std::vector<uint8_t>      RecvPoolBuffer;

@@ -246,27 +246,40 @@ void AudioCapture::ProcessAudioPacket(
             std::fill(OutputSamples, OutputSamples + TotalOutSamples, static_cast<int16_t>(0));
         } else if (WVFormatFloat && BitsPerSample == 32) {
             const float* FloatPCM = reinterpret_cast<const float*>(InputData);
-            for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
-                float Left = 0.0f, Right = 0.0f;
-                if (Channels == 1) {
-                    Left = Right = FloatPCM[Frame];
-                } else if (Channels >= 2) {
-                    Left = FloatPCM[Frame * Channels];
-                    Right = FloatPCM[Frame * Channels + 1];
+            if (Channels == 2) {
+                for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
+                    float Left = (std::max)(-1.0f, (std::min)(1.0f, FloatPCM[Frame * 2]));
+                    float Right = (std::max)(-1.0f, (std::min)(1.0f, FloatPCM[Frame * 2 + 1]));
+                    OutputSamples[Frame * 2] = static_cast<int16_t>(Left * 32767.0f);
+                    OutputSamples[Frame * 2 + 1] = static_cast<int16_t>(Right * 32767.0f);
                 }
-                Left = (std::max)(-1.0f, (std::min)(1.0f, Left));
-                Right = (std::max)(-1.0f, (std::min)(1.0f, Right));
-
-                OutputSamples[Frame * 2] = static_cast<int16_t>(Left * 32767.0f);
-                OutputSamples[Frame * 2 + 1] = static_cast<int16_t>(Right * 32767.0f);
+            } else if (Channels == 1) {
+                for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
+                    float   Mono = (std::max)(-1.0f, (std::min)(1.0f, FloatPCM[Frame]));
+                    int16_t Val = static_cast<int16_t>(Mono * 32767.0f);
+                    OutputSamples[Frame * 2] = Val;
+                    OutputSamples[Frame * 2 + 1] = Val;
+                }
+            } else {
+                for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
+                    float Left = (std::max)(-1.0f, (std::min)(1.0f, FloatPCM[Frame * Channels]));
+                    float Right =
+                        (std::max)(-1.0f, (std::min)(1.0f, FloatPCM[Frame * Channels + 1]));
+                    OutputSamples[Frame * 2] = static_cast<int16_t>(Left * 32767.0f);
+                    OutputSamples[Frame * 2 + 1] = static_cast<int16_t>(Right * 32767.0f);
+                }
             }
         } else if (!WVFormatFloat && BitsPerSample == 16) {
             const int16_t* Int16PCM = reinterpret_cast<const int16_t*>(InputData);
-            for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
-                if (Channels == 1) {
+            if (Channels == 2) {
+                std::memcpy(OutputSamples, Int16PCM, NumFrames * 2 * sizeof(int16_t));
+            } else if (Channels == 1) {
+                for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
                     OutputSamples[Frame * 2] = Int16PCM[Frame];
                     OutputSamples[Frame * 2 + 1] = Int16PCM[Frame];
-                } else if (Channels >= 2) {
+                }
+            } else {
+                for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
                     OutputSamples[Frame * 2] = Int16PCM[Frame * Channels];
                     OutputSamples[Frame * 2 + 1] = Int16PCM[Frame * Channels + 1];
                 }
@@ -280,11 +293,15 @@ void AudioCapture::ProcessAudioPacket(
             std::fill(OutputSamples, OutputSamples + TotalOutSamples, 0.0f);
         } else if (WVFormatFloat && BitsPerSample == 32) {
             const float* FloatPCM = reinterpret_cast<const float*>(InputData);
-            for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
-                if (Channels == 1) {
+            if (Channels == 2) {
+                std::memcpy(OutputSamples, FloatPCM, NumFrames * 2 * sizeof(float));
+            } else if (Channels == 1) {
+                for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
                     OutputSamples[Frame * 2] = FloatPCM[Frame];
                     OutputSamples[Frame * 2 + 1] = FloatPCM[Frame];
-                } else if (Channels >= 2) {
+                }
+            } else {
+                for (uint32_t Frame = 0; Frame < NumFrames; ++Frame) {
                     OutputSamples[Frame * 2] = FloatPCM[Frame * Channels];
                     OutputSamples[Frame * 2 + 1] = FloatPCM[Frame * Channels + 1];
                 }
