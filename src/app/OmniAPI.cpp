@@ -105,9 +105,9 @@ bool OmniAPI::VerifyCommandToken(DeviceMap DeviceID, const OmniNetCommand& Comma
     return App ? App->VerifyCommandToken(DeviceID, Command) : false;
 }
 
-void OmniAPI::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index)
+void OmniAPI::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index, void* Context)
 {
-    App->ToggleFeature(FeatureIndex, Index);
+    App->ToggleFeature(FeatureIndex, Index, Context);
 }
 
 void OmniAPI::Get(DataTypes)

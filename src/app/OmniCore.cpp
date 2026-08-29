@@ -9,7 +9,7 @@
 #include "UIEvents.h"
 #include <vector>
 
-DeviceMap OmniCore::ActiveIOProcTarget = DeviceMap::C0;
+DeviceMap OmniCore::ActiveIOProcTarget   = DeviceMap::C0;
 DeviceMap OmniCore::SelectedTargetDevice = DeviceMap::C0;
 
 OmniCore::OmniCore()
@@ -175,8 +175,8 @@ void OmniCore::ScanInstances()
 // Why skip 0 ? null init is.. 0
 uint32_t OmniCore::GenerateHandshakeToken()
 {
-    static std::random_device RandomDevice;
-    static std::mt19937 Generator(RandomDevice());
+    static std::random_device               RandomDevice;
+    static std::mt19937                     Generator(RandomDevice());
     std::uniform_int_distribution<uint32_t> Distribution(1, UINT32_MAX);
     return Distribution(Generator);
 }
@@ -185,7 +185,7 @@ uint32_t OmniCore::GenerateHandshakeToken()
 void OmniCore::RequestHandshake(DeviceMap DeviceID)
 {
 
-    uint32_t HandshakeToken = InstanceRegistry.GetHandshakeToken(DeviceID);
+    uint32_t             HandshakeToken = InstanceRegistry.GetHandshakeToken(DeviceID);
     std::vector<uint8_t> LocalPublicKey = QryptManager.GenerateKeyPair(DeviceID);
 
     HandshakeData Data{
@@ -533,7 +533,7 @@ void OmniCore::ConnectGroup(size_t Index)
             OmniDevNameLen + 1
         );
         InstanceRegistry.AllInstances[TargetSlot].DevMapIndex = static_cast<uint8_t>(TargetSlot);
-        InstanceRegistry.AllInstances[TargetSlot].Type = entry.Type;
+        InstanceRegistry.AllInstances[TargetSlot].Type        = entry.Type;
 
         InstanceRegistry.InstanceLookup[entry.InstanceIP] = TargetSlot;
 
@@ -637,7 +637,7 @@ void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo)
 }
 
 typedef OmniNet::PoolConfig (OmniSystemLink::*FeatureHandlerFn)(
-    DeviceMap, FeatureActionRoute, FeatureAction
+    DeviceMap, FeatureActionRoute, FeatureAction, uint16_t, void*
 );
 
 static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchTable = {
@@ -649,18 +649,28 @@ static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchT
 };
 
 OmniNet::PoolConfig OmniCore::DispatchFeatureState(
-    FeatureTypes Feature, DeviceMap Device, FeatureActionRoute Route, FeatureAction Action
+    FeatureTypes       Feature,
+    DeviceMap          Device,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
     auto iter = FeatureDispatchTable.find(Feature);
     if (iter != FeatureDispatchTable.end() && iter->second) {
-        return (SystemLink.*(iter->second))(Device, Route, Action);
+        return (SystemLink.*(iter->second))(Device, Route, Action, SubStreamID, Context);
     }
     return OmniNet::PoolConfig{};
 }
 
 OmniNet::PoolConfig OmniCore::UpdateFeatureState(
-    DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Route, FeatureAction Action
+    DeviceMap          Device,
+    FeatureTypes       Feature,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
     if (!InstanceRegistry.ActiveInstances.contains(Device)) {
@@ -668,12 +678,23 @@ OmniNet::PoolConfig OmniCore::UpdateFeatureState(
     }
 
     auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
-    Instance.SetFeatureState(Feature, Route, Action == FeatureAction::Activate);
+    if (Action == FeatureAction::Activate) {
+        Instance.SetFeatureState(Feature, Route, true);
+    } else {
+        if (SubStreamID != 0) {
+            auto streams = Instance.GetSubStreams(Feature);
+            if (streams.size() <= 1) {
+                Instance.SetFeatureState(Feature, Route, false);
+            }
+        } else {
+            Instance.SetFeatureState(Feature, Route, false);
+        }
+    }
 
-    return DispatchFeatureState(Feature, Device, Route, Action);
+    return DispatchFeatureState(Feature, Device, Route, Action, SubStreamID, Context);
 }
 
-void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
+void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void* Context)
 {
     if (DeviceID == DeviceMap::C0 || !InstanceRegistry.ActiveInstances.contains(DeviceID)) {
         std::string instName = InstanceRegistry.AllInstances.contains(DeviceID)
@@ -690,11 +711,9 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
         return;
     }
 
-    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
-    bool FeatureState = Instance.GetFeatureState(FeatureIndex, FeatureActionRoute::Outbound);
+    auto& Instance     = InstanceRegistry.ActiveInstances.at(DeviceID);
+    bool  FeatureState = Instance.GetFeatureState(FeatureIndex, FeatureActionRoute::Outbound);
     FeatureAction TargetAction = FeatureState ? FeatureAction::Deactivate : FeatureAction::Activate;
-
-    FeatureToggleData ToggleData{FeatureIndex, TargetAction};
 
     const bool SubStreamRequired =
         (FeatureIndex == FeatureTypes::ScreenLink || FeatureIndex == FeatureTypes::WindowLink ||
@@ -709,15 +728,26 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
                 Instance.SubStreamRegistry[ID] = SubStreamEntry{SubStream, SubStreamState::Pending};
                 Instance.RegisterFeatureSubStream(FeatureIndex, ID);
 
-                ToggleData.SubStreamID = ID;
+                FeatureToggleData ToggleData{FeatureIndex, TargetAction, ID};
 
-                SubStreamData CreateData{SubStreamAction::Create, ID, SubStream->GetLocalPort()};
+                SubStreamData  CreateData{SubStreamAction::Create, ID, SubStream->GetLocalPort()};
                 OmniNetCommand CreateCmd{
                     CoreCommandsWArgs::SubStream,
                     Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
                     SubStreamData::Serialize(CreateData)
                 };
                 TransmitNetCommand(DeviceID, CreateCmd, 0, OmniNet::Argonized);
+
+                OmniNetCommand ToggleCmd{
+                    CoreCommandsWArgs::ToggleFeature,
+                    Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
+                    FeatureToggleData::Serialize(ToggleData)
+                };
+                TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
+
+                UpdateFeatureState(
+                    DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, ID, Context
+                );
 
                 Logger::log(
                     "Feature {:d} Outbound Activate, SubStreamID={:d} Port={:d}",
@@ -729,28 +759,47 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID)
                 Logger::log("No free SubStream slots for device {:d}", static_cast<int>(DeviceID));
             }
         } else if (TargetAction == FeatureAction::Deactivate) {
-            uint16_t ActiveSubStreamID = Instance.GetFirstSubStreamForFeature(FeatureIndex);
-            if (ActiveSubStreamID != 0) {
-                ToggleData.SubStreamID = ActiveSubStreamID;
+            std::vector<uint16_t> ActiveSubStreams = Instance.GetSubStreams(FeatureIndex);
+            for (uint16_t StreamID : ActiveSubStreams) {
+                FeatureToggleData ToggleData{FeatureIndex, TargetAction, StreamID};
+
+                OmniNetCommand ToggleCmd{
+                    CoreCommandsWArgs::ToggleFeature,
+                    Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
+                    FeatureToggleData::Serialize(ToggleData)
+                };
+                TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
+
+                UpdateFeatureState(
+                    DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, StreamID
+                );
             }
             CloseSubStreams(DeviceID, FeatureIndex);
         }
+    } else {
+        FeatureToggleData ToggleData{FeatureIndex, TargetAction};
+
+        OmniNetCommand ToggleCmd{
+            CoreCommandsWArgs::ToggleFeature,
+            Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
+            FeatureToggleData::Serialize(ToggleData)
+        };
+        TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
+
+        UpdateFeatureState(
+            DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, 0, Context
+        );
     }
-
-    OmniNetCommand ToggleCmd{
-        CoreCommandsWArgs::ToggleFeature,
-        Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
-        FeatureToggleData::Serialize(ToggleData)
-    };
-    TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
-
-    UpdateFeatureState(DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction);
 }
 
 void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& FeatureData)
 {
     OmniNet::PoolConfig PoolConfig = UpdateFeatureState(
-        DeviceID, FeatureData.FeatureType, FeatureActionRoute::Inbound, FeatureData.Action
+        DeviceID,
+        FeatureData.FeatureType,
+        FeatureActionRoute::Inbound,
+        FeatureData.Action,
+        FeatureData.SubStreamID
     );
 
     if (FeatureData.Action == FeatureAction::Deactivate && FeatureData.SubStreamID != 0) {
@@ -762,8 +811,8 @@ void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& 
         if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
             return;
 
-        auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
-        SubStreamEntry* Entry = Instance.FindSubStream(FeatureData.SubStreamID);
+        auto&           Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+        SubStreamEntry* Entry    = Instance.FindSubStream(FeatureData.SubStreamID);
 
         if (!Entry || !Entry->SubStream) {
             Logger::log(
@@ -970,7 +1019,7 @@ void OmniCore::CloseSubStream(DeviceMap DeviceID, uint16_t SubStreamID, bool Not
     Entry->State = SubStreamState::Terminating;
 
     if (NotifyPeer) {
-        SubStreamData DisconnectData{SubStreamAction::Disconnect, SubStreamID, 0};
+        SubStreamData  DisconnectData{SubStreamAction::Disconnect, SubStreamID, 0};
         OmniNetCommand DisconnectCmd{
             CoreCommandsWArgs::SubStream,
             Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
@@ -1002,7 +1051,7 @@ void OmniCore::CloseSubStreams(DeviceMap DeviceID, FeatureTypes Feature)
     auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
 
     std::vector<uint16_t> SubStreamIDs;
-    auto range = Instance.FeatureSubStreams.equal_range(Feature);
+    auto                  range = Instance.FeatureSubStreams.equal_range(Feature);
     for (auto it = range.first; it != range.second; ++it) {
         SubStreamIDs.push_back(it->second);
     }

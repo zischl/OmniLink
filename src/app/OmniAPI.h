@@ -47,7 +47,7 @@ class OmniAPI
 
     static bool VerifyCommandToken(DeviceMap DeviceID, const OmniNetCommand& Command);
 
-    static void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
+    static void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index, void* Context = nullptr);
 
     static void Get(DataTypes);
 

@@ -2,6 +2,7 @@
 #define UI_EVENTS_H
 
 #pragma once
+#include "ClipboardTypes.h"
 #include "OmniEnums.h"
 
 #include <atomic>
@@ -13,7 +14,7 @@
 struct Alert
 {
     char Title[32] = {};
-    char Desc[64] = {};
+    char Desc[64]  = {};
 
     Alert() = default;
 
@@ -28,8 +29,8 @@ struct Alert
 struct HandshakeWaitEvent
 {
     DeviceMap DeviceID = DeviceMap::END;
-    char VerificationCode[7]{'0', '0', '0', '0', '0', '0', '\0'};
-    char InstanceName[32]{};
+    char      VerificationCode[7]{'0', '0', '0', '0', '0', '0', '\0'};
+    char      InstanceName[32]{};
 };
 
 struct HandshakeConfirmEvent : public HandshakeWaitEvent
@@ -37,16 +38,17 @@ struct HandshakeConfirmEvent : public HandshakeWaitEvent
     bool Trusted = false;
 };
 
-using EventData = std::variant<Alert, HandshakeWaitEvent, HandshakeConfirmEvent>;
+using EventData =
+    std::variant<Alert, HandshakeWaitEvent, HandshakeConfirmEvent, ClipboardStreamEvent>;
 
 struct Notification
 {
-    EventData Event;
+    EventData   Event;
     const char* EventName;
     enum EventLayout { CENTER, BOTTOM_RIGHT } Layout = EventLayout::CENTER;
-    float Timeout = 15.0f;
-    bool Active = true;
-    std::shared_ptr<std::atomic<bool>> Cancelled = std::make_shared<std::atomic<bool>>(false);
+    float                              Timeout       = 15.0f;
+    bool                               Active        = true;
+    std::shared_ptr<std::atomic<bool>> Cancelled     = std::make_shared<std::atomic<bool>>(false);
 };
 
 #endif // !UI_EVENTS_H

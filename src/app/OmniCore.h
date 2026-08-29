@@ -30,13 +30,13 @@ class OmniCore
 {
   protected:
     OmniAppState AppState = OmniAppState::RUNNING;
-    OmniGUIState UIState = OmniGUIState::RENDER;
+    OmniGUIState UIState  = OmniGUIState::RENDER;
 
-    const float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    OmniRenderState RenderState;
+    const float          clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    OmniRenderState      RenderState;
     OmniInstanceRegistry InstanceRegistry;
-    OmniSessionManager SessionManager;
-    OmniQrypt QryptManager;
+    OmniSessionManager   SessionManager;
+    OmniQrypt            QryptManager;
 
     NVENCODER* NVENC = nullptr;
 
@@ -48,11 +48,11 @@ class OmniCore
 
     struct HandshakeRetryContext
     {
-        DeviceMap DeviceID;
-        uint32_t Token;
-        int RetriesLeft;
+        DeviceMap                             DeviceID;
+        uint32_t                              Token;
+        int                                   RetriesLeft;
         std::chrono::steady_clock::time_point NextRetry;
-        bool Active = false;
+        bool                                  Active = false;
     };
 
     std::unordered_map<DeviceMap, HandshakeRetryContext> HandshakeRetries;
@@ -134,9 +134,9 @@ class OmniCore
 
     void CreateStreamLink(WindowCreationData& WindowInfo);
 
-    std::mutex CommandQMutex;
+    std::mutex              CommandQMutex;
     std::condition_variable CommandQCV;
-    std::thread CommandQThread;
+    std::thread             CommandQThread;
 
     std::array<void (OmniCore::*)(), 10> CommandTable = {
         &OmniCore::OmniCmdStatus, &OmniCore::ScanInstances
@@ -146,8 +146,8 @@ class OmniCore
 
     struct CommandQItem
     {
-        DeviceMap DeviceID = DeviceMap::C0;
-        FuncArgTypes Args = ArraySwapLayout{0, 0};
+        DeviceMap    DeviceID = DeviceMap::C0;
+        FuncArgTypes Args     = ArraySwapLayout{0, 0};
     };
 
     BurstQ<CommandQItem, 16> CommandBurstQWArgs = BurstQ<CommandQItem, 16>();
@@ -206,9 +206,9 @@ class OmniCore
     inline void ExecuteCommandQueueWArgs()
     {
         while (!CommandBurstQWArgs.empty()) {
-            unsigned int Tail = CommandBurstQWArgs.Tail;
-            CommandQItem& Command = CommandBurstQWArgs.Queue[Tail];
-            DeviceMap DeviceID = Command.DeviceID;
+            unsigned int  Tail     = CommandBurstQWArgs.Tail;
+            CommandQItem& Command  = CommandBurstQWArgs.Queue[Tail];
+            DeviceMap     DeviceID = Command.DeviceID;
 
             switch (Command.Args.index()) {
             case 0: {
@@ -336,8 +336,8 @@ class OmniCore
 
         OmniNet::OmniHeader header;
         header.PacketType = OmniNet::PacketType::Command;
-        header.Target = Target;
-        header.Flags = Flags;
+        header.Target     = Target;
+        header.Flags      = Flags;
 
         std::vector<uint8_t> payload = OmniNetCommand::Serialize(Command);
 
@@ -349,14 +349,24 @@ class OmniCore
         }
     }
 
-    void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index);
+    void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index, void* Context = nullptr);
     void FeatureStateHandler(DeviceMap SenderID, const FeatureToggleData& ToggleConfig);
 
     OmniNet::PoolConfig UpdateFeatureState(
-        DeviceMap Device, FeatureTypes Feature, FeatureActionRoute Route, FeatureAction Action
+        DeviceMap          Device,
+        FeatureTypes       Feature,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        uint16_t           SubStreamID = 0,
+        void*              Context     = nullptr
     );
     OmniNet::PoolConfig DispatchFeatureState(
-        FeatureTypes Feature, DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+        FeatureTypes       Feature,
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        uint16_t           SubStreamID = 0,
+        void*              Context     = nullptr
     );
 
     // Sub-stream management

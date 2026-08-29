@@ -48,14 +48,15 @@ class OmniLink : public OmniCore
 {
   private:
     HINSTANCE hInstance;
-    int nCmdShow;
+    int       nCmdShow;
+    HWND      hwnd = 0;
 
-    HWND hwnd = 0;
     std::unique_ptr<OmniGUI> GUI = nullptr;
 
     NOTIFYICONDATAW TrayIconData = {};
 
     DWORD FrameTimeLimitW = 15;
+
     std::chrono::steady_clock::duration FrameTimeLimit = std::chrono::nanoseconds(15 * 1000000);
 
     std::chrono::time_point<std::chrono::steady_clock> LastFrameTime =
@@ -63,7 +64,10 @@ class OmniLink : public OmniCore
 
     MSG msg = {};
 
+    ClipboardFeatureContext ClipboardCtx;
+
     std::mutex EventTokensMutex;
+
     std::unordered_map<DeviceMap, std::shared_ptr<std::atomic<bool>>> ActiveEventTokens;
 
     void OmniMainLoop();

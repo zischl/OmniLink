@@ -79,7 +79,7 @@ static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
         std::string Text(Buffer + 1, PayloadSize - 1);
         ClipBoardLink::SetClipTypeText(Text);
     } else if (Op == static_cast<uint8_t>(ClipboardOp::Manifest)) {
-        ByteStreamReader Reader{PayloadSize - 1, reinterpret_cast<uint8_t*>(Buffer + 1)};
+        ByteStreamReader  Reader{PayloadSize - 1, reinterpret_cast<uint8_t*>(Buffer + 1)};
         ClipboardManifest Manifest = ClipboardManifest::Deserialize(Reader);
         ClipBoardLink::AddClipItemPromise(Manifest);
     }
@@ -116,7 +116,7 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
 OmniLink::OmniLink(HINSTANCE hInstance_, int nCmdShow_)
 {
     hInstance = hInstance_;
-    nCmdShow = nCmdShow_;
+    nCmdShow  = nCmdShow_;
 }
 
 void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
@@ -137,20 +137,20 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
     D3D11Renderer Renderer;
 
     D3D_FEATURE_LEVEL featureLevels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
-    UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    UINT              creationFlags   = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
     D3DDevice D3DDevStruct =
         Renderer.CreateD3d11Device(featureLevels, _countof(featureLevels), creationFlags);
 
     HWNDxD3D11 RendererPtrs;
-    RendererPtrs.D3D11Device = D3DDevStruct.D3D11Device;
+    RendererPtrs.D3D11Device  = D3DDevStruct.D3D11Device;
     RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
     Renderer.RendererInit(hwnd, 1280, 810, RendererPtrs);
 
-    RenderState.Device = RendererPtrs.D3D11Device.Get();
-    RenderState.Context = RendererPtrs.D3D11Context.Get();
+    RenderState.Device    = RendererPtrs.D3D11Device.Get();
+    RenderState.Context   = RendererPtrs.D3D11Context.Get();
     RenderState.Swapchain = RendererPtrs.swapchain.Get();
-    RenderState.RTV = RendererPtrs.renderTargetView.Get();
+    RenderState.RTV       = RendererPtrs.renderTargetView.Get();
 
     Logger::log("Renderer Initialization Complete");
 
@@ -169,7 +169,15 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 
     Logger::log("Instance Discovery Initialization Complete");
 
+    ClipboardCtx.OnStreamEvent = [this](const ClipboardStreamEvent& Event) {
+        Notification Notif{
+            Event, "ClipboardStream", Notification::EventLayout::BOTTOM_RIGHT, 30.0f, true, nullptr
+        };
+        PushNotification(Event.DeviceID, Notif);
+    };
+
     SystemLink.SetupSystemLink(hInstance, nCmdShow, hwnd);
+    SystemLink.ClipboardCtx = &ClipboardCtx;
 
     /// Input Capture Test Cases ///
 
@@ -186,7 +194,9 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 void OmniLink::OmniMainLoop()
 {
     while (true) {
-        const DWORD Timeout = UIState == OmniGUIState::RENDER ? FrameTimeLimitW : 200;
+        bool        NotificationsAvailable = GUI && GUI->ActiveNotificationsAvailable();
+        const DWORD Timeout =
+            (UIState == OmniGUIState::RENDER || NotificationsAvailable) ? FrameTimeLimitW : 200;
 
         DWORD Event =
             MsgWaitForMultipleObjectsEx(0, nullptr, Timeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
@@ -218,8 +228,8 @@ void OmniLink::OmniMainLoop()
         }
         }
 
-        if (IsWindowVisible(hwnd) && !IsIconic(hwnd) &&
-            (RenderEvent || UIState == OmniGUIState::RENDER)) {
+        if (((IsWindowVisible(hwnd) && !IsIconic(hwnd)) || NotificationsAvailable) &&
+            (RenderEvent || UIState == OmniGUIState::RENDER || NotificationsAvailable)) {
             auto CurrentTime = std::chrono::steady_clock::now();
 
             if (CurrentTime - LastFrameTime >= FrameTimeLimit) {
@@ -242,12 +252,12 @@ void OmniLink::OmniMainLoop()
 
 void OmniLink::InitTrayIcon(HWND hwnd)
 {
-    TrayIconData.cbSize = sizeof(NOTIFYICONDATAW);
-    TrayIconData.hWnd = hwnd;
-    TrayIconData.uID = 62485;
-    TrayIconData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    TrayIconData.cbSize           = sizeof(NOTIFYICONDATAW);
+    TrayIconData.hWnd             = hwnd;
+    TrayIconData.uID              = 62485;
+    TrayIconData.uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     TrayIconData.uCallbackMessage = WM_TRAYICON;
-    TrayIconData.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(OmniIcon));
+    TrayIconData.hIcon            = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(OmniIcon));
     lstrcpyW(TrayIconData.szTip, L"OmniLink");
 
     Shell_NotifyIcon(NIM_ADD, &TrayIconData);
@@ -273,7 +283,7 @@ void OmniLink::PushNotification(DeviceMap DeviceID, const Notification& notifica
 void OmniLink::CancelNotification(DeviceMap DeviceID)
 {
     std::lock_guard<std::mutex> lock(EventTokensMutex);
-    auto iter = ActiveEventTokens.find(DeviceID);
+    auto                        iter = ActiveEventTokens.find(DeviceID);
     if (iter != ActiveEventTokens.end()) {
         if (iter->second) {
             iter->second->store(true, std::memory_order_relaxed);
