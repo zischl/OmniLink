@@ -11,8 +11,8 @@ OmniSystemLink::OmniSystemLink(OmniRenderState& RenderState) : RenderState(Rende
 void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND WindowID_)
 {
     hInstance = hInstance_;
-    nCmdShow = nCmdShow_;
-    WindowID = WindowID_;
+    nCmdShow  = nCmdShow_;
+    WindowID  = WindowID_;
 
     ClipBoardLink::SetPasteRequestCallback(
         [this](const ClipboardManifest& Manifest, UINT Format) -> std::vector<uint8_t> {
@@ -44,16 +44,17 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
 
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& WindowData)
 {
-    auto* Window = new WinForge();
-    auto iter = std::find(ActiveWindows.begin(), ActiveWindows.end(), nullptr);
-    if (iter != ActiveWindows.end()) {
-        *iter = Window;
+    auto* Window   = new WinForge();
+    auto  Iterator = std::find(ActiveWindows.begin(), ActiveWindows.end(), nullptr);
+    if (Iterator != ActiveWindows.end()) {
+        *Iterator = Window;
     } else {
         ActiveWindows.push_back(Window);
     }
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    std::wstring WindowTitle =
+    std::wstring                                           WindowTitle =
         converter.from_bytes(reinterpret_cast<const char*>(WindowData.GetTitleU8().data()));
+
     Window->CreateWindowAsync(WindowTitle.c_str(), hInstance, nCmdShow);
     return Window;
 }
@@ -72,11 +73,13 @@ void OmniSystemLink::SyncInputFilter()
     }
 }
 
-OmniStreamController::StreamID
-OmniSystemLink::AddCaptureStream(OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode)
+OmniStreamController::StreamID OmniSystemLink::AddCaptureStream(
+    OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode, const StreamConfig& Config
+)
 {
     if (!StreamingDevice) {
         D3D_FEATURE_LEVEL featureLevels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
+
         HRESULT hr = D3D11CreateDevice(
             nullptr,
             D3D_DRIVER_TYPE_HARDWARE,
@@ -101,7 +104,7 @@ OmniSystemLink::AddCaptureStream(OmniNetSubStream* SubStream, DeviceMap DeviceID
     }
 
     return StreamController.AddStream(
-        StreamingDevice.Get(), StreamingContext.Get(), SubStream, DeviceID, Mode
+        StreamingDevice.Get(), StreamingContext.Get(), SubStream, DeviceID, Mode, Config
     );
 }
 
@@ -119,7 +122,11 @@ void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
-    DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    DeviceMap          DeviceID,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
     if (Route == FeatureActionRoute::Outbound) {

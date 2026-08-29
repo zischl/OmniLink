@@ -26,13 +26,13 @@ class OmniTCPStream;
 
 struct OmniInstance
 {
-    char InstanceName[OmniDevNameLen + 1] = {};
-    uint32_t InstanceIP = 0;
-    char IPv4_String[16] = {};
-    uint8_t DevMapIndex = 0;
-    NetLinkState LinkState = NetLinkState::INACTIVE;
-    uint32_t HandshakeToken = 0;
-    DeviceType Type = DeviceType::Unknown;
+    char         InstanceName[OmniDevNameLen + 1] = {};
+    uint32_t     InstanceIP                       = 0;
+    char         IPv4_String[16]                  = {};
+    uint8_t      DevMapIndex                      = 0;
+    NetLinkState LinkState                        = NetLinkState::INACTIVE;
+    uint32_t     HandshakeToken                   = 0;
+    DeviceType   Type                             = DeviceType::Unknown;
 
     OmniInstance() {}
 
@@ -43,7 +43,7 @@ struct OmniInstance
         memset(InstanceName, 0, sizeof(InstanceName));
         InstanceIP = 0;
         memset(IPv4_String, 0, sizeof(IPv4_String));
-        LinkState = NetLinkState::INACTIVE;
+        LinkState      = NetLinkState::INACTIVE;
         HandshakeToken = 0;
     }
 
@@ -58,11 +58,11 @@ struct OmniInstance
 
 struct InstanceGroupEntry
 {
-    char InstanceName[OmniDevNameLen + 1] = {};
-    uint32_t InstanceIP = 0;
-    char IPv4_String[16] = {};
-    DeviceMap DevMapIndex = DeviceMap::END;
-    DeviceType Type = DeviceType::Unknown;
+    char       InstanceName[OmniDevNameLen + 1] = {};
+    uint32_t   InstanceIP                       = 0;
+    char       IPv4_String[16]                  = {};
+    DeviceMap  DevMapIndex                      = DeviceMap::END;
+    DeviceType Type                             = DeviceType::Unknown;
 };
 
 #define OmniGroupNameLen 31
@@ -70,12 +70,12 @@ struct InstanceGroupEntry
 
 struct OmniInstanceGroup
 {
-    char GroupName[OmniGroupNameLen + 1] = {};
-    char Subtitle[OmniGroupSubLen + 1] = {};
-    uint64_t DateCreated = 0;
-    uint8_t DeviceCount = 0;
-    bool State = false;
-    std::array<InstanceGroupEntry, 8> Instances = {};
+    char                              GroupName[OmniGroupNameLen + 1] = {};
+    char                              Subtitle[OmniGroupSubLen + 1]   = {};
+    uint64_t                          DateCreated                     = 0;
+    uint8_t                           DeviceCount                     = 0;
+    bool                              State                           = false;
+    std::array<InstanceGroupEntry, 8> Instances                       = {};
 };
 
 inline FeatureFlags FeatureTypeToFlag(FeatureTypes Feature)
@@ -86,23 +86,23 @@ inline FeatureFlags FeatureTypeToFlag(FeatureTypes Feature)
 struct SubStreamEntry
 {
     OmniNetSubStream* SubStream = nullptr;
-    SubStreamState State = SubStreamState::Idle;
+    SubStreamState    State     = SubStreamState::Idle;
 };
 
 struct OmniActiveInstance : OmniInstance
 {
     std::unique_ptr<OmniNetSession<OmniMTU>> InstanceSession;
-    uint16_t port = 62485;
-    uint32_t OutboundFlags = FeatureFlags::fInactive;
-    uint32_t InboundFlags = FeatureFlags::fInactive;
-    uint32_t ActiveFlags = FeatureFlags::fInactive;
+    uint16_t                                 port          = 62485;
+    uint32_t                                 OutboundFlags = FeatureFlags::fInactive;
+    uint32_t                                 InboundFlags  = FeatureFlags::fInactive;
+    uint32_t                                 ActiveFlags   = FeatureFlags::fInactive;
 
-    std::unordered_map<uint16_t, SubStreamEntry> SubStreamRegistry;
+    std::unordered_map<uint16_t, SubStreamEntry>    SubStreamRegistry;
     std::unordered_multimap<FeatureTypes, uint16_t> FeatureSubStreams;
-    static inline std::atomic<uint16_t> NextSubStreamID{1};
+    static inline std::atomic<uint16_t>             NextSubStreamID{1};
 
     std::unordered_map<uint32_t, std::shared_ptr<OmniTCPStream>> TCPStreamRegistry;
-    static inline std::atomic<uint32_t> NextTCPStreamID{1};
+    static inline std::atomic<uint32_t>                          NextTCPStreamID{1};
 
     SubStreamEntry* FindSubStream(uint16_t ID)
     {
@@ -125,13 +125,30 @@ struct OmniActiveInstance : OmniInstance
         }
     }
 
-    inline uint16_t GetFirstSubStreamForFeature(FeatureTypes Feature) const
+    inline std::vector<uint16_t> GetSubStreams(FeatureTypes Feature) const
+    {
+        std::vector<uint16_t> Result;
+
+        auto Range = FeatureSubStreams.equal_range(Feature);
+        for (auto iter = Range.first; iter != Range.second; ++iter) {
+            Result.push_back(iter->second);
+        }
+        return Result;
+    }
+
+    inline bool HasSubStream(FeatureTypes Feature, uint16_t SubStreamID) const
     {
         auto Range = FeatureSubStreams.equal_range(Feature);
-        if (Range.first != Range.second) {
-            return Range.first->second;
+        for (auto iter = Range.first; iter != Range.second; ++iter) {
+            if (iter->second == SubStreamID)
+                return true;
         }
-        return 0;
+        return false;
+    }
+
+    inline size_t GetSubStreamCount(FeatureTypes Feature) const
+    {
+        return FeatureSubStreams.count(Feature);
     }
 
     std::shared_ptr<OmniTCPStream> FindTCPStream(uint32_t StreamID)
@@ -145,10 +162,7 @@ struct OmniActiveInstance : OmniInstance
         TCPStreamRegistry[StreamID] = std::move(Stream);
     }
 
-    inline void CloseTCPStream(uint32_t StreamID)
-    {
-        TCPStreamRegistry.erase(StreamID);
-    }
+    inline void CloseTCPStream(uint32_t StreamID) { TCPStreamRegistry.erase(StreamID); }
 
     OmniActiveInstance() {}
 
@@ -172,7 +186,7 @@ struct OmniActiveInstance : OmniInstance
 
     inline void SetFeatureState(FeatureTypes Feature, FeatureActionRoute Route, bool State)
     {
-        uint32_t Flag = 1 << static_cast<uint32_t>(Feature);
+        uint32_t  Flag = 1 << static_cast<uint32_t>(Feature);
         uint32_t& TargetFlags =
             (Route == FeatureActionRoute::Outbound) ? OutboundFlags : InboundFlags;
 
@@ -186,7 +200,7 @@ struct OmniActiveInstance : OmniInstance
 
     inline bool GetFeatureState(FeatureTypes Feature, FeatureActionRoute Route) const
     {
-        uint32_t Flag = 1 << static_cast<uint32_t>(Feature);
+        uint32_t Flag  = 1 << static_cast<uint32_t>(Feature);
         uint32_t Flags = (Route == FeatureActionRoute::Outbound) ? OutboundFlags : InboundFlags;
         return (Flags & Flag) != 0;
     }
@@ -195,8 +209,8 @@ struct OmniActiveInstance : OmniInstance
 
     inline FeatureLinkState GetLinkState(FeatureTypes Feature) const
     {
-        uint32_t Flag = 1 << static_cast<uint32_t>(Feature);
-        uint8_t State = 0;
+        uint32_t Flag  = 1 << static_cast<uint32_t>(Feature);
+        uint8_t  State = 0;
         if (OutboundFlags & Flag)
             State |= static_cast<uint8_t>(FeatureLinkState::OutboundOnly);
         if (InboundFlags & Flag)
@@ -209,7 +223,7 @@ using ActiveInstanceContainer = std::unordered_map<DeviceMap, OmniActiveInstance
 
 template <size_t MaxFrameLen> struct FrameByte
 {
-    char Frame[MaxFrameLen];
+    char   Frame[MaxFrameLen];
     size_t FrameLen = 0;
 
     FrameByte(size_t frame_len) { FrameLen = frame_len; }
