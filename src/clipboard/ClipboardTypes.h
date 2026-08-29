@@ -1,9 +1,14 @@
 #pragma once
 
 #include "ByteStream.h"
+#include "OmniEnums.h"
 
+#include <atomic>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 enum class ClipboardCategory : uint8_t { Text = 1, Image = 2, FileList = 3, RichData = 4 };
@@ -12,33 +17,75 @@ enum class ClipboardCategory : uint8_t { Text = 1, Image = 2, FileList = 3, Rich
 enum class ClipboardOp : uint8_t { LightGram = 0, Manifest = 1 };
 
 enum ClipboardItemFlags : uint32_t {
-    ItemFlag_None = 0,
+    ItemFlag_None      = 0,
     ItemFlag_Directory = 1 << 0,
-    ItemFlag_Virtual = 1 << 1
+    ItemFlag_Virtual   = 1 << 1
+};
+
+struct StreamProgress
+{
+    std::atomic<uint64_t> BytesTransferred{0};
+    std::atomic<uint64_t> TotalBytes{0};
+    std::atomic<bool>     StreamState{false};
+    std::atomic<bool>     Cancel{false};
+};
+
+struct ClipboardStreamEvent
+{
+    uint32_t                        StreamID         = 0;
+    DeviceMap                       DeviceID         = DeviceMap::END;
+    char                            ItemName[64]     = {};
+    char                            CategoryName[16] = {};
+    uint64_t                        TotalBytes       = 0;
+    bool                            OutboundMode     = false;
+    std::shared_ptr<StreamProgress> Progress         = nullptr;
+
+    ClipboardStreamEvent() = default;
+
+    ClipboardStreamEvent(
+        uint32_t                        StreamID_,
+        DeviceMap                       DeviceID_,
+        std::string_view                ItemName_,
+        std::string_view                Category_,
+        uint64_t                        TotalBytes_,
+        bool                            OutboundMode_,
+        std::shared_ptr<StreamProgress> Progress_ = nullptr
+    )
+        : StreamID(StreamID_), DeviceID(DeviceID_), TotalBytes(TotalBytes_),
+          OutboundMode(OutboundMode_), Progress(std::move(Progress_))
+    {
+        ItemName_.copy(ItemName, sizeof(ItemName) - 1);
+        Category_.copy(CategoryName, sizeof(CategoryName) - 1);
+    }
+};
+
+struct ClipboardFeatureContext
+{
+    std::function<void(const ClipboardStreamEvent&)> OnStreamEvent = nullptr;
 };
 
 struct ClipboardItemEntry
 {
     std::string ItemName;
     std::string FormatMime;
-    uint32_t FormatID = 0;
-    uint64_t SizeBytes = 0;
-    uint32_t Flags = ItemFlag_None;
+    uint32_t    FormatID  = 0;
+    uint64_t    SizeBytes = 0;
+    uint32_t    Flags     = ItemFlag_None;
 };
 
 struct ClipboardManifest
 {
-    uint32_t StreamID = 0;
-    uint16_t ServerPort = 0;
-    ClipboardCategory Category = ClipboardCategory::Text;
-    std::string FormatMime;
-    uint32_t WinFormatID = 0;
-    uint64_t TotalSizeBytes = 0;
+    uint32_t                        StreamID   = 0;
+    uint16_t                        ServerPort = 0;
+    ClipboardCategory               Category   = ClipboardCategory::Text;
+    std::string                     FormatMime;
+    uint32_t                        WinFormatID    = 0;
+    uint64_t                        TotalSizeBytes = 0;
     std::vector<ClipboardItemEntry> Items;
 
     static std::vector<uint8_t> Serialize(const ClipboardManifest& Manifest)
     {
-        uint32_t MimeLen = static_cast<uint32_t>(Manifest.FormatMime.size());
+        uint32_t MimeLen   = static_cast<uint32_t>(Manifest.FormatMime.size());
         uint32_t ItemCount = static_cast<uint32_t>(Manifest.Items.size());
 
         uint32_t TotalPayloadSize = 4 + 2 + 1 + 4 + MimeLen + 4 + 8 + 4;
@@ -104,7 +151,7 @@ struct ClipboardManifest
 
         for (uint32_t i = 0; i < ItemCount; ++i) {
             ClipboardItemEntry Item;
-            uint32_t NameLen = 0;
+            uint32_t           NameLen = 0;
             Reader.ReadU32Ex(NameLen);
             if (NameLen > 0) {
                 Reader.ReadString(Item.ItemName, NameLen);

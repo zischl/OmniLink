@@ -28,23 +28,23 @@ NetworkPacketHandlerFn NetworkPacketHandler;
 struct OmniSystemLink
 {
     OmniStreamController StreamController;
-    OmniIOCap IOCapture;
-    OmniIOShield IOShield;
-    ClipBoardLink ClipboardService;
+    OmniIOCap            IOCapture;
+    OmniIOShield         IOShield;
+    ClipBoardLink        ClipboardService;
 
-    void* StreamingDevice = nullptr;
+    void* StreamingDevice  = nullptr;
     void* StreamingContext = nullptr;
 
-    OmniRenderState& RenderState;
-    std::vector<StreamWindow*> ActiveWindows;
-    std::multimap<std::pair<DeviceMap, FeatureTypes>, StreamWindow*> WindowRegistry;
-    std::multimap<std::pair<DeviceMap, FeatureTypes>, OmniStreamController::StreamID>
-        StreamRegistry;
+    OmniRenderState&                                             RenderState;
+    std::vector<StreamWindow*>                                   ActiveWindows;
+    std::unordered_map<uint16_t, StreamWindow*>                  WindowRegistry;
+    std::unordered_map<uint16_t, OmniStreamController::StreamID> StreamRegistry;
 
-    HINSTANCE hInstance = nullptr;
-    int nCmdShow = 0;
-    HWND WindowID = nullptr;
+    HINSTANCE                hInstance       = nullptr;
+    int                      nCmdShow        = 0;
+    HWND                     WindowID        = nullptr;
     ActiveInstanceContainer* ActiveInstances = nullptr;
+    ClipboardFeatureContext* ClipboardCtx    = nullptr;
 
     OmniSystemLink(OmniRenderState& RenderState);
 
@@ -59,23 +59,52 @@ struct OmniSystemLink
 
     void SyncInputFilter();
 
-    OmniStreamController::StreamID
-    AddCaptureStream(OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode);
+    OmniStreamController::StreamID AddCaptureStream(
+        OmniNetSubStream*   SubStream,
+        DeviceMap           DeviceID,
+        CaptureMode         Mode,
+        const StreamConfig& Config = {}
+    );
 
-    OmniNet::PoolConfig
-    SetScreenLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    OmniNet::PoolConfig SetScreenLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        uint16_t           SubStreamID = 0,
+        void*              Context     = nullptr
+    );
 
-    OmniNet::PoolConfig
-    SetWindowLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    OmniNet::PoolConfig SetWindowLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        uint16_t           SubStreamID = 0,
+        void*              Context     = nullptr
+    );
 
-    OmniNet::PoolConfig
-    SetInputLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    OmniNet::PoolConfig SetInputLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        uint16_t           SubStreamID = 0,
+        void*              Context     = nullptr
+    );
 
-    OmniNet::PoolConfig
-    SetAudioLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    OmniNet::PoolConfig SetAudioLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        uint16_t           SubStreamID = 0,
+        void*              Context     = nullptr
+    );
 
-    OmniNet::PoolConfig
-    SetClipboardLinkState(DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action);
+    OmniNet::PoolConfig SetClipboardLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        uint16_t           SubStreamID = 0,
+        void*              Context     = nullptr
+    );
 
     void TransmitClipboard(const std::string& Text);
     void TransmitClipboardManifest(const ClipboardManifest& Manifest);

@@ -43,7 +43,7 @@ void OmniSystemLink::SetupSystemLink()
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& info)
 {
     auto* Window = new LinuxForge();
-    auto it = std::find(ActiveWindows.begin(), ActiveWindows.end(), nullptr);
+    auto  it     = std::find(ActiveWindows.begin(), ActiveWindows.end(), nullptr);
     if (it != ActiveWindows.end()) {
         *it = Window;
     } else {
@@ -56,49 +56,100 @@ StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& info)
 
 void OmniSystemLink::ToggleEdgeProbe() {}
 
-void OmniSystemLink::BindSession(DeviceMap DeviceID) { (void)DeviceID; }
-void OmniSystemLink::UnbindSession(DeviceMap DeviceID) { (void)DeviceID; }
+void OmniSystemLink::BindSession(DeviceMap DeviceID)
+{
+    (void)DeviceID;
+}
+void OmniSystemLink::UnbindSession(DeviceMap DeviceID)
+{
+    (void)DeviceID;
+}
 
 void OmniSystemLink::SyncInputFilter() {}
 
-OmniStreamController::StreamID
-OmniSystemLink::AddCaptureStream(OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode)
+OmniStreamController::StreamID OmniSystemLink::AddCaptureStream(
+    OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode, const StreamConfig& Config
+)
 {
-    return StreamController.AddStream(SubStream, DeviceID, Mode);
+    return StreamController.AddStream(SubStream, DeviceID, Mode, Config);
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
-    DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    DeviceMap          DeviceID,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
+    (void)DeviceID;
+    (void)Route;
+    (void)Action;
+    (void)SubStreamID;
+    (void)Context;
     return OmniNet::PoolConfig{};
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
-    DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    DeviceMap          DeviceID,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
+    (void)DeviceID;
+    (void)Route;
+    (void)Action;
+    (void)SubStreamID;
+    (void)Context;
     return OmniNet::PoolConfig{};
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
-    DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    DeviceMap          DeviceID,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
+    (void)DeviceID;
+    (void)Route;
+    (void)Action;
+    (void)SubStreamID;
+    (void)Context;
     return OmniNet::PoolConfig{};
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
-    DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    DeviceMap          DeviceID,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
+    (void)DeviceID;
+    (void)Route;
+    (void)Action;
+    (void)SubStreamID;
+    (void)Context;
     return OmniNet::PoolConfig{};
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetClipboardLinkState(
-    DeviceMap DeviceID, FeatureActionRoute Route, FeatureAction Action
+    DeviceMap          DeviceID,
+    FeatureActionRoute Route,
+    FeatureAction      Action,
+    uint16_t           SubStreamID,
+    void*              Context
 )
 {
+    (void)SubStreamID;
+    if (Context) {
+        ClipboardCtx = static_cast<ClipboardFeatureContext*>(Context);
+    }
     bool OutboundActive = false;
     if (ActiveInstances) {
         for (const auto& [id, instance] : *ActiveInstances) {
@@ -136,8 +187,8 @@ void OmniSystemLink::TransmitClipboard(const std::string& Text)
 
     OmniNet::OmniHeader Header;
     Header.PacketType = OmniNet::PacketType::ProcClipboard;
-    Header.Target = 0;
-    Header.Flags = 0;
+    Header.Target     = 0;
+    Header.Flags      = 0;
 
     for (auto& [DevID, Instance] : *ActiveInstances) {
         if (Instance.GetFeatureState(FeatureTypes::ClipboardLink, FeatureActionRoute::Outbound)) {
@@ -158,7 +209,7 @@ void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest
         return;
 
     static std::atomic<uint32_t> GlobalStreamID{1};
-    uint32_t StreamID = GlobalStreamID.fetch_add(1);
+    uint32_t                     StreamID = GlobalStreamID.fetch_add(1);
 
     auto Stream = std::make_shared<OmniTCPStream>(StreamID);
     if (!Stream->StartServer(0)) {
@@ -166,8 +217,8 @@ void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest
     }
 
     ClipboardManifest CManifest = Manifest;
-    CManifest.StreamID = StreamID;
-    CManifest.ServerPort = Stream->GetLocalPort();
+    CManifest.StreamID          = StreamID;
+    CManifest.ServerPort        = Stream->GetLocalPort();
 
     std::string LocalText = ClipBoardLink::GetClipTypeText();
     std::thread([Stream, Text = std::move(LocalText)]() {
@@ -186,8 +237,8 @@ void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest
 
     OmniNet::OmniHeader Header;
     Header.PacketType = OmniNet::PacketType::ProcClipboard;
-    Header.Target = 0;
-    Header.Flags = 0;
+    Header.Target     = 0;
+    Header.Flags      = 0;
 
     for (auto& [DevID, Instance] : *ActiveInstances) {
         if (Instance.GetFeatureState(FeatureTypes::ClipboardLink, FeatureActionRoute::Outbound)) {
