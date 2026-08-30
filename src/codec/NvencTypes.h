@@ -40,7 +40,7 @@ struct NvencLiveConfig
 struct NvencLiveConfigEx : NvencLiveConfig
 {
     uint32_t FrameRateNum = 60;
-    uint32_t FrameRateDen = 60;
+    uint32_t FrameRateDen = 1;
     uint32_t EnablePTD = 1;
 };
 

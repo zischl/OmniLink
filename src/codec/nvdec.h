@@ -12,7 +12,11 @@
 
 #include <cuda.h>
 #include <cudaD3D11.h>
+#define _TIMECODE NV_TIMECODE
+#define TIMECODE NV_TIMECODE_STRUCT
 #include <nvcuvid.h>
+#undef _TIMECODE
+#undef TIMECODE
 
 #pragma comment(lib, "nvcuvid.lib")
 // #pragma comment(lib, "cuda.lib")
