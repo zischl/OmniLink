@@ -65,41 +65,41 @@ class OmniGUI
 #define IC_AIRPLAY_THICK "\xef\x80\x9c"
 
   private:
-    OmniCore& App;
+    OmniCore&                                    App;
     std::unordered_map<DeviceMap, OmniInstance>* AvailableInstances = nullptr;
-    ActiveInstanceContainer* ActiveInstances = nullptr;
-    DeviceMap& SelectedDevice;
+    ActiveInstanceContainer*                     ActiveInstances    = nullptr;
+    DeviceMap&                                   SelectedDevice;
 
     IconLoader IconTexture;
-    bool ImGuiState = true;
+    bool       ImGuiState = true;
 
-    bool DeviceHoverState = false;
+    bool   DeviceHoverState = false;
     ImVec2 SelectedDevicePos;
 
     ImDrawList* DrawList = nullptr;
 
-    int ActiveMenu = 0;
+    int                     ActiveMenu = 0;
     BurstQ<Notification, 4> NotificationQueue{};
 
     // Fonts
-    ImFont* InterMed12 = nullptr;
-    ImFont* InterReg14 = nullptr;
-    ImFont* InterReg15 = nullptr;
-    ImFont* InterMed14 = nullptr;
-    ImFont* InterMed15 = nullptr;
-    ImFont* InterMed16 = nullptr;
-    ImFont* InterBold18 = nullptr;
-    ImFont* InterBold20 = nullptr;
-    ImFont* JetBrainsMed15 = nullptr;
+    ImFont* InterMed12      = nullptr;
+    ImFont* InterReg14      = nullptr;
+    ImFont* InterReg15      = nullptr;
+    ImFont* InterMed14      = nullptr;
+    ImFont* InterMed15      = nullptr;
+    ImFont* InterMed16      = nullptr;
+    ImFont* InterBold18     = nullptr;
+    ImFont* InterBold20     = nullptr;
+    ImFont* JetBrainsMed15  = nullptr;
     ImFont* JetBrainsBold20 = nullptr;
-    ImFont* OmniIconsLarge = nullptr;
+    ImFont* OmniIconsLarge  = nullptr;
     ImFont* OmniIconsMedium = nullptr;
-    ImFont* OmniIconsSmall = nullptr;
+    ImFont* OmniIconsSmall  = nullptr;
 
     // Setting Row State
     ImVec2 SettingRowStartPos{0.0f, 0.0f};
-    float SettingRowAvailWidth = 0.0f;
-    bool SettingRowShowSeparator = true;
+    float  SettingRowAvailWidth    = 0.0f;
+    bool   SettingRowShowSeparator = true;
 
     // UI Widgets
     bool
@@ -121,23 +121,23 @@ class OmniGUI
 
     void DeviceIconPreview(
         const ImVec2& Pos,
-        const ImU32& Col,
+        const ImU32&  Col,
         const ImVec2& TextSize = ImVec2{0, 0},
-        const char* Text = ""
+        const char*   Text     = ""
     );
     void DeviceIcon(const char* Label, const ImVec2& Pos, const OmniInstance* DeviceData);
     bool DeviceAddButton(const char* Label, const ImVec2& CenterPos, ImU32 Color);
-    int ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
+    int  ConnectionRing(const char* label, const ImVec2& WidgetSize, const float Radius);
 
     bool IconizedButton(const char* Label, const char* Icon, bool state, const ImVec2& ButtonSize);
     bool VerticalMenuItem(const char* label, const char* icon, bool state, ImVec2& MenuItemSize);
 
     void MetricDashboard(
-        const char* ContainerId,
+        const char*       ContainerId,
         const MetricItem* Items,
-        int ItemCount,
-        float TotalWidth,
-        float Height
+        int               ItemCount,
+        float             TotalWidth,
+        float             Height
     );
 
     void RenderConnectModal();
@@ -156,47 +156,47 @@ class OmniGUI
 
     GroupCardAction InstanceGroupCard(
         const OmniInstanceGroup& Group,
-        size_t CardIdx,
-        ImVec2 CardPos,
-        float CardWidth,
-        float CardHeight
+        size_t                   CardIdx,
+        ImVec2                   CardPos,
+        float                    CardWidth,
+        float                    CardHeight
     );
 
     ActiveCardAction ActiveInstanceCard(
-        DeviceMap DevId,
+        DeviceMap           DevId,
         const OmniInstance& Instance,
-        size_t CardIdx,
-        ImVec2 CardPos,
-        float CardWidth,
-        float CardHeight
+        size_t              CardIdx,
+        ImVec2              CardPos,
+        float               CardWidth,
+        float               CardHeight
     );
 
     TrustedCardAction TrustedNodeCard(
-        DeviceMap DevId,
+        DeviceMap                      DevId,
         const std::array<uint8_t, 32>& Token,
-        const OmniInstance* Instance,
-        size_t CardIdx,
-        ImVec2 CardPos,
-        float CardWidth,
-        float CardHeight
+        const OmniInstance*            Instance,
+        size_t                         CardIdx,
+        ImVec2                         CardPos,
+        float                          CardWidth,
+        float                          CardHeight
     );
 
     void KeycapPills(
-        ImFont* KeyFont,
+        ImFont*                         KeyFont,
         const std::vector<const char*>& Keys,
-        float RowMinY,
-        float RowMaxX,
-        float RowHeight,
-        bool HoverState
+        float                           RowMinY,
+        float                           RowMaxX,
+        float                           RowHeight,
+        bool                            HoverState
     );
     void RenderKeybindRow(
         const KeybindItem& Item,
-        size_t ItemIdx,
-        size_t CategoryIndex,
-        size_t TotalItems,
-        ImVec2 RowMin,
-        ImVec2 RowMax,
-        float RowHeight
+        size_t             ItemIdx,
+        size_t             CategoryIndex,
+        size_t             TotalItems,
+        ImVec2             RowMin,
+        ImVec2             RowMax,
+        float              RowHeight
     );
     void
     KeybindCategoryCard(const KeybindCategoryGroup& Category, size_t catIdx, float AvailableWidth);
@@ -212,40 +212,41 @@ class OmniGUI
     void SettingsTab();
 
     // Modal & Config State
-    bool ShowConnectModal = false;
-    DeviceMap TargetSlotForAdd = DeviceMap::C0;
-    char ManualIPBuffer[32] = {};
+    bool      ShowConnectModal   = false;
+    DeviceMap TargetSlotForAdd   = DeviceMap::C0;
+    char      ManualIPBuffer[32] = {};
 
-    int ConfigPort = 62485;
-    int ConfigDiscoveryPort = 58426;
-    bool ConfigAutoProbe = true;
-    int ConfigTargetFPS = 60;
-    bool ConfigLockCursor = true;
-    bool ConfigClipboardSync = true;
-    int ConfigEdgeSensitivity = 5;
-    bool ConfigToastOverlay = true;
+    int  ConfigPort            = 62485;
+    int  ConfigDiscoveryPort   = 58426;
+    bool ConfigAutoProbe       = true;
+    int  ConfigTargetFPS       = 60;
+    bool ConfigLockCursor      = true;
+    bool ConfigClipboardSync   = true;
+    int  ConfigEdgeSensitivity = 5;
+    bool ConfigToastOverlay    = true;
 
     // Instance Management Tab State
-    int InstancesSubTab = 0;
+    int  InstancesSubTab        = 0;
     char NewGroupNameBuffer[64] = "";
-    int SelectedGroupIndex = 0;
+    int  SelectedGroupIndex     = 0;
 
     void HandshakeEventHeader(
         ImDrawList* DrawList,
-        ImVec2 WindowPos,
-        float WindowWidth,
+        ImVec2      WindowPos,
+        float       WindowWidth,
         const char* HeaderTitle,
         const char* DeviceName,
         const char* SubText,
         const char* Key,
-        int Port,
-        float Timeout
+        int         Port,
+        float       Timeout
     );
 
     // Notification Event Handlers
     bool HandleEvent(HandshakeWaitEvent& Request, float Timeout);
     bool HandleEvent(HandshakeConfirmEvent& Request, float Timeout);
     bool HandleEvent(Alert& Request, float Timeout);
+    bool HandleEvent(ClipboardStreamEvent& Request, float Timeout);
 
     void CenterItemX(const float ItemWidth);
     void CreateCurvedLine(const char* label, int curve);
@@ -273,7 +274,7 @@ class OmniGUI
             ImGui::PushStyleColor(ImGuiCol_PopupBg, COL_BG_CHILD_1);
             ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.14f, 0.14f, 0.20f, 1.0f));
 
-            bool Clicked = false;
+            bool             Clicked    = false;
             ImGuiWindowFlags modalFlags = DefaultFlags | ImGuiWindowFlags_AlwaysAutoResize;
 
             if (ImGui::BeginPopupModal(label, NULL, modalFlags)) {
@@ -304,9 +305,9 @@ class OmniGUI
             ImGui::PopStyleVar(3);
         } else {
             const ImGuiViewport* Viewport = ImGui::GetMainViewport();
-            ImVec2 Size = ImVec2(340.0f, 72.0f);
-            float Padding = 14.0f;
-            ImVec2 WindowPos;
+            ImVec2               Size     = ImVec2(340.0f, 72.0f);
+            float                Padding  = 14.0f;
+            ImVec2               WindowPos;
             WindowPos.x = Viewport->WorkPos.x + Viewport->WorkSize.x - Size.x - Padding;
             WindowPos.y = Viewport->WorkPos.y + Viewport->WorkSize.y - Size.y - Padding;
 
@@ -364,6 +365,8 @@ class OmniGUI
         NotificationQueue.push(notification);
     }
 
+    inline bool ActiveNotificationsAvailable() const { return !NotificationQueue.empty(); }
+
     void SetupImGui(void* hwnd, void* D3D11Device, void* D3D11Context);
 
     inline void FrameBegin()
@@ -379,7 +382,7 @@ class OmniGUI
         ImGui::SetNextWindowSize(WindowSize);
         ImGui::SetNextWindowPos(ImVec2(0, 0));
 
-        ImGuiStyle& style = ImGui::GetStyle();
+        ImGuiStyle& style    = ImGui::GetStyle();
         style.WindowRounding = 8.0f;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
@@ -389,8 +392,8 @@ class OmniGUI
             ImGui::PopStyleVar();
             DrawList = ImGui::GetWindowDrawList();
 
-            ImVec2 SideMenuPos = ImGui::GetCursorScreenPos();
-            float SideMenuHeight = ImGui::GetContentRegionAvail().y;
+            ImVec2 SideMenuPos    = ImGui::GetCursorScreenPos();
+            float  SideMenuHeight = ImGui::GetContentRegionAvail().y;
             DrawList->AddRectFilled(
                 SideMenuPos,
                 ImVec2(SideMenuPos.x + 110.0f, SideMenuPos.y + SideMenuHeight),
@@ -445,13 +448,13 @@ class OmniGUI
 
             // Content Space Begins The Journey To Defeat The Demon King Down Here.
 
-            const ImVec2 ContentSpaceSize = ImGui::GetContentRegionAvail();
+            const ImVec2 ContentSpaceSize  = ImGui::GetContentRegionAvail();
             const ImVec2 ContentSpaceStart = ImGui::GetCursorScreenPos();
-            const float MaxContentPosX = ContentSpaceStart.x + ContentSpaceSize.x;
+            const float  MaxContentPosX    = ContentSpaceStart.x + ContentSpaceSize.x;
 
             const float VerticalSpacing = 6.0f;
-            const float textHeight = ImGui::GetTextLineHeight();
-            const float TitleBarHeight = textHeight + (VerticalSpacing * 2.0f);
+            const float textHeight      = ImGui::GetTextLineHeight();
+            const float TitleBarHeight  = textHeight + (VerticalSpacing * 2.0f);
 
             // Title barrrr
             ImGui::BeginGroup();
