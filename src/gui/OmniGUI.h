@@ -360,9 +360,9 @@ class OmniGUI
   public:
     OmniGUI(OmniCore& OmniCoreInstance);
 
-    inline void PushNotification(const Notification& notification)
+    inline bool PushNotification(const Notification& notification)
     {
-        NotificationQueue.push(notification);
+        return NotificationQueue.push(notification);
     }
 
     inline bool ActiveNotificationsAvailable() const { return !NotificationQueue.empty(); }

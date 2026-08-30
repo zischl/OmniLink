@@ -3,14 +3,14 @@
 // Helper function to render common handshake header, cards, metadata grid, and passkey
 void OmniGUI::HandshakeEventHeader(
     ImDrawList* DrawList,
-    ImVec2 WindowPos,
-    float WindowWidth,
+    ImVec2      WindowPos,
+    float       WindowWidth,
     const char* HeaderTitle,
     const char* DeviceName,
     const char* SubText,
     const char* Key,
-    int Port,
-    float Timeout
+    int         Port,
+    float       Timeout
 )
 {
     // Just a line
@@ -22,20 +22,20 @@ void OmniGUI::HandshakeEventHeader(
         ImDrawFlags_RoundCornersTop
     );
 
-    float PaddingTop = 20.0f;
+    float  PaddingTop = 20.0f;
     ImVec2 CircleCenter =
         ImVec2(WindowPos.x + (WindowWidth * 0.5f), WindowPos.y + 24.0f + PaddingTop);
     const float Radius = 13.0f;
 
-    float BoxSize = 48.0f;
+    float BoxSize    = 48.0f;
     float BoxSpacing = 10.0f;
-    float Rounding = 12.0f;
-    float BoxTop = CircleCenter.y - (BoxSize * 0.5f);
+    float Rounding   = 12.0f;
+    float BoxTop     = CircleCenter.y - (BoxSize * 0.5f);
 
-    ImVec2 LeftRectBegin = ImVec2(CircleCenter.x - BoxSpacing - BoxSize, BoxTop);
-    ImVec2 LeftRectEnd = ImVec2(CircleCenter.x - BoxSpacing, BoxTop + BoxSize);
+    ImVec2 LeftRectBegin  = ImVec2(CircleCenter.x - BoxSpacing - BoxSize, BoxTop);
+    ImVec2 LeftRectEnd    = ImVec2(CircleCenter.x - BoxSpacing, BoxTop + BoxSize);
     ImVec2 RightRectBegin = ImVec2(CircleCenter.x + BoxSpacing, BoxTop);
-    ImVec2 RightRectEnd = ImVec2(CircleCenter.x + BoxSpacing + BoxSize, BoxTop + BoxSize);
+    ImVec2 RightRectEnd   = ImVec2(CircleCenter.x + BoxSpacing + BoxSize, BoxTop + BoxSize);
 
     // Monitor Icon Containers
     DrawList->AddRectFilled(LeftRectBegin, LeftRectEnd, OmniTheme::COL_HANDSHAKE_CARD_BG, Rounding);
@@ -117,7 +117,7 @@ void OmniGUI::HandshakeEventHeader(
 
     // Metadata Grid
     float ColumnWidth = (WindowWidth - 36.0f) / 3.0f;
-    float StartX = 18.0f;
+    float StartX      = 18.0f;
 
     ImGui::SetCursorPosX(StartX);
     ImGui::BeginGroup();
@@ -176,7 +176,7 @@ void OmniGUI::HandshakeEventHeader(
 
     ImGui::PushFont(InterMed15);
     char TimeoutBuffer[16];
-    int RemSec = (int)(Timeout > 0.0f ? Timeout : 0.0f);
+    int  RemSec = (int)(Timeout > 0.0f ? Timeout : 0.0f);
     snprintf(TimeoutBuffer, sizeof(TimeoutBuffer), "%ds", RemSec);
     ImGui::SetCursorPosX(
         StartX + (ColumnWidth * 2.0f) + (ColumnWidth - ImGui::CalcTextSize(TimeoutBuffer).x) * 0.5f
@@ -226,13 +226,13 @@ bool OmniGUI::HandleEvent(HandshakeWaitEvent& Request, float Timeout)
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 
-    ImDrawList* DrawList = ImGui::GetWindowDrawList();
-    ImVec2 WindowPos = ImGui::GetWindowPos();
-    float WindowWidth = ImGui::GetWindowWidth();
+    ImDrawList* DrawList    = ImGui::GetWindowDrawList();
+    ImVec2      WindowPos   = ImGui::GetWindowPos();
+    float       WindowWidth = ImGui::GetWindowWidth();
 
     const char* DeviceName =
         Request.InstanceName[0] != '\0' ? Request.InstanceName : "Target Device";
-    char SubText[64];
+    char        SubText[64];
     const char* IpStr = "192.168.1.x · Local Network";
     if (AvailableInstances) {
         auto It = AvailableInstances->find(Request.DeviceID);
@@ -257,10 +257,10 @@ bool OmniGUI::HandleEvent(HandshakeWaitEvent& Request, float Timeout)
     ImGui::Dummy(ImVec2(0.0f, 16.0f));
 
     // Cancel Handshake
-    bool CancelState = false;
+    bool  CancelState    = false;
     float AvailableWidth = ImGui::GetContentRegionAvail().x;
-    float ActionHeight = 42.0f;
-    float ButtonWidth = AvailableWidth * 0.7f;
+    float ActionHeight   = 42.0f;
+    float ButtonWidth    = AvailableWidth * 0.7f;
 
     ImGui::PushFont(InterMed16);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
@@ -293,13 +293,13 @@ bool OmniGUI::HandleEvent(HandshakeConfirmEvent& Request, float Timeout)
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 
-    ImDrawList* DrawList = ImGui::GetWindowDrawList();
-    ImVec2 WindowPos = ImGui::GetWindowPos();
-    float WindowWidth = ImGui::GetWindowWidth();
+    ImDrawList* DrawList    = ImGui::GetWindowDrawList();
+    ImVec2      WindowPos   = ImGui::GetWindowPos();
+    float       WindowWidth = ImGui::GetWindowWidth();
 
     const char* DeviceName =
         Request.InstanceName[0] != '\0' ? Request.InstanceName : "Target Device";
-    char SubText[64];
+    char        SubText[64];
     const char* IpStr = "192.168.1.x · Local Network";
     if (AvailableInstances) {
         auto It = AvailableInstances->find(Request.DeviceID);
@@ -326,12 +326,12 @@ bool OmniGUI::HandleEvent(HandshakeConfirmEvent& Request, float Timeout)
     ImGui::Dummy(ImVec2(0.0f, 12.0f));
 
     // Custom Trust Checkbox or should i say.. check line
-    float RowHeight = 20.0f;
+    float  RowHeight = 20.0f;
     ImVec2 ScreenPos = ImGui::GetCursorScreenPos();
     ScreenPos.x += 22.0f;
 
     float BoxSquareSize = 18.0f;
-    float BoxTopY = ScreenPos.y + (RowHeight - BoxSquareSize) * 0.5f;
+    float BoxTopY       = ScreenPos.y + (RowHeight - BoxSquareSize) * 0.5f;
 
     ImVec2 BoxMin = ImVec2(ScreenPos.x, BoxTopY);
     ImVec2 BoxMax = ImVec2(ScreenPos.x + BoxSquareSize, BoxTopY + BoxSquareSize);
@@ -371,16 +371,16 @@ bool OmniGUI::HandleEvent(HandshakeConfirmEvent& Request, float Timeout)
     // Shield Icon
     ImGui::PushFont(OmniIconsSmall);
     ImVec2 ShieldSize = ImGui::CalcTextSize(IC_SHIELD);
-    float ShieldX = BoxMax.x + 10.0f;
-    float ShieldY = ScreenPos.y + (RowHeight - ShieldSize.y) * 0.5f;
+    float  ShieldX    = BoxMax.x + 10.0f;
+    float  ShieldY    = ScreenPos.y + (RowHeight - ShieldSize.y) * 0.5f;
     DrawList->AddText(ImVec2(ShieldX, ShieldY), OmniTheme::COL_HANDSHAKE_TRUST_LABEL, IC_SHIELD);
     ImGui::PopFont();
 
     // Trust me for eternity
     ImGui::PushFont(InterMed15);
     ImVec2 LabelSize = ImGui::CalcTextSize("Trust this device permanently");
-    float LabelX = ShieldX + ShieldSize.x + 8.0f;
-    float LabelY = ScreenPos.y + (RowHeight - LabelSize.y) * 0.5f;
+    float  LabelX    = ShieldX + ShieldSize.x + 8.0f;
+    float  LabelY    = ScreenPos.y + (RowHeight - LabelSize.y) * 0.5f;
     DrawList->AddText(
         ImVec2(LabelX, LabelY),
         OmniTheme::COL_HANDSHAKE_TRUST_LABEL,
@@ -391,11 +391,11 @@ bool OmniGUI::HandleEvent(HandshakeConfirmEvent& Request, float Timeout)
     ImGui::Dummy(ImVec2(0.0f, 16.0f));
 
     // Decline or.. Accept
-    bool ActionState = false;
-    float Spacing = 14.0f;
+    bool  ActionState    = false;
+    float Spacing        = 14.0f;
     float AvailableWidth = ImGui::GetContentRegionAvail().x;
-    float ButtonWidth = (AvailableWidth - Spacing) * 0.5f;
-    float ActionHeight = 42.0f;
+    float ButtonWidth    = (AvailableWidth - Spacing) * 0.5f;
+    float ActionHeight   = 42.0f;
 
     ImGui::PushFont(InterMed16);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
@@ -448,8 +448,8 @@ bool OmniGUI::HandleEvent(HandshakeConfirmEvent& Request, float Timeout)
 bool OmniGUI::HandleEvent(Alert& Request, float Timeout)
 {
     ImDrawList* DrawList = ImGui::GetWindowDrawList();
-    ImVec2 WinPos = ImGui::GetWindowPos();
-    ImVec2 WinSize = ImGui::GetWindowSize();
+    ImVec2      WinPos   = ImGui::GetWindowPos();
+    ImVec2      WinSize  = ImGui::GetWindowSize();
 
     // Icon Box
     ImVec2 IconBoxMin = ImVec2(WinPos.x + 10.0f, WinPos.y + (WinSize.y - 36.0f) * 0.5f);
@@ -466,9 +466,9 @@ bool OmniGUI::HandleEvent(Alert& Request, float Timeout)
     ImGui::PopFont();
 
     // Da Text
-    float TextStartX = IconBoxMax.x + 12.0f;
+    float TextStartX  = IconBoxMax.x + 12.0f;
     float ButtonWidth = 40.0f;
-    float TextWidth = WinSize.x - (TextStartX - WinPos.x) - ButtonWidth - 10.0f;
+    float TextWidth   = WinSize.x - (TextStartX - WinPos.x) - ButtonWidth - 10.0f;
 
     ImGui::SetCursorScreenPos(ImVec2(TextStartX, WinPos.y + 12.0f));
     ImGui::BeginGroup();
@@ -495,7 +495,7 @@ bool OmniGUI::HandleEvent(Alert& Request, float Timeout)
     ImGui::SetCursorPos(SavedCursorPos);
 
     bool Hovered = ImGui::IsItemHovered();
-    bool Active = ImGui::IsItemActive();
+    bool Active  = ImGui::IsItemActive();
 
     if (Hovered || Active) {
         ImU32 HoverCol = ImGui::GetColorU32(COL4_BTN_HOVER_DARK);
@@ -506,7 +506,7 @@ bool OmniGUI::HandleEvent(Alert& Request, float Timeout)
 
     ImGui::PushFont(OmniIconsSmall);
     ImVec2 XSize = ImGui::CalcTextSize(IC_X);
-    ImVec2 XPos = ImVec2(
+    ImVec2 XPos  = ImVec2(
         ButtonMin.x + (ButtonWidth - XSize.x) * 0.5f, ButtonMin.y + (WinSize.y - XSize.y) * 0.5f
     );
     DrawList->AddText(
@@ -517,4 +517,118 @@ bool OmniGUI::HandleEvent(Alert& Request, float Timeout)
     ImGui::PopFont();
 
     return Dismissed;
+}
+
+bool OmniGUI::HandleEvent(ClipboardStreamEvent& Request, float Timeout)
+{
+    (void)Timeout;
+    ImVec2      WinPos   = ImGui::GetWindowPos();
+    ImVec2      WinSize  = ImGui::GetWindowSize();
+    ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
+    // Icon Box
+    ImVec2 IconBoxMin = ImVec2(WinPos.x + 10.0f, WinPos.y + (WinSize.y - 36.0f) * 0.5f);
+    ImVec2 IconBoxMax = ImVec2(IconBoxMin.x + 36.0f, IconBoxMin.y + 36.0f);
+    DrawList->AddRectFilled(IconBoxMin, IconBoxMax, COL_BG_CHILD_2, 8.0f);
+
+    ImGui::PushFont(OmniIconsSmall);
+    ImVec2 IcSize = ImGui::CalcTextSize(IC_CLIPBOARD);
+    DrawList->AddText(
+        ImVec2(IconBoxMin.x + (36.0f - IcSize.x) * 0.5f, IconBoxMin.y + (36.0f - IcSize.y) * 0.5f),
+        COL_FEAT_TINT_ACT,
+        IC_CLIPBOARD
+    );
+    ImGui::PopFont();
+
+    // Da Text & Progress
+    float TextStartX   = IconBoxMax.x + 12.0f;
+    float ButtonWidth  = 36.0f;
+    float ContentWidth = WinSize.x - (TextStartX - WinPos.x) - ButtonWidth - 10.0f;
+
+    uint64_t Transferred =
+        Request.Progress ? Request.Progress->BytesTransferred.load(std::memory_order_relaxed) : 0;
+    uint64_t Total =
+        Request.TotalBytes > 0
+            ? Request.TotalBytes
+            : (Request.Progress ? Request.Progress->TotalBytes.load(std::memory_order_relaxed) : 0);
+
+    float Fraction = Total > 0 ? static_cast<float>(Transferred) / static_cast<float>(Total) : 0.0f;
+    if (Fraction > 1.0f) {
+        Fraction = 1.0f;
+    }
+
+    ImGui::SetCursorScreenPos(ImVec2(TextStartX, WinPos.y + 8.0f));
+    ImGui::BeginGroup();
+    ImGui::PushTextWrapPos(TextStartX + ContentWidth);
+
+    ImGui::PushFont(InterMed14);
+    ImGui::TextColored(
+        COL4_TEXT_ACTIVE, "%s", Request.ItemName[0] ? Request.ItemName : "Clipboard Stream"
+    );
+    ImGui::PopFont();
+
+    char StatusBuf[64]{};
+    std::snprintf(
+        StatusBuf,
+        sizeof(StatusBuf),
+        "%s (%.0f%%)",
+        Request.CategoryName[0] ? Request.CategoryName : "Transferring",
+        Fraction * 100.0f
+    );
+
+    ImGui::PushFont(InterReg14);
+    ImGui::TextColored(COL4_TEXT_MUTED, "%s", StatusBuf);
+    ImGui::PopFont();
+
+    // Progress Bar Line
+    ImVec2 BarMin = ImVec2(TextStartX, WinPos.y + WinSize.y - 12.0f);
+    ImVec2 BarMax = ImVec2(TextStartX + ContentWidth, WinPos.y + WinSize.y - 8.0f);
+    DrawList->AddRectFilled(BarMin, BarMax, COL_BG_CHILD_2, 2.0f);
+
+    if (Fraction > 0.0f) {
+        ImVec2 FillMax = ImVec2(BarMin.x + ContentWidth * Fraction, BarMax.y);
+        DrawList->AddRectFilled(BarMin, FillMax, COL_FEAT_TINT_ACT, 2.0f);
+    }
+
+    ImGui::PopTextWrapPos();
+    ImGui::EndGroup();
+
+    // Cancel Button
+    ImVec2 ButtonMin = ImVec2(WinPos.x + WinSize.x - ButtonWidth, WinPos.y);
+    ImVec2 ButtonMax = ImVec2(WinPos.x + WinSize.x, WinPos.y + WinSize.y);
+
+    ImVec2 SavedCursorPos = ImGui::GetCursorPos();
+    ImGui::SetCursorScreenPos(ButtonMin);
+    bool Cancelled =
+        ImGui::InvisibleButton("##ClipStreamCancelBtn", ImVec2(ButtonWidth, WinSize.y));
+    ImGui::SetCursorPos(SavedCursorPos);
+
+    bool Hovered = ImGui::IsItemHovered();
+    bool Active  = ImGui::IsItemActive();
+
+    if (Hovered || Active) {
+        ImU32 HoverCol = ImGui::GetColorU32(COL4_BTN_HOVER_DARK);
+        DrawList->AddRectFilled(
+            ButtonMin, ButtonMax, HoverCol, 10.0f, ImDrawFlags_RoundCornersRight
+        );
+    }
+
+    ImGui::PushFont(OmniIconsSmall);
+    ImVec2 XSize = ImGui::CalcTextSize(IC_X);
+    ImVec2 XPos  = ImVec2(
+        ButtonMin.x + (ButtonWidth - XSize.x) * 0.5f, ButtonMin.y + (WinSize.y - XSize.y) * 0.5f
+    );
+    DrawList->AddText(
+        XPos,
+        Hovered ? ImGui::GetColorU32(COL4_TEXT_ACTIVE) : ImGui::GetColorU32(COL4_TEXT_MUTED),
+        IC_X
+    );
+    ImGui::PopFont();
+
+    if (Cancelled && Request.Progress) {
+        Request.Progress->Cancel.store(true, std::memory_order_relaxed);
+        return true;
+    }
+
+    return (Fraction >= 1.0f && Total > 0);
 }
