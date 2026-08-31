@@ -164,6 +164,9 @@ void ProcMouse(const OmniMousePacket& Packet);
 // Process an incoming OmniBoundaryPacket for proportional entry and.. return
 void ProcBoundary(const OmniBoundaryPacket& Packet);
 
+// Process an incoming OmniKeyPacket for.. keys.. obviously..
+void ProcKey(const OmniKeyPacket& Packet);
+
 // Move cursor to absolute pixel position.
 void ProcMouse(int X, int Y);
 

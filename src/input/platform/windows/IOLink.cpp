@@ -56,25 +56,26 @@ LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
                 Header.PacketType = OmniNet::PacketType::ProcKey;
                 Header.Flags      = 0;
 
-                INPUT KBInput      = {0};
-                KBInput.type       = INPUT_KEYBOARD;
-                KBInput.ki.wScan   = static_cast<WORD>(pKey->scanCode);
-                KBInput.ki.wVk     = static_cast<WORD>(pKey->vkCode);
-                KBInput.ki.dwFlags = 0;
+                OmniKeyPacket KeyPacket = {};
+                KeyPacket.VkCode        = static_cast<uint16_t>(pKey->vkCode);
+                KeyPacket.ScanCode      = static_cast<uint16_t>(pKey->scanCode);
+                KeyPacket.Flags         = 0;
 
                 if (pKey->scanCode != 0) {
-                    KBInput.ki.dwFlags |= KEYEVENTF_SCANCODE;
+                    KeyPacket.Flags |= KEYEVENTF_SCANCODE;
                 }
 
                 if (pKey->flags & LLKHF_EXTENDED) {
-                    KBInput.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+                    KeyPacket.Flags |= KEYEVENTF_EXTENDEDKEY;
                 }
 
                 if (pKey->flags & LLKHF_UP) {
-                    KBInput.ki.dwFlags |= KEYEVENTF_KEYUP;
+                    KeyPacket.Flags |= KEYEVENTF_KEYUP;
                 }
 
-                NetSession->SessionSend(reinterpret_cast<CHAR*>(&KBInput), sizeof(INPUT), Header);
+                NetSession->SessionSend(
+                    reinterpret_cast<CHAR*>(&KeyPacket), sizeof(OmniKeyPacket), Header
+                );
             }
             return 1;
         }
@@ -667,6 +668,17 @@ void ProcInput(INPUT& Input)
     } else {
         SendInput(1, &Input, sizeof(INPUT));
     }
+}
+
+void ProcKey(const OmniKeyPacket& Packet)
+{
+    INPUT KB      = {};
+    KB.type       = INPUT_KEYBOARD;
+    KB.ki.wVk     = Packet.VkCode;
+    KB.ki.wScan   = Packet.ScanCode;
+    KB.ki.dwFlags = Packet.Flags;
+
+    SendInput(1, &KB, sizeof(INPUT));
 }
 
 void ProcKey(INPUT& Input)

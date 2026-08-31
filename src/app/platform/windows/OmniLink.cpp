@@ -67,6 +67,16 @@ static void HandleMouse(CHAR* Buffer, uint32_t BufferSize)
     const auto* Packet = reinterpret_cast<const OmniMousePacket*>(Buffer);
     OmniSynth::ProcMouse(*Packet);
 }
+
+static void HandleKey(CHAR* Buffer, uint32_t BufferSize)
+{
+    if (!Buffer || BufferSize < sizeof(OmniKeyPacket))
+        return;
+
+    const auto* Packet = reinterpret_cast<const OmniKeyPacket*>(Buffer);
+    OmniSynth::ProcKey(*Packet);
+}
+
 static void HandleBoundary(CHAR* Buffer, uint32_t BufferSize)
 {
     if (!Buffer || BufferSize < sizeof(OmniBoundaryPacket))
@@ -112,9 +122,16 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
         HandleCommand(Buffer, BufferSize, DeviceID);
         break;
     }
-    case OmniNet::PacketType::ProcMouse:
+    case OmniNet::PacketType::ProcMouse: {
+        HandleMouse(Buffer, BufferSize);
+        break;
+    }
     case OmniNet::PacketType::ProcKey: {
-        HandleInput(Buffer, BufferSize);
+        HandleKey(Buffer, BufferSize);
+        break;
+    }
+    case OmniNet::PacketType::ProcBoundary: {
+        HandleBoundary(Buffer, BufferSize);
         break;
     }
     case OmniNet::PacketType::ProcClipboard: {

@@ -38,10 +38,20 @@ struct alignas(16) OmniBoundaryPacket
     uint64_t Reserved2; // Padding to 16 bytes
 };
 
+struct alignas(16) OmniKeyPacket
+{
+    uint16_t VkCode;    // Virtual Key Code
+    uint16_t ScanCode;  // Hardware Scan Code
+    uint16_t Flags;     // KEYEVENTF_* flags
+    uint16_t Reserved;  // Padding
+    uint64_t ExtraInfo; // Additional info, or padding if not
+};
+
 #pragma pack(pop)
 
 static_assert(sizeof(OmniMousePacket) == 16, "OmniMousePacket must be exactly 16 bytes");
 static_assert(sizeof(OmniBoundaryPacket) == 16, "OmniBoundaryPacket must be exactly 16 bytes");
+static_assert(sizeof(OmniKeyPacket) == 16, "OmniKeyPacket must be exactly 16 bytes");
 
 template <uint32_t MTU> class OmniNetSession;
 
