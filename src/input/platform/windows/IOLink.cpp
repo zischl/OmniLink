@@ -384,13 +384,12 @@ void OmniIOCap::InputProcInit(LPARAM& LParam)
     Header.PacketType = OmniNet::PacketType::ProcMouse;
     Header.Flags      = 0;
 
-    INPUT MouseInput      = {0};
-    MouseInput.type       = INPUT_MOUSE;
-    MouseInput.mi.dx      = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].X;
-    MouseInput.mi.dy      = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].Y;
-    MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+    OmniMousePacket Packet = {};
+    Packet.dX              = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].X;
+    Packet.dY              = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].Y;
+    Packet.Flags           = OMNI_MOUSE_ABSOLUTE | OMNI_MOUSE_WARP;
 
-    NetSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), Header);
+    NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniMousePacket), Header);
 }
 
 void OmniIOCap::InputProcCallback(LPARAM& LParam)
@@ -423,34 +422,33 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
         Header.PacketType = OmniNet::PacketType::ProcMouse;
         Header.Flags      = 0;
 
-        INPUT MouseInput      = {0};
-        MouseInput.type       = INPUT_MOUSE;
-        MouseInput.mi.dx      = dX;
-        MouseInput.mi.dy      = dY;
-        MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE;
+        OmniMousePacket Packet = {};
+        Packet.dX              = dX;
+        Packet.dY              = dY;
+        Packet.Flags           = OMNI_MOUSE_RELATIVE;
 
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_WHEEL) {
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_WHEEL;
-            MouseInput.mi.mouseData = static_cast<SHORT>(Input->data.mouse.usButtonData);
+            Packet.Buttons |= MOUSEEVENTF_WHEEL;
+            Packet.Wheel = static_cast<SHORT>(Input->data.mouse.usButtonData);
         } else if (Input->data.mouse.usButtonFlags & RI_MOUSE_HWHEEL) {
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_HWHEEL;
-            MouseInput.mi.mouseData = static_cast<SHORT>(Input->data.mouse.usButtonData);
+            Packet.Buttons |= MOUSEEVENTF_HWHEEL;
+            Packet.Wheel = static_cast<SHORT>(Input->data.mouse.usButtonData);
         }
 
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_LEFTDOWN;
+            Packet.Buttons |= MOUSEEVENTF_LEFTDOWN;
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_LEFTUP;
+            Packet.Buttons |= MOUSEEVENTF_LEFTUP;
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_RIGHTDOWN;
+            Packet.Buttons |= MOUSEEVENTF_RIGHTDOWN;
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_RIGHTUP;
+            Packet.Buttons |= MOUSEEVENTF_RIGHTUP;
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_MIDDLEDOWN;
+            Packet.Buttons |= MOUSEEVENTF_MIDDLEDOWN;
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_MIDDLEUP;
+            Packet.Buttons |= MOUSEEVENTF_MIDDLEUP;
 
-        NetSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), Header);
+        NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniMousePacket), Header);
     }
 }
 
@@ -460,6 +458,46 @@ void OmniIOCap::VoidExitCallback(LPARAM& LParam)
 }
 
 namespace OmniSynth {
+std::atomic<bool> GameMode{false};
+
+void ProcMouse(const OmniMousePacket& Packet)
+{
+    if (Packet.Flags & OMNI_MOUSE_ABSOLUTE) {
+        INPUT MouseInput      = {0};
+        MouseInput.type       = INPUT_MOUSE;
+        MouseInput.mi.dx      = Packet.dX;
+        MouseInput.mi.dy      = Packet.dY;
+        MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+        SendInput(1, &MouseInput, sizeof(INPUT));
+        return;
+    }
+
+    if (GameMode.load(std::memory_order_relaxed)) {
+        INPUT MouseInput        = {0};
+        MouseInput.type         = INPUT_MOUSE;
+        MouseInput.mi.dx        = Packet.dX;
+        MouseInput.mi.dy        = Packet.dY;
+        MouseInput.mi.mouseData = Packet.Wheel;
+        MouseInput.mi.dwFlags   = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | Packet.Buttons;
+        SendInput(1, &MouseInput, sizeof(INPUT));
+        return;
+    }
+
+    if (Packet.dX != 0 || Packet.dY != 0) {
+        POINT pt = {};
+        GetCursorPos(&pt);
+        SetCursorPos(pt.x + Packet.dX, pt.y + Packet.dY);
+    }
+
+    if (Packet.Buttons != 0 || Packet.Wheel != 0) {
+        INPUT BtnInput        = {0};
+        BtnInput.type         = INPUT_MOUSE;
+        BtnInput.mi.mouseData = Packet.Wheel;
+        BtnInput.mi.dwFlags   = Packet.Buttons;
+        SendInput(1, &BtnInput, sizeof(INPUT));
+    }
+}
+
 void ProcMouse(int X, int Y)
 {
     SetCursorPos(X, Y);

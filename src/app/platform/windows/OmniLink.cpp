@@ -59,10 +59,14 @@ static void HandleCommand(CHAR* Buffer, DWORD BufferSize, DeviceMap DeviceID)
     }
 }
 
-static void HandleInput(CHAR* Buffer, uint32_t BufferSize)
+static void HandleMouse(CHAR* Buffer, uint32_t BufferSize)
 {
-    INPUT* Payload = reinterpret_cast<INPUT*>(Buffer);
-    OmniSynth::ProcInput(*Payload);
+    if (!Buffer || BufferSize < sizeof(OmniMousePacket))
+        return;
+
+    const auto* Packet = reinterpret_cast<const OmniMousePacket*>(Buffer);
+    OmniSynth::ProcMouse(*Packet);
+}
 }
 
 static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)

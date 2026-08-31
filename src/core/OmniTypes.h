@@ -14,6 +14,7 @@ enum PacketType : uint8_t {
     ChunkEnd,
     Command,
     ProcMouse,
+    ProcBoundary,
     ProcKey,
     ProcClipboard
 };

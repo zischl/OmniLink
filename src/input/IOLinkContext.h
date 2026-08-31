@@ -8,6 +8,41 @@
 #include <mutex>
 #include <unordered_map>
 
+#pragma pack(push, 1)
+
+enum OmniMouseFlags : uint16_t {
+    OMNI_MOUSE_RELATIVE = 0x0000,
+    OMNI_MOUSE_ABSOLUTE = 0x0001,
+    OMNI_MOUSE_WARP     = 0x0002,
+};
+
+struct alignas(16) OmniMousePacket
+{
+    int32_t  dX;       // X displacement or absolute target X
+    int32_t  dY;       // Y displacement or absolute target Y
+    uint16_t Buttons;  // MOUSEEVENTF_* button flags
+    int16_t  Wheel;    // Wheel scroll delta
+    uint16_t Flags;    // OmniMouseFlags
+    uint16_t Reserved; // Padding to 16 bytes
+};
+
+enum class BoundaryAction : uint8_t { Enter = 0, Return = 1 };
+
+struct alignas(16) OmniBoundaryPacket
+{
+    uint8_t  Action;    // BoundaryAction (0=Enter, 1=Return)
+    uint8_t  Edge;      // DeviceMap edge
+    uint16_t Y_Ratio;   // Normalized Y ratio (0..65535)
+    uint16_t X_Ratio;   // Normalized X ratio (0..65535)
+    uint16_t Reserved;  // Padding
+    uint64_t Reserved2; // Padding to 16 bytes
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(OmniMousePacket) == 16, "OmniMousePacket must be exactly 16 bytes");
+static_assert(sizeof(OmniBoundaryPacket) == 16, "OmniBoundaryPacket must be exactly 16 bytes");
+
 template <uint32_t MTU> class OmniNetSession;
 
 // Shared state between OmniIOCap and OmniIOShield.

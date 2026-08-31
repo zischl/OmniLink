@@ -62,7 +62,7 @@ class OmniIOShield
     IOLinkContext& IOCtx;
 
     HHOOK KeyboardBlock = NULL;
-    HHOOK MouseBlock = NULL;
+    HHOOK MouseBlock    = NULL;
 
     static LRESULT CALLBACK KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam);
     static LRESULT CALLBACK MouseProc(int NCode, WPARAM WParam, LPARAM LParam);
@@ -119,7 +119,7 @@ class OmniIOCap
     std::mutex ConditionMutex;
 
     HWINEVENTHOOK WinCapHook = NULL;
-    UINT RawInputSize;
+    UINT          RawInputSize;
 
     std::thread ProbeThread;
 
@@ -128,18 +128,23 @@ class OmniIOCap
 
     static void CALLBACK WinMvEventProc(
         HWINEVENTHOOK HWinEventHook,
-        DWORD Event,
-        HWND Hwnd,
-        LONG IDObject,
-        LONG IDChild,
-        DWORD IDEventThread,
-        DWORD DWMSEventTime
+        DWORD         Event,
+        HWND          Hwnd,
+        LONG          IDObject,
+        LONG          IDChild,
+        DWORD         IDEventThread,
+        DWORD         DWMSEventTime
     );
 };
 
 // Pure input synthesis that translates received network packets into local
 // SendInput / SetCursorPos calls. Fully stateless btw.
 namespace OmniSynth {
+extern std::atomic<bool> GameMode;
+
+// Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
+void ProcMouse(const OmniMousePacket& Packet);
+
 // Move cursor to absolute pixel position.
 void ProcMouse(int X, int Y);
 
