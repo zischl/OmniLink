@@ -59,7 +59,7 @@ static void HandleCommand(CHAR* Buffer, DWORD BufferSize, DeviceMap DeviceID)
     }
 }
 
-static void HandleInput(CHAR* Buffer)
+static void HandleInput(CHAR* Buffer, uint32_t BufferSize)
 {
     INPUT* Payload = reinterpret_cast<INPUT*>(Buffer);
     OmniSynth::ProcInput(*Payload);
@@ -103,7 +103,7 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
     }
     case OmniNet::PacketType::ProcMouse:
     case OmniNet::PacketType::ProcKey: {
-        HandleInput(Buffer);
+        HandleInput(Buffer, BufferSize);
         break;
     }
     case OmniNet::PacketType::ProcClipboard: {
@@ -380,7 +380,9 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         SetCursor(LoadCursor(NULL, IDC_ARROW));
         return true;
     case WM_INPUT:
-        (Omni->SystemLink.IOCapture.*(Omni->SystemLink.IOCapture.InputProc))(lParam);
+        if (Omni && Omni->SystemLink.IOCapture.InputProc != nullptr) {
+            (Omni->SystemLink.IOCapture.*(Omni->SystemLink.IOCapture.InputProc))(lParam);
+        }
         break;
     case WM_NCCREATE:
         Omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);

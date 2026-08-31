@@ -52,7 +52,7 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
                 "LinkRequest Duel Lost, Awaiting Request From : {}",
                 InstanceRegistry.AllInstances[DeviceID].InstanceName
             );
-            InstanceRegistry.ResetInstance(DeviceID);
+            ResetInstance(DeviceID);
             if (HandshakeRetries.count(DeviceID)) {
                 HandshakeRetries.erase(DeviceID);
             }
@@ -130,7 +130,7 @@ void OmniCore::DiscoveryPacketHandler(ProbeEvent Event)
             }
         } else if (Event.LinkState == NetLinkState::FAILED) {
             InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::FAILED);
-            InstanceRegistry.ResetInstance(DeviceID);
+            ResetInstance(DeviceID);
 
             if (HandshakeRetries.count(DeviceID)) {
                 HandshakeRetries.erase(DeviceID);
@@ -368,7 +368,7 @@ void OmniCore::RejectConnection(DeviceMap DeviceID)
         HandshakeRetries.erase(DeviceID);
     }
 
-    InstanceRegistry.ResetInstance(DeviceID);
+    ResetInstance(DeviceID);
 }
 
 void OmniCore::ConnectInstance(DeviceMap DeviceID)
@@ -563,6 +563,15 @@ void OmniCore::FailHandshake(DeviceMap DeviceID, const char* Reason)
         }
     );
 
+    ResetInstance(DeviceID);
+}
+
+void OmniCore::ResetInstance(DeviceMap DeviceID)
+{
+    SystemLink.UnbindIOLinkSession(DeviceID);
+    CloseSubStreams(DeviceID, FeatureTypes::ScreenLink);
+    CloseSubStreams(DeviceID, FeatureTypes::WindowLink);
+    CloseSubStreams(DeviceID, FeatureTypes::AudioLink);
     InstanceRegistry.ResetInstance(DeviceID);
 }
 

@@ -154,6 +154,13 @@ void OmniSystemLink::BindIOLinkSession(DeviceMap DeviceID)
 void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
 {
     IOCtx.UnregisterSession(DeviceID);
+    IOCapture.ConditionManager.Remove(DeviceID);
+
+    if (IOCapture.ConditionManager.Empty() && IOCapture.GetEdgeProbeState()) {
+        IOCapture.ToggleEdgeProbe(WindowID);
+    }
+
+    SyncInputFilter();
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
@@ -411,13 +418,6 @@ OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
             Logger::log("InputLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
         } else {
             UnbindIOLinkSession(DeviceID);
-            IOCapture.ConditionManager.Remove(DeviceID);
-
-            if (IOCapture.ConditionManager.Empty() && IOCapture.GetEdgeProbeState())
-                IOCapture.ToggleEdgeProbe(WindowID);
-
-            SyncInputFilter();
-
             Logger::log("InputLink disabled for DeviceID {:d}", static_cast<int>(DeviceID));
         }
     } else {

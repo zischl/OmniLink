@@ -112,7 +112,13 @@ class OmniCore
 
     const OmniQrypt* GetQryptManager() const { return &QryptManager; }
 
-    void ForgetDevice(DeviceMap deviceID) { QryptManager.ClearSession(deviceID); }
+    void ResetInstance(DeviceMap DeviceID);
+
+    void ForgetDevice(DeviceMap deviceID)
+    {
+        ResetInstance(deviceID);
+        QryptManager.ClearSession(deviceID);
+    }
 
     inline void OmniCmdStatus() { Logger::log("CMD Queue Status Test"); }
 
