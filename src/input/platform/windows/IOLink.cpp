@@ -433,7 +433,7 @@ void OmniIOCap::ToggleInputCapture(HWND Hwnd, bool State)
 
         RegisterRawInputDevices(Devices, 2, sizeof(Devices[0]));
 
-        InputProc = &OmniIOCap::InputProcInit;
+        InputProc = &OmniIOCap::InputProcCallback;
     } else {
         InputProc = &OmniIOCap::VoidExitCallback;
 
@@ -449,27 +449,7 @@ void OmniIOCap::ToggleInputCapture(HWND Hwnd, bool State)
 
 void OmniIOCap::InputProcInit(LPARAM& LParam)
 {
-    alignas(RAWINPUT) BYTE RawBuffer[sizeof(RAWINPUT)] = {};
-    UINT                   Size                        = sizeof(RawBuffer);
-    GetRawInputData((HRAWINPUT)LParam, RID_INPUT, RawBuffer, &Size, sizeof(RAWINPUTHEADER));
-
-    InputProc = &OmniIOCap::InputProcCallback;
-
-    auto* NetSession = IOCtx.ActiveNetSession.load(std::memory_order_acquire);
-    if (!NetSession)
-        return;
-
-    OmniNet::OmniHeader Header;
-    Header.Target     = 0;
-    Header.PacketType = OmniNet::PacketType::ProcMouse;
-    Header.Flags      = 0;
-
-    OmniMousePacket Packet = {};
-    Packet.dX              = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].X;
-    Packet.dY              = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].Y;
-    Packet.Flags           = OMNI_MOUSE_ABSOLUTE | OMNI_MOUSE_WARP;
-
-    NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniMousePacket), Header);
+    InputProcCallback(LParam);
 }
 
 void OmniIOCap::InputProcCallback(LPARAM& LParam)
@@ -550,8 +530,12 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
                 ? static_cast<int>((static_cast<uint64_t>(Packet.Y_Ratio) * (Res.Height - 1)) >> 16)
                 : static_cast<int>(Res.Height >> 1);
 
-        DeviceMap Edge    = static_cast<DeviceMap>(Packet.Edge);
-        int       TargetX = 2;
+        int TargetX =
+            (Res.Width > 0)
+                ? static_cast<int>((static_cast<uint64_t>(Packet.X_Ratio) * (Res.Width - 1)) >> 16)
+                : static_cast<int>(Res.Width >> 1);
+
+        DeviceMap Edge = static_cast<DeviceMap>(Packet.Edge);
         switch (Edge) {
         case DeviceMap::L1:
         case DeviceMap::LU1:
@@ -564,15 +548,12 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
             TargetX = 2;
             break;
         case DeviceMap::U1:
-            TargetX = static_cast<int>(Res.Width >> 1);
             TargetY = static_cast<int>(Res.Height - 2);
             break;
         case DeviceMap::D1:
-            TargetX = static_cast<int>(Res.Width >> 1);
             TargetY = 2;
             break;
         default:
-            TargetX = static_cast<int>(Res.Width >> 1);
             break;
         }
 
