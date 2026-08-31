@@ -8,6 +8,7 @@
 #endif
 
 #include <Windows.h>
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <hidusage.h>
@@ -80,8 +81,10 @@ class OmniIOCap
     ~OmniIOCap();
 
     // Mouse cursor position tracked locally for edge detection and delta math.
-    int MouseX = 0;
-    int MouseY = 0;
+    int MouseX      = 0;
+    int MouseY      = 0;
+    int VirtualPosX = 0;
+    int VirtualPosY = 0;
 
     FlowMorph<int, int, DeviceMap> ConditionManager;
 

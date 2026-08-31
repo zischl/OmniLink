@@ -270,8 +270,10 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                                   )
                                 : (1 << 15);
 
-                        MouseX = 0;
-                        MouseY = 0;
+                        VirtualPosX = Pos.x;
+                        VirtualPosY = Pos.y;
+                        MouseX      = 0;
+                        MouseY      = 0;
 
                         MouseEventStatus->store(false);
                         ToggleInputCapture(Hwnd_, true);
@@ -338,6 +340,34 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                 }
 
                 if (ReturnState) {
+                    int targetY = VirtualPosY;
+                    int targetX = 2;
+
+                    switch (ActiveEdgeCondition) {
+                    case DeviceMap::L1:
+                    case DeviceMap::LU1:
+                    case DeviceMap::LD1:
+                        targetX = 2;
+                        break;
+                    case DeviceMap::R1:
+                    case DeviceMap::RU1:
+                    case DeviceMap::RD1:
+                        targetX = static_cast<int>(IOCtx.ResWidth - 2);
+                        break;
+                    case DeviceMap::U1:
+                        targetX = VirtualPosX;
+                        targetY = static_cast<int>(IOCtx.ResHeight - 2);
+                        break;
+                    case DeviceMap::D1:
+                        targetX = VirtualPosX;
+                        targetY = 2;
+                        break;
+                    default:
+                        break;
+                    }
+
+                    SetCursorPos(targetX, targetY);
+
                     IOCtx.InputLocked.store(false, std::memory_order_release);
                     IOCtx.DeactivateEdge();
 
@@ -474,6 +504,12 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
         if (dX == 0 && dY == 0 && Input->data.mouse.usButtonFlags == 0)
             return;
 
+        VirtualPosX = std::clamp(
+            VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.ResWidth - 1)
+        );
+        VirtualPosY = std::clamp(
+            VirtualPosY + static_cast<int>(dY), 0, static_cast<int>(IOCtx.ResHeight - 1)
+        );
         MouseX += dX;
         MouseY += dY;
 
