@@ -58,6 +58,8 @@ class OmniIOShield
     void InvokeInputFilter();
     void ReleaseInputFilter();
 
+    static IOLinkContext* GetContext() { return IOContext; }
+
   private:
     IOLinkContext& IOCtx;
 
@@ -105,6 +107,9 @@ class OmniIOCap
     // Window Move Detection
     void WindowMoveListener(bool State = false);
 
+    // Event-Driven Focus Detection, Mainly for games
+    void FocusEventListener(bool State = true);
+
   private:
     IOLinkContext& IOCtx;
 
@@ -118,7 +123,8 @@ class OmniIOCap
 
     std::mutex ConditionMutex;
 
-    HWINEVENTHOOK WinCapHook = NULL;
+    HWINEVENTHOOK WinCapHook   = NULL;
+    HWINEVENTHOOK WinFocusHook = NULL;
     UINT          RawInputSize;
 
     std::thread ProbeThread;
@@ -127,6 +133,16 @@ class OmniIOCap
     void StopEdgeProbe();
 
     static void CALLBACK WinMvEventProc(
+        HWINEVENTHOOK HWinEventHook,
+        DWORD         Event,
+        HWND          Hwnd,
+        LONG          IDObject,
+        LONG          IDChild,
+        DWORD         IDEventThread,
+        DWORD         DWMSEventTime
+    );
+
+    static void CALLBACK WinFocusEventProc(
         HWINEVENTHOOK HWinEventHook,
         DWORD         Event,
         HWND          Hwnd,
@@ -144,6 +160,9 @@ extern std::atomic<bool> GameMode;
 
 // Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
 void ProcMouse(const OmniMousePacket& Packet);
+
+// Process an incoming OmniBoundaryPacket for proportional entry and.. return
+void ProcBoundary(const OmniBoundaryPacket& Packet);
 
 // Move cursor to absolute pixel position.
 void ProcMouse(int X, int Y);

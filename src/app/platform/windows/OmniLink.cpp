@@ -67,6 +67,13 @@ static void HandleMouse(CHAR* Buffer, uint32_t BufferSize)
     const auto* Packet = reinterpret_cast<const OmniMousePacket*>(Buffer);
     OmniSynth::ProcMouse(*Packet);
 }
+static void HandleBoundary(CHAR* Buffer, uint32_t BufferSize)
+{
+    if (!Buffer || BufferSize < sizeof(OmniBoundaryPacket))
+        return;
+
+    const auto* Packet = reinterpret_cast<const OmniBoundaryPacket*>(Buffer);
+    OmniSynth::ProcBoundary(*Packet);
 }
 
 static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
