@@ -19,10 +19,10 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 {
     WNDCLASSEXW wc = {};
     if (!GetClassInfoExW(hInstance, Config.class_name.c_str(), &wc)) {
-        wc = {};
-        wc.cbSize = sizeof(WNDCLASSEXW);
-        wc.lpfnWndProc = WProc;
-        wc.hInstance = hInstance;
+        wc               = {};
+        wc.cbSize        = sizeof(WNDCLASSEXW);
+        wc.lpfnWndProc   = WProc;
+        wc.hInstance     = hInstance;
         wc.lpszClassName = Config.class_name.c_str();
 
         if (RegisterClassExW(&wc) == 0) {
@@ -32,7 +32,7 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
         }
     }
 
-    const int ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
+    const int ScreenWidth  = GetSystemMetrics(SM_CXSCREEN);
     const int ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
 
     const int x = (ScreenWidth - Config.wdWidth) / 2;
@@ -67,11 +67,11 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 }
 
 HWND WinForge::CreateWindowAsync(
-    const wchar_t* window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct
+    const wchar_t* WindowName, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct
 )
 {
 
-    std::wstring name(window_name);
+    std::wstring name(WindowName);
     WindowThread = std::thread([this, name, hInstance, nCmdShow, D3DDevStruct] {
         hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         WinConfig config(L"Linker", 1920, 1080, name.c_str(), NULL);
@@ -82,7 +82,7 @@ HWND WinForge::CreateWindowAsync(
         }
         ShowWindow(hwnd, nCmdShow);
 
-        Events = new HANDLE[1];
+        Events    = new HANDLE[1];
         Events[0] = CreateEvent(NULL, FALSE, TRUE, NULL);
 
         // ###############################################################################//
@@ -90,7 +90,7 @@ HWND WinForge::CreateWindowAsync(
         D3D11Renderer Renderer;
 
         HWNDxD3D11 RendererPtrs;
-        RendererPtrs.D3D11Device = D3DDevStruct.D3D11Device;
+        RendererPtrs.D3D11Device  = D3DDevStruct.D3D11Device;
         RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
         Renderer.RendererInit(hwnd, config.wdWidth, config.wdHeight, RendererPtrs);
         D3D11Device = RendererPtrs.D3D11Device.Get();
@@ -112,6 +112,7 @@ HWND WinForge::CreateWindowAsync(
             RenderTargetView->AddRef();
 
         HWNDxShaders ShaderPtrs = Renderer.ShadersInit(D3D11Device);
+
         PixelShader = ShaderPtrs.pixelShader.Get();
         if (PixelShader)
             PixelShader->AddRef();
@@ -141,18 +142,18 @@ HWND WinForge::CreateWindowAsync(
 
         Renderer.SetShaders(D3D11Context, &ShaderPtrs);
 
-        SrvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        SrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        SrvDesc.Format                    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        SrvDesc.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
         SrvDesc.Texture2D.MostDetailedMip = 0;
-        SrvDesc.Texture2D.MipLevels = 1;
+        SrvDesc.Texture2D.MipLevels       = 1;
 
         D3D11_VIEWPORT viewport = {};
-        viewport.TopLeftX = 0.0f;
-        viewport.TopLeftY = 0.0f;
-        viewport.Width = config.wdWidth;
-        viewport.Height = config.wdHeight;
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 1.0f;
+        viewport.TopLeftX       = 0.0f;
+        viewport.TopLeftY       = 0.0f;
+        viewport.Width          = config.wdWidth;
+        viewport.Height         = config.wdHeight;
+        viewport.MinDepth       = 0.0f;
+        viewport.MaxDepth       = 1.0f;
 
         if (D3D11Context) {
             D3D11Context->RSSetViewports(1, &viewport);
@@ -160,17 +161,17 @@ HWND WinForge::CreateWindowAsync(
 
         // ###############################################################################//
 
-        CustommainBufferDesc = {};
-        CustommainBufferDesc.Width = config.wdWidth;
-        CustommainBufferDesc.Height = config.wdHeight;
-        CustommainBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-        CustommainBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+        CustommainBufferDesc           = {};
+        CustommainBufferDesc.Width     = config.wdWidth;
+        CustommainBufferDesc.Height    = config.wdHeight;
+        CustommainBufferDesc.Format    = DXGI_FORMAT_B8G8R8A8_UNORM;
+        CustommainBufferDesc.Usage     = D3D11_USAGE_DEFAULT;
         CustommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-        CustommainBufferDesc.SampleDesc.Count = 1;
+        CustommainBufferDesc.SampleDesc.Count   = 1;
         CustommainBufferDesc.SampleDesc.Quality = 0;
-        CustommainBufferDesc.ArraySize = 1;
-        CustommainBufferDesc.MipLevels = 1;
-        CustommainBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+        CustommainBufferDesc.ArraySize          = 1;
+        CustommainBufferDesc.MipLevels          = 1;
+        CustommainBufferDesc.MiscFlags          = D3D11_RESOURCE_MISC_SHARED;
 
         if (D3D11Device) {
             D3D11Device->CreateTexture2D(
@@ -234,23 +235,29 @@ void WinForge::MainLoop()
 
             break;
 
-        case WAIT_OBJECT_0 + 0:
-            if (std::chrono::steady_clock::now() - LastFrameTime >= FrameTimeLimit) {
-                if (ActiveDecoder != nullptr) [[unlikely]] {
+        case WAIT_OBJECT_0 + 0: {
+            uint64_t Decoded = DecodedCount;
+            uint64_t Queued  = QueuedCount.load(std::memory_order_acquire);
+
+            while (Decoded < Queued) {
+                uint32_t slot = static_cast<uint32_t>(Decoded % FrameQueueSize);
+                if (ActiveDecoder != nullptr) [[likely]] {
                     ActiveDecoder->Decode(
-                        reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
-                        FramePool[CurrentFrame].FrameSize
+                        reinterpret_cast<const unsigned char*>(FramePool[slot].FrameBuffer),
+                        FramePool[slot].FrameSize
                     );
                 }
+                ++Decoded;
+            }
 
-                CurrentFrame = (CurrentFrame + 1) & 3;
+            if (DecodedCount != Decoded) {
+                DecodedCount = Decoded;
                 Render();
-
                 LastFrameTime = std::chrono::steady_clock::now();
-                continue;
             }
 
             break;
+        }
 
         case WAIT_TIMEOUT:
             break;

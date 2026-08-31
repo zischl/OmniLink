@@ -17,6 +17,7 @@
 #include <comdef.h>
 #include <wrl/client.h>
 
+#include <atomic>
 #include <string>
 #include <thread>
 #include <variant>
@@ -25,18 +26,18 @@ using Microsoft::WRL::ComPtr;
 
 struct WinConfig
 {
-    std::wstring class_name = L"Something";
+    std::wstring       class_name = L"Something";
     const std::wstring Window_Name;
-    UINT wdWidth = 1280;
-    UINT wdHeight = 720;
-    LPVOID lParam = NULL;
+    UINT               wdWidth  = 1280;
+    UINT               wdHeight = 720;
+    LPVOID             lParam   = NULL;
 
     WinConfig(
         const std::wstring ClassName,
-        const UINT Width,
-        const UINT Height,
-        const wchar_t* WindowName,
-        LPVOID lParam_
+        const UINT         Width,
+        const UINT         Height,
+        const wchar_t*     WindowName,
+        LPVOID             lParam_
     )
         : class_name(ClassName), Window_Name(WindowName), wdWidth(Width), wdHeight(Height),
           lParam(lParam_)
@@ -54,7 +55,7 @@ class WinForge
     WinForge(WNDPROC WindowProc = WProc2);
     ~WinForge();
 
-    WinForge(const WinForge&) = delete;
+    WinForge(const WinForge&)            = delete;
     WinForge& operator=(const WinForge&) = delete;
 
     HWND CreateWindowAsync(
@@ -68,7 +69,7 @@ class WinForge
             RawFrameBufferBlock = nullptr;
         }
 
-        FrameSize = Size;
+        FrameSize           = Size;
         RawFrameBufferBlock = new CHAR[FrameQueueSize * FrameSize];
         for (int i = 0; i < FrameQueueSize; i++)
             FramePool[i].FrameBuffer = RawFrameBufferBlock + i * FrameSize;
@@ -79,16 +80,18 @@ class WinForge
         CleanupFramePool();
 
         FrameQueueSize = Size;
-        FramePool = new Frame[FrameQueueSize];
+        FramePool      = new Frame[FrameQueueSize];
         SetFrameBufferSize(FrameSize);
     }
 
     inline void SetBufferData(char* Data, int Size)
     {
-        memcpy(FramePool[NextFrame].FrameBuffer, Data, Size);
-
-        FramePool[NextFrame].FrameSize = Size;
-        NextFrame = (NextFrame + 1) & 3;
+        uint32_t Slot =
+            static_cast<uint32_t>(QueuedCount.load(std::memory_order_relaxed) % FrameQueueSize);
+        memcpy(FramePool[Slot].FrameBuffer, Data, Size);
+        FramePool[Slot].FrameSize = Size;
+        QueuedCount.fetch_add(1, std::memory_order_release);
+        SetRenderEvent();
     }
 
     inline char* GetFrameDataPool() const { return FramePool[0].FrameBuffer; }
@@ -104,16 +107,16 @@ class WinForge
     // OnSlotComplete fires from the IOCP thread — routes through OnFrameUpdate then sets render
     // event.
     inline void GetFramePool(
-        char*& OutData,
+        char*&    OutData,
         uint32_t& OutDataSize,
         uint32_t& OutSlotCount,
         void (**OutOnSlotComplete)(void*, uint32_t, uint32_t),
         void*& OutCtx
     )
     {
-        OutData = GetFrameDataPool();
-        OutDataSize = GetFrameDataTotalSize();
-        OutSlotCount = GetFrameQueueSize();
+        OutData            = GetFrameDataPool();
+        OutDataSize        = GetFrameDataTotalSize();
+        OutSlotCount       = GetFrameQueueSize();
         *OutOnSlotComplete = [](void* ctx, uint32_t slot, uint32_t size) {
             reinterpret_cast<WinForge*>(ctx)->OnFrameUpdate(slot, size);
         };
@@ -123,20 +126,23 @@ class WinForge
     inline void OnFrameUpdate(uint32_t Slot, uint32_t Size)
     {
         FramePool[Slot].FrameSize = static_cast<UINT>(Size);
-        NextFrame = static_cast<uint8_t>((Slot + 1) % FrameQueueSize);
+        QueuedCount.fetch_add(1, std::memory_order_release);
         SetRenderEvent();
     }
 
     inline void DecodeBuffer(NvdecSession* ActiveDecoder)
     {
-        if (ActiveDecoder != nullptr) {
-            ActiveDecoder->Decode(
-                reinterpret_cast<const unsigned char*>(FramePool[CurrentFrame].FrameBuffer),
-                FramePool[CurrentFrame].FrameSize
-            );
+        uint64_t Decoded = QueuedCount.load(std::memory_order_acquire);
+        while (DecodedCount < Decoded) {
+            uint32_t slot = static_cast<uint32_t>(DecodedCount % FrameQueueSize);
+            if (ActiveDecoder != nullptr) {
+                ActiveDecoder->Decode(
+                    reinterpret_cast<const unsigned char*>(FramePool[slot].FrameBuffer),
+                    FramePool[slot].FrameSize
+                );
+            }
+            ++DecodedCount;
         }
-
-        CurrentFrame = (CurrentFrame + 1) & 3;
     }
 
     inline void DecodeBuffer()
@@ -162,11 +168,11 @@ class WinForge
     }
 
   private:
-    HRESULT hr = NULL;
-    HWND hwnd = NULL;
-    WNDPROC WProc = NULL;
-    HANDLE* Events = nullptr;
-    DWORD EventDW = NULL;
+    HRESULT     hr      = NULL;
+    HWND        hwnd    = NULL;
+    WNDPROC     WProc   = NULL;
+    HANDLE*     Events  = nullptr;
+    DWORD       EventDW = NULL;
     std::thread WindowThread;
 
     std::chrono::steady_clock::duration FrameTimeLimit =
@@ -175,27 +181,27 @@ class WinForge
     std::chrono::time_point<std::chrono::steady_clock> LastFrameTime =
         std::chrono::steady_clock::now();
 
-    ID3D11Device* D3D11Device = nullptr;
+    ID3D11Device*        D3D11Device  = nullptr;
     ID3D11DeviceContext* D3D11Context = nullptr;
 
-    IDXGISwapChain3* Swapchain = nullptr;
+    IDXGISwapChain3*        Swapchain        = nullptr;
     ID3D11RenderTargetView* RenderTargetView = nullptr;
 
-    ID3D11PixelShader* PixelShader = nullptr;
-    ID3D11VertexShader* VertexShader = nullptr;
-    ID3D11Buffer* VertexBuffer = nullptr;
-    ID3D11InputLayout* InputLayout = nullptr;
-    ID3D11Buffer* IndexBuffer = nullptr;
-    ID3D11SamplerState* Sampler = nullptr;
-    D3D11_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
-    ComPtr<ID3D11ShaderResourceView> TextureView = nullptr;
+    ID3D11PixelShader*               PixelShader  = nullptr;
+    ID3D11VertexShader*              VertexShader = nullptr;
+    ID3D11Buffer*                    VertexBuffer = nullptr;
+    ID3D11InputLayout*               InputLayout  = nullptr;
+    ID3D11Buffer*                    IndexBuffer  = nullptr;
+    ID3D11SamplerState*              Sampler      = nullptr;
+    D3D11_SHADER_RESOURCE_VIEW_DESC  SrvDesc      = {};
+    ComPtr<ID3D11ShaderResourceView> TextureView  = nullptr;
 
     UINT Stride = 0;
     UINT Offset = 0;
 
     float ClearColor[4] = {0.0f, 0.0f, 1.0f, 1.0f};
 
-    D3D11_TEXTURE2D_DESC CustommainBufferDesc = {};
+    D3D11_TEXTURE2D_DESC    CustommainBufferDesc = {};
     ComPtr<ID3D11Texture2D> FrameBufferTex;
     using DecoderVariant = std::variant<std::monostate, NvdecSession>;
     DecoderVariant OmniDecoder;
@@ -203,27 +209,29 @@ class WinForge
     struct Frame
     {
         CHAR* FrameBuffer;
-        UINT FrameSize = 0;
+        UINT  FrameSize = 0;
     };
 
-    int FrameSize = 2048 * OmniMTU;
-    int FrameQueueSize = 4;
-    CHAR* RawFrameBufferBlock = nullptr;
-    Frame* FramePool = nullptr;
-    uint8_t CurrentFrame = 0;
-    uint8_t NextFrame = 0;
+    int                   FrameSize           = 2048 * OmniMTU;
+    int                   FrameQueueSize      = 4;
+    CHAR*                 RawFrameBufferBlock = nullptr;
+    Frame*                FramePool           = nullptr;
+    std::atomic<uint64_t> QueuedCount{0};
+    uint64_t              DecodedCount = 0;
 
     D3D11_DEVICE_CONTEXT_TYPE ContextMode = D3D11_DEVICE_CONTEXT_IMMEDIATE;
 
     MSG Msg = {};
 
-    void Render();
-    void MainLoop();
-    void CloseWindowThread();
-    void CleanupD3D();
-    void CleanupEvents();
+    void        Render();
+    void        MainLoop();
+    void        CloseWindowThread();
+    void        CleanupD3D();
+    void        CleanupEvents();
     inline void CleanupFramePool()
     {
+        QueuedCount.store(0, std::memory_order_relaxed);
+        DecodedCount = 0;
         if (RawFrameBufferBlock != nullptr) {
             delete[] RawFrameBufferBlock;
             RawFrameBufferBlock = nullptr;
