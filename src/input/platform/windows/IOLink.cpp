@@ -11,8 +11,12 @@ OmniIOShield::OmniIOShield(IOLinkContext& Ctx) : IOCtx(Ctx)
 
 void OmniIOShield::InvokeInputFilter()
 {
-    KeyboardBlock = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
-    MouseBlock = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
+    if (!KeyboardBlock) {
+        KeyboardBlock = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
+    }
+    if (!MouseBlock) {
+        MouseBlock = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, GetModuleHandle(NULL), 0);
+    }
 
     if (!KeyboardBlock || !MouseBlock)
         std::cout << "Failed to install input hooks.\n";
@@ -32,13 +36,58 @@ void OmniIOShield::ReleaseInputFilter()
 
 LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
 {
-    return (IOContext && IOContext->InputLocked.load(std::memory_order_acquire))
-               ? 1
-               : CallNextHookEx(nullptr, NCode, WParam, LParam);
+    if (NCode < 0)
+        return CallNextHookEx(nullptr, NCode, WParam, LParam);
+
+    if (IOContext && LParam) {
+        KBDLLHOOKSTRUCT* pKey = reinterpret_cast<KBDLLHOOKSTRUCT*>(LParam);
+
+        if ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000) &&
+            (pKey->vkCode == '1' || pKey->vkCode == VK_NUMPAD1)) {
+            IOContext->DeactivateEdge();
+            return 1;
+        }
+
+        if (IOContext->InputLocked.load(std::memory_order_acquire)) {
+            auto* NetSession = IOContext->ActiveNetSession.load(std::memory_order_acquire);
+            if (NetSession) {
+                OmniNet::OmniHeader Header;
+                Header.Target     = 0;
+                Header.PacketType = OmniNet::PacketType::ProcKey;
+                Header.Flags      = 0;
+
+                INPUT KBInput      = {0};
+                KBInput.type       = INPUT_KEYBOARD;
+                KBInput.ki.wScan   = static_cast<WORD>(pKey->scanCode);
+                KBInput.ki.wVk     = static_cast<WORD>(pKey->vkCode);
+                KBInput.ki.dwFlags = 0;
+
+                if (pKey->scanCode != 0) {
+                    KBInput.ki.dwFlags |= KEYEVENTF_SCANCODE;
+                }
+
+                if (pKey->flags & LLKHF_EXTENDED) {
+                    KBInput.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+                }
+
+                if (pKey->flags & LLKHF_UP) {
+                    KBInput.ki.dwFlags |= KEYEVENTF_KEYUP;
+                }
+
+                NetSession->SessionSend(reinterpret_cast<CHAR*>(&KBInput), sizeof(INPUT), Header);
+            }
+            return 1;
+        }
+    }
+
+    return CallNextHookEx(nullptr, NCode, WParam, LParam);
 }
 
 LRESULT OmniIOShield::MouseProc(int NCode, WPARAM WParam, LPARAM LParam)
 {
+    if (NCode < 0)
+        return CallNextHookEx(nullptr, NCode, WParam, LParam);
+
     return (IOContext && IOContext->InputLocked.load(std::memory_order_acquire))
                ? 1
                : CallNextHookEx(nullptr, NCode, WParam, LParam);
@@ -54,8 +103,8 @@ OmniIOCap::OmniIOCap(IOLinkContext& Ctx) : IOCtx(Ctx)
     RawInputSize = 48;
 
     Device::MonitorRes MonRes = Device::GetMonitorResolution();
-    IOCtx.ResHeight = MonRes.Height;
-    IOCtx.ResWidth = MonRes.Width;
+    IOCtx.ResHeight           = MonRes.Height;
+    IOCtx.ResWidth            = MonRes.Width;
 }
 
 OmniIOCap::~OmniIOCap()
@@ -83,12 +132,12 @@ void OmniIOCap::WindowMoveListener(bool State)
 
 void CALLBACK OmniIOCap::WinMvEventProc(
     HWINEVENTHOOK HWinEventHook,
-    DWORD Event,
-    HWND Hwnd,
-    LONG IDObject,
-    LONG IDChild,
-    DWORD IDEventThread,
-    DWORD DWMSEventTime
+    DWORD         Event,
+    HWND          Hwnd,
+    LONG          IDObject,
+    LONG          IDChild,
+    DWORD         IDEventThread,
+    DWORD         DWMSEventTime
 )
 {
     static std::atomic_bool EventStatus{false};
@@ -98,7 +147,7 @@ void CALLBACK OmniIOCap::WinMvEventProc(
         EventStatus.store(true);
         std::thread([Hwnd]() {
             HWND Hwnd_ = Hwnd;
-            RECT Pos = {};
+            RECT Pos   = {};
             while (EventStatus.load()) {
                 GetWindowRect(Hwnd_, &Pos);
                 OutputDebugStringA((std::to_string(Pos.right) + "\n").c_str());
@@ -142,8 +191,8 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
     MouseEventCapStatus.store(true);
 
     ProbeThread = std::thread([this, Hwnd]() {
-        HWND Hwnd_ = Hwnd;
-        POINT Pos = {};
+        HWND  Hwnd_            = Hwnd;
+        POINT Pos              = {};
         auto* MouseEventStatus = &MouseEventCapStatus;
 
         std::cout << "Edge Probe Thread Running\n";
@@ -161,6 +210,9 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                         ActiveEdgeCondition = Name;
                         IOCtx.InputLocked.store(true, std::memory_order_release);
 
+                        MouseX = 0;
+                        MouseY = 0;
+
                         MouseEventStatus->store(false);
                         ToggleInputCapture(Hwnd_, true);
 
@@ -168,7 +220,7 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                     }
                 }
 
-                std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
 
             if (!InputLinkStatus.load())
@@ -176,10 +228,34 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
 
             MouseEventStatus->store(true);
 
-            // Await until cursor returns home
+            // Await until cursor returns home or breakout is triggered
             while (MouseEventStatus->load()) {
-                bool ReturnState = (MouseX < static_cast<int>(IOCtx.ResWidth)) && (MouseX > 0) &&
-                                   (MouseY < static_cast<int>(IOCtx.ResHeight)) && (MouseY > 0);
+                if (!IOCtx.InputLocked.load(std::memory_order_acquire)) {
+                    ToggleInputCapture(Hwnd_, false);
+                    break;
+                }
+
+                bool ReturnState = false;
+                switch (ActiveEdgeCondition) {
+                case DeviceMap::L1:
+                case DeviceMap::LU1:
+                case DeviceMap::LD1:
+                    ReturnState = (MouseX > 150);
+                    break;
+                case DeviceMap::R1:
+                case DeviceMap::RU1:
+                case DeviceMap::RD1:
+                    ReturnState = (MouseX < -150);
+                    break;
+                case DeviceMap::U1:
+                    ReturnState = (MouseY > 150);
+                    break;
+                case DeviceMap::D1:
+                    ReturnState = (MouseY < -150);
+                    break;
+                default:
+                    break;
+                }
 
                 if (ReturnState) {
                     IOCtx.InputLocked.store(false, std::memory_order_release);
@@ -191,7 +267,7 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                     break;
                 }
 
-                std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
 
             if (!InputLinkStatus.load())
@@ -262,32 +338,40 @@ void OmniIOCap::ToggleInputCapture(HWND Hwnd, bool State)
 {
     RAWINPUTDEVICE Devices[2];
 
-    Devices[0].hwndTarget = Hwnd;
-    Devices[0].usUsage = HID_USAGE_GENERIC_MOUSE;
+    Devices[0].usUsage     = HID_USAGE_GENERIC_MOUSE;
     Devices[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
 
-    Devices[1].hwndTarget = Hwnd;
-    Devices[1].usUsage = HID_USAGE_GENERIC_KEYBOARD;
+    Devices[1].usUsage     = HID_USAGE_GENERIC_KEYBOARD;
     Devices[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
 
     if (State) {
-        Devices[0].dwFlags = RIDEV_INPUTSINK;
-        Devices[1].dwFlags = RIDEV_INPUTSINK;
+        Devices[0].hwndTarget = Hwnd;
+        Devices[0].dwFlags    = RIDEV_INPUTSINK;
+
+        Devices[1].hwndTarget = Hwnd;
+        Devices[1].dwFlags    = RIDEV_INPUTSINK;
+
         RegisterRawInputDevices(Devices, 2, sizeof(Devices[0]));
 
         InputProc = &OmniIOCap::InputProcInit;
     } else {
         InputProc = &OmniIOCap::VoidExitCallback;
 
-        Devices[0].dwFlags = RIDEV_REMOVE;
-        Devices[1].dwFlags = RIDEV_REMOVE;
+        Devices[0].hwndTarget = NULL;
+        Devices[0].dwFlags    = RIDEV_REMOVE;
+
+        Devices[1].hwndTarget = NULL;
+        Devices[1].dwFlags    = RIDEV_REMOVE;
+
         RegisterRawInputDevices(Devices, 2, sizeof(Devices[0]));
     }
 }
 
 void OmniIOCap::InputProcInit(LPARAM& LParam)
 {
-    GetRawInputData((HRAWINPUT)LParam, RID_INPUT, NULL, &RawInputSize, sizeof(RAWINPUTHEADER));
+    alignas(RAWINPUT) BYTE RawBuffer[sizeof(RAWINPUT)] = {};
+    UINT                   Size                        = sizeof(RawBuffer);
+    GetRawInputData((HRAWINPUT)LParam, RID_INPUT, RawBuffer, &Size, sizeof(RAWINPUTHEADER));
 
     InputProc = &OmniIOCap::InputProcCallback;
 
@@ -296,14 +380,14 @@ void OmniIOCap::InputProcInit(LPARAM& LParam)
         return;
 
     OmniNet::OmniHeader Header;
-    Header.Target = 0;
+    Header.Target     = 0;
     Header.PacketType = OmniNet::PacketType::ProcMouse;
-    Header.Flags = 0;
+    Header.Flags      = 0;
 
-    INPUT MouseInput = {0};
-    MouseInput.type = INPUT_MOUSE;
-    MouseInput.mi.dx = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].X;
-    MouseInput.mi.dy = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].Y;
+    INPUT MouseInput      = {0};
+    MouseInput.type       = INPUT_MOUSE;
+    MouseInput.mi.dx      = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].X;
+    MouseInput.mi.dy      = PointCache[static_cast<uint8_t>(IOCtx.ActiveEdge)].Y;
     MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
 
     NetSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), Header);
@@ -311,31 +395,47 @@ void OmniIOCap::InputProcInit(LPARAM& LParam)
 
 void OmniIOCap::InputProcCallback(LPARAM& LParam)
 {
-    std::vector<BYTE> Buffer(RawInputSize);
-    GetRawInputData(
-        (HRAWINPUT)LParam, RID_INPUT, Buffer.data(), &RawInputSize, sizeof(RAWINPUTHEADER)
-    );
-    RAWINPUT* Input = reinterpret_cast<RAWINPUT*>(Buffer.data());
+    alignas(RAWINPUT) BYTE RawBuffer[sizeof(RAWINPUT)] = {};
+    UINT                   Size                        = sizeof(RawBuffer);
+    UINT                   Result =
+        GetRawInputData((HRAWINPUT)LParam, RID_INPUT, RawBuffer, &Size, sizeof(RAWINPUTHEADER));
+    if (Result == (UINT)-1 || Result == 0)
+        return;
+
+    RAWINPUT* Input = reinterpret_cast<RAWINPUT*>(RawBuffer);
 
     auto* NetSession = IOCtx.ActiveNetSession.load(std::memory_order_acquire);
     if (!NetSession)
         return;
 
     if (Input->header.dwType == RIM_TYPEMOUSE) {
-        MouseX += Input->data.mouse.lLastX;
-        MouseY += Input->data.mouse.lLastY;
+        LONG dX = Input->data.mouse.lLastX;
+        LONG dY = Input->data.mouse.lLastY;
+
+        if (dX == 0 && dY == 0 && Input->data.mouse.usButtonFlags == 0)
+            return;
+
+        MouseX += dX;
+        MouseY += dY;
 
         OmniNet::OmniHeader Header;
-        Header.Target = 0;
+        Header.Target     = 0;
         Header.PacketType = OmniNet::PacketType::ProcMouse;
-        Header.Flags = 0;
+        Header.Flags      = 0;
 
-        INPUT MouseInput = {0};
-        MouseInput.type = INPUT_MOUSE;
-        MouseInput.mi.dx = Input->data.mouse.lLastX;
-        MouseInput.mi.dy = Input->data.mouse.lLastY;
-        MouseInput.mi.mouseData = static_cast<SHORT>(Input->data.mouse.usButtonData);
-        MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK;
+        INPUT MouseInput      = {0};
+        MouseInput.type       = INPUT_MOUSE;
+        MouseInput.mi.dx      = dX;
+        MouseInput.mi.dy      = dY;
+        MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE;
+
+        if (Input->data.mouse.usButtonFlags & RI_MOUSE_WHEEL) {
+            MouseInput.mi.dwFlags |= MOUSEEVENTF_WHEEL;
+            MouseInput.mi.mouseData = static_cast<SHORT>(Input->data.mouse.usButtonData);
+        } else if (Input->data.mouse.usButtonFlags & RI_MOUSE_HWHEEL) {
+            MouseInput.mi.dwFlags |= MOUSEEVENTF_HWHEEL;
+            MouseInput.mi.mouseData = static_cast<SHORT>(Input->data.mouse.usButtonData);
+        }
 
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)
             MouseInput.mi.dwFlags |= MOUSEEVENTF_LEFTDOWN;
@@ -345,30 +445,12 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
             MouseInput.mi.dwFlags |= MOUSEEVENTF_RIGHTDOWN;
         if (Input->data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)
             MouseInput.mi.dwFlags |= MOUSEEVENTF_RIGHTUP;
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_WHEEL;
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_HWHEEL)
-            MouseInput.mi.dwFlags |= MOUSEEVENTF_HWHEEL;
+        if (Input->data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN)
+            MouseInput.mi.dwFlags |= MOUSEEVENTF_MIDDLEDOWN;
+        if (Input->data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)
+            MouseInput.mi.dwFlags |= MOUSEEVENTF_MIDDLEUP;
 
         NetSession->SessionSend(reinterpret_cast<CHAR*>(&MouseInput), sizeof(INPUT), Header);
-
-    } else if (Input->header.dwType == RIM_TYPEKEYBOARD) {
-        OmniNet::OmniHeader Header;
-        Header.Target = 0;
-        Header.PacketType = OmniNet::PacketType::ProcKey;
-        Header.Flags = 0;
-
-        INPUT KBInput = {0};
-        KBInput.type = INPUT_KEYBOARD;
-        KBInput.ki.wScan = static_cast<SHORT>(Input->data.keyboard.MakeCode);
-        KBInput.ki.dwFlags = KEYEVENTF_SCANCODE;
-
-        if (Input->data.keyboard.Flags & RI_KEY_E0)
-            KBInput.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-        if (Input->data.keyboard.Flags & RI_KEY_BREAK)
-            KBInput.ki.dwFlags |= KEYEVENTF_KEYUP;
-
-        NetSession->SessionSend(reinterpret_cast<CHAR*>(&KBInput), sizeof(INPUT), Header);
     }
 }
 
@@ -385,7 +467,28 @@ void ProcMouse(int X, int Y)
 
 void ProcInput(INPUT& Input)
 {
-    SendInput(1, &Input, sizeof(INPUT));
+    if (Input.type == INPUT_MOUSE) {
+        if (Input.mi.dwFlags & MOUSEEVENTF_ABSOLUTE) {
+            SendInput(1, &Input, sizeof(INPUT));
+        } else {
+            if (Input.mi.dx != 0 || Input.mi.dy != 0) {
+                POINT pt = {};
+                GetCursorPos(&pt);
+                SetCursorPos(pt.x + Input.mi.dx, pt.y + Input.mi.dy);
+            }
+
+            DWORD btnFlags = Input.mi.dwFlags & ~MOUSEEVENTF_MOVE;
+            if (btnFlags != 0) {
+                INPUT btnInput      = Input;
+                btnInput.mi.dx      = 0;
+                btnInput.mi.dy      = 0;
+                btnInput.mi.dwFlags = btnFlags;
+                SendInput(1, &btnInput, sizeof(INPUT));
+            }
+        }
+    } else {
+        SendInput(1, &Input, sizeof(INPUT));
+    }
 }
 
 void ProcKey(INPUT& Input)
@@ -395,10 +498,10 @@ void ProcKey(INPUT& Input)
 
 void ProcKey(KeyData& Input)
 {
-    INPUT KB = {};
-    KB.type = INPUT_KEYBOARD;
-    KB.ki.wVk = 0;
-    KB.ki.wScan = Input.MakeCode;
+    INPUT KB      = {};
+    KB.type       = INPUT_KEYBOARD;
+    KB.ki.wVk     = 0;
+    KB.ki.wScan   = Input.MakeCode;
     KB.ki.dwFlags = KEYEVENTF_SCANCODE;
 
     if (Input.Flags & RI_KEY_BREAK)
