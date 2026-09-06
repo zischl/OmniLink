@@ -42,6 +42,10 @@ LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
     if (IOContext && LParam) {
         KBDLLHOOKSTRUCT* pKey = reinterpret_cast<KBDLLHOOKSTRUCT*>(LParam);
 
+        if (pKey->dwExtraInfo == OMNI_INPUT_COOKIE) {
+            return CallNextHookEx(nullptr, NCode, WParam, LParam);
+        }
+
         if ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000) &&
             (pKey->vkCode == '1' || pKey->vkCode == VK_NUMPAD1)) {
             IOContext->DeactivateEdge();
@@ -88,6 +92,13 @@ LRESULT OmniIOShield::MouseProc(int NCode, WPARAM WParam, LPARAM LParam)
 {
     if (NCode < 0)
         return CallNextHookEx(nullptr, NCode, WParam, LParam);
+
+    if (LParam) {
+        MSLLHOOKSTRUCT* pMouse = reinterpret_cast<MSLLHOOKSTRUCT*>(LParam);
+        if (pMouse->dwExtraInfo == OMNI_INPUT_COOKIE) {
+            return CallNextHookEx(nullptr, NCode, WParam, LParam);
+        }
+    }
 
     return (IOContext && IOContext->InputLocked.load(std::memory_order_acquire))
                ? 1
@@ -621,11 +632,13 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
 void ProcMouse(const OmniMousePacket& Packet)
 {
     if (Packet.Flags & OMNI_MOUSE_ABSOLUTE) {
-        INPUT MouseInput      = {0};
-        MouseInput.type       = INPUT_MOUSE;
-        MouseInput.mi.dx      = Packet.dX;
-        MouseInput.mi.dy      = Packet.dY;
-        MouseInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+        INPUT MouseInput          = {0};
+        MouseInput.type           = INPUT_MOUSE;
+        MouseInput.mi.dx          = Packet.dX;
+        MouseInput.mi.dy          = Packet.dY;
+        MouseInput.mi.mouseData   = Packet.Wheel;
+        MouseInput.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | Packet.Buttons;
+        MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
         SendInput(1, &MouseInput, sizeof(INPUT));
         return;
     }
@@ -637,6 +650,7 @@ void ProcMouse(const OmniMousePacket& Packet)
         MouseInput.mi.dy        = Packet.dY;
         MouseInput.mi.mouseData = Packet.Wheel;
         MouseInput.mi.dwFlags   = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | Packet.Buttons;
+        MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
         SendInput(1, &MouseInput, sizeof(INPUT));
         return;
     }
@@ -652,6 +666,7 @@ void ProcMouse(const OmniMousePacket& Packet)
         BtnInput.type         = INPUT_MOUSE;
         BtnInput.mi.mouseData = Packet.Wheel;
         BtnInput.mi.dwFlags   = Packet.Buttons;
+        BtnInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
         SendInput(1, &BtnInput, sizeof(INPUT));
     }
 }
@@ -689,11 +704,12 @@ void ProcInput(INPUT& Input)
 
 void ProcKey(const OmniKeyPacket& Packet)
 {
-    INPUT KB      = {};
-    KB.type       = INPUT_KEYBOARD;
-    KB.ki.wVk     = Packet.VkCode;
-    KB.ki.wScan   = Packet.ScanCode;
-    KB.ki.dwFlags = Packet.Flags;
+    INPUT KB          = {};
+    KB.type           = INPUT_KEYBOARD;
+    KB.ki.wVk         = Packet.VkCode;
+    KB.ki.wScan       = Packet.ScanCode;
+    KB.ki.dwFlags     = Packet.Flags;
+    KB.ki.dwExtraInfo = OMNI_INPUT_COOKIE;
 
     SendInput(1, &KB, sizeof(INPUT));
 }

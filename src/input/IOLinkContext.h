@@ -8,6 +8,13 @@
 #include <mutex>
 #include <unordered_map>
 
+#if defined(_WIN32)
+#include <basetsd.h>
+constexpr ULONG_PTR OMNI_INPUT_COOKIE = 0x4F4D4E49;
+#else
+constexpr uintptr_t OMNI_INPUT_COOKIE = 0x4F4D4E49;
+#endif
+
 #pragma pack(push, 1)
 
 enum OmniMouseFlags : uint16_t {
