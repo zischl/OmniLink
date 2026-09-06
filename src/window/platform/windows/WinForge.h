@@ -18,11 +18,15 @@
 #include <wrl/client.h>
 
 #include <atomic>
+#include <functional>
 #include <string>
 #include <thread>
 #include <variant>
 
 using Microsoft::WRL::ComPtr;
+
+using InputPacketCallback =
+    std::function<void(const void* Data, uint32_t Size, uint8_t PacketType)>;
 
 struct WinConfig
 {
@@ -167,7 +171,50 @@ class WinForge
         FrameTimeLimit = std::chrono::nanoseconds(1000000000LL / FPS);
     }
 
+    inline void SetInputCallback(InputPacketCallback Callback)
+    {
+        InputCallback = std::move(Callback);
+
+        if (!InputCallback) {
+            InputForwarderState.store(false, std::memory_order_release);
+        }
+    }
+
+    inline void SetInputForwarding(bool State)
+    {
+        InputForwarderState.store(
+            State && static_cast<bool>(InputCallback), std::memory_order_release
+        );
+    }
+
+    inline bool GetInputForwardingState() const
+    {
+        return InputForwarderState.load(std::memory_order_acquire);
+    }
+
+    inline void ToggleInputForwarding()
+    {
+        InputForwarderState.store(
+            !InputForwarderState.load(std::memory_order_relaxed) && InputCallback,
+            std::memory_order_release
+        );
+    }
+
+    inline void ForwardInput(const void* Data, uint32_t Size, uint8_t PacketType)
+    {
+        if (InputForwarderState.load(std::memory_order_relaxed)) {
+            InputCallback(Data, Size, PacketType);
+        }
+    }
+
   private:
+    InputPacketCallback InputCallback = nullptr;
+    std::atomic<bool>   InputForwarderState{false};
+    uint32_t            WindowWidth     = 1920;
+    uint32_t            WindowHeight    = 1080;
+    uint16_t            LastNormalizedX = 0xFFFF;
+    uint16_t            LastNormalizedY = 0xFFFF;
+
     HRESULT     hr      = NULL;
     HWND        hwnd    = NULL;
     WNDPROC     WProc   = NULL;
