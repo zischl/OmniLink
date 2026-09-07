@@ -228,6 +228,27 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
                 if (SubStreamID != 0) {
                     WindowRegistry[SubStreamID] = Window;
                 }
+
+                Window->SetInputCallback(
+                    [this, DeviceID](const void* Data, uint32_t Size, uint8_t PacketType) {
+                        if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
+                            auto& Instance = ActiveInstances->at(DeviceID);
+                            if (Instance.InstanceSession) {
+                                OmniNet::OmniHeader Header;
+                                Header.Target     = 0;
+                                Header.PacketType = static_cast<OmniNet::PacketType>(PacketType);
+                                Header.Flags      = 0;
+                                Instance.InstanceSession->SessionSend(
+                                    reinterpret_cast<CHAR*>(const_cast<void*>(Data)),
+                                    static_cast<int>(Size),
+                                    Header
+                                );
+                            }
+                        }
+                    }
+                );
+                Window->SetInputForwarding(true);
+
                 Window->GetFramePool(
                     Config.Data,
                     Config.DataSize,
