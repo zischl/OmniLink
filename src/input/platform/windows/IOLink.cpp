@@ -502,15 +502,15 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
         return;
 
     if (Input->header.dwType == RIM_TYPEMOUSE) {
-        LONG dX = Input->data.mouse.lLastX;
-        LONG dY = Input->data.mouse.lLastY;
+        LONG   dX          = Input->data.mouse.lLastX;
+        LONG   dY          = Input->data.mouse.lLastY;
+        USHORT ButtonFlags = Input->data.mouse.usButtonFlags;
 
-        if (dX == 0 && dY == 0 && Input->data.mouse.usButtonFlags == 0)
+        if ((dX | dY | ButtonFlags) == 0)
             return;
 
-        VirtualPosX = std::clamp(
-            VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.ResWidth - 1)
-        );
+        VirtualPosX =
+            std::clamp(VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.ResWidth - 1));
         VirtualPosY = std::clamp(
             VirtualPosY + static_cast<int>(dY), 0, static_cast<int>(IOCtx.ResHeight - 1)
         );
@@ -527,26 +527,15 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
         Packet.dY              = dY;
         Packet.Flags           = OMNI_MOUSE_RELATIVE;
 
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_WHEEL) {
-            Packet.Buttons |= MOUSEEVENTF_WHEEL;
-            Packet.Wheel = static_cast<SHORT>(Input->data.mouse.usButtonData);
-        } else if (Input->data.mouse.usButtonFlags & RI_MOUSE_HWHEEL) {
-            Packet.Buttons |= MOUSEEVENTF_HWHEEL;
-            Packet.Wheel = static_cast<SHORT>(Input->data.mouse.usButtonData);
-        }
+        if (ButtonFlags) [[unlikely]] {
+            Packet.Buttons |= (ButtonFlags & 0x003F) << 1;
 
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)
-            Packet.Buttons |= MOUSEEVENTF_LEFTDOWN;
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)
-            Packet.Buttons |= MOUSEEVENTF_LEFTUP;
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)
-            Packet.Buttons |= MOUSEEVENTF_RIGHTDOWN;
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)
-            Packet.Buttons |= MOUSEEVENTF_RIGHTUP;
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN)
-            Packet.Buttons |= MOUSEEVENTF_MIDDLEDOWN;
-        if (Input->data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)
-            Packet.Buttons |= MOUSEEVENTF_MIDDLEUP;
+            if (ButtonFlags & (RI_MOUSE_WHEEL | RI_MOUSE_HWHEEL)) {
+                Packet.Buttons |=
+                    (ButtonFlags & RI_MOUSE_WHEEL) ? MOUSEEVENTF_WHEEL : MOUSEEVENTF_HWHEEL;
+                Packet.Wheel = static_cast<SHORT>(Input->data.mouse.usButtonData);
+            }
+        }
 
         NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniMousePacket), Header);
     }
@@ -625,24 +614,25 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
 void ProcMouse(const OmniMousePacket& Packet)
 {
     if (Packet.Flags & OMNI_MOUSE_ABSOLUTE) {
-        INPUT MouseInput          = {0};
-        MouseInput.type           = INPUT_MOUSE;
-        MouseInput.mi.dx          = Packet.dX;
-        MouseInput.mi.dy          = Packet.dY;
-        MouseInput.mi.mouseData   = Packet.Wheel;
-        MouseInput.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | Packet.Buttons;
+        INPUT MouseInput        = {0};
+        MouseInput.type         = INPUT_MOUSE;
+        MouseInput.mi.dx        = Packet.dX;
+        MouseInput.mi.dy        = Packet.dY;
+        MouseInput.mi.mouseData = Packet.Wheel;
+        MouseInput.mi.dwFlags =
+            MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | Packet.Buttons;
         MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
         SendInput(1, &MouseInput, sizeof(INPUT));
         return;
     }
 
     if (GameMode.load(std::memory_order_relaxed)) {
-        INPUT MouseInput        = {0};
-        MouseInput.type         = INPUT_MOUSE;
-        MouseInput.mi.dx        = Packet.dX;
-        MouseInput.mi.dy        = Packet.dY;
-        MouseInput.mi.mouseData = Packet.Wheel;
-        MouseInput.mi.dwFlags   = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | Packet.Buttons;
+        INPUT MouseInput          = {0};
+        MouseInput.type           = INPUT_MOUSE;
+        MouseInput.mi.dx          = Packet.dX;
+        MouseInput.mi.dy          = Packet.dY;
+        MouseInput.mi.mouseData   = Packet.Wheel;
+        MouseInput.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | Packet.Buttons;
         MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
         SendInput(1, &MouseInput, sizeof(INPUT));
         return;
@@ -675,7 +665,7 @@ void ProcInput(INPUT& Input)
         if (Input.mi.dwFlags & MOUSEEVENTF_ABSOLUTE) {
             SendInput(1, &Input, sizeof(INPUT));
         } else {
-            if (Input.mi.dx != 0 || Input.mi.dy != 0) {
+            if (Input.mi.dx | Input.mi.dy) {
                 POINT pt = {};
                 GetCursorPos(&pt);
                 SetCursorPos(pt.x + Input.mi.dx, pt.y + Input.mi.dy);
