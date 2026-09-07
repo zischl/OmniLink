@@ -426,45 +426,38 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
             Packet.dY              = NormalizedY;
             Packet.Flags           = OMNI_MOUSE_ABSOLUTE;
 
-            switch (uMsg) {
-            case WM_LBUTTONDOWN:
+            static constexpr uint16_t MouseButtonEvents[] = {
+                MOUSEEVENTF_LEFTDOWN,
+                MOUSEEVENTF_LEFTUP,
+                0,
+                MOUSEEVENTF_RIGHTDOWN,
+                MOUSEEVENTF_RIGHTUP,
+                0,
+                MOUSEEVENTF_MIDDLEDOWN,
+                MOUSEEVENTF_MIDDLEUP,
+                0,
+                0,
+                MOUSEEVENTF_XDOWN,
+                MOUSEEVENTF_XUP
+            };
+
+            Packet.Buttons = MouseButtonEvents[uMsg - WM_LBUTTONDOWN];
+
+            if (uMsg >= WM_XBUTTONDOWN) [[unlikely]] {
+                Packet.Wheel = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? XBUTTON1 : XBUTTON2;
+            }
+
+            // It may look weird but .. All Down events have a bit in 0x00AA,
+            // Up events have a bit in 0x0154
+            if (Packet.Buttons & 0x00AA) {
                 SetCapture(hwnd);
                 SetFocus(hwnd);
-                Packet.Buttons = MOUSEEVENTF_LEFTDOWN;
-                break;
-            case WM_LBUTTONUP:
-                ReleaseCapture();
-                Packet.Buttons = MOUSEEVENTF_LEFTUP;
-                break;
-            case WM_RBUTTONDOWN:
-                SetCapture(hwnd);
-                SetFocus(hwnd);
-                Packet.Buttons = MOUSEEVENTF_RIGHTDOWN;
-                break;
-            case WM_RBUTTONUP:
-                ReleaseCapture();
-                Packet.Buttons = MOUSEEVENTF_RIGHTUP;
-                break;
-            case WM_MBUTTONDOWN:
-                SetCapture(hwnd);
-                SetFocus(hwnd);
-                Packet.Buttons = MOUSEEVENTF_MIDDLEDOWN;
-                break;
-            case WM_MBUTTONUP:
-                ReleaseCapture();
-                Packet.Buttons = MOUSEEVENTF_MIDDLEUP;
-                break;
-            case WM_XBUTTONDOWN:
-                SetCapture(hwnd);
-                SetFocus(hwnd);
-                Packet.Buttons = MOUSEEVENTF_XDOWN;
-                Packet.Wheel   = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? XBUTTON1 : XBUTTON2;
-                break;
-            case WM_XBUTTONUP:
-                ReleaseCapture();
-                Packet.Buttons = MOUSEEVENTF_XUP;
-                Packet.Wheel   = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? XBUTTON1 : XBUTTON2;
-                break;
+            } else {
+                constexpr WPARAM MOUSE_BUTTONS_MASK =
+                    MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2;
+                if ((wParam & MOUSE_BUTTONS_MASK) == 0) {
+                    ReleaseCapture();
+                }
             }
 
             WinForgePtr->ForwardInput(
@@ -516,18 +509,19 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     case WM_KEYUP:
     case WM_SYSKEYDOWN:
     case WM_SYSKEYUP: {
-        if (WinForgePtr && WinForgePtr->GetInputForwardingState()) {
-            // Emergency breakout for now set to Ctrl + Alt + 1
-            // in the sense.. returning to 1 (source device)
-            // Reminder to me : add a dynamic key mapping state management system later
-            if ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000) &&
-                (wParam == '1' || wParam == VK_NUMPAD1)) {
-                if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
-                    WinForgePtr->ToggleInputForwarding();
-                }
-                return 0;
-            }
+        if (!WinForgePtr)
+            break;
 
+        // Emergency breakout toggle: Ctrl + Shift + X
+        if ((wParam == 'X') && (GetKeyState(VK_CONTROL) & 0x8000) &&
+            (GetKeyState(VK_SHIFT) & 0x8000)) {
+            if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
+                WinForgePtr->ToggleInputForwarding();
+            }
+            return 0;
+        }
+
+        if (WinForgePtr->GetInputForwardingState()) {
             OmniKeyPacket KeyPacket = {};
             KeyPacket.VkCode        = static_cast<uint16_t>(wParam);
             KeyPacket.ScanCode      = static_cast<uint16_t>((lParam >> 16) & 0xFF);
@@ -550,7 +544,6 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
             );
 
             // Alt+F4 will proceed to DefWindowProc so that this window can be closed normally
-            // This could be an option.. later..
             if (uMsg == WM_SYSKEYDOWN && wParam == VK_F4 && (lParam & (1 << 29))) {
                 return DefWindowProc(hwnd, uMsg, wParam, lParam);
             }

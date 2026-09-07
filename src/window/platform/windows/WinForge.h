@@ -202,9 +202,7 @@ class WinForge
 
     inline void ForwardInput(const void* Data, uint32_t Size, uint8_t PacketType)
     {
-        if (InputForwarderState.load(std::memory_order_relaxed)) {
-            InputCallback(Data, Size, PacketType);
-        }
+        InputCallback(Data, Size, PacketType);
     }
 
   private:
