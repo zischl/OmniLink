@@ -655,17 +655,17 @@ void ProcMouse(const OmniMousePacket& Packet)
         return;
     }
 
-    if (Packet.dX != 0 || Packet.dY != 0) {
+    if (Packet.dX | Packet.dY) {
         POINT pt = {};
         GetCursorPos(&pt);
         SetCursorPos(pt.x + Packet.dX, pt.y + Packet.dY);
     }
 
-    if (Packet.Buttons != 0 || Packet.Wheel != 0) {
-        INPUT BtnInput        = {0};
-        BtnInput.type         = INPUT_MOUSE;
-        BtnInput.mi.mouseData = Packet.Wheel;
-        BtnInput.mi.dwFlags   = Packet.Buttons;
+    if (Packet.Buttons | Packet.Wheel) {
+        INPUT BtnInput          = {0};
+        BtnInput.type           = INPUT_MOUSE;
+        BtnInput.mi.mouseData   = Packet.Wheel;
+        BtnInput.mi.dwFlags     = Packet.Buttons;
         BtnInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
         SendInput(1, &BtnInput, sizeof(INPUT));
     }
