@@ -36,23 +36,20 @@ void OmniIOShield::ReleaseInputFilter()
 
 LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
 {
-    if (NCode < 0)
-        return CallNextHookEx(nullptr, NCode, WParam, LParam);
+    if (NCode >= 0 && IOContext && IOContext->InputLocked.load(std::memory_order_relaxed))
+        [[unlikely]] {
+        auto* KeyData = reinterpret_cast<KBDLLHOOKSTRUCT*>(LParam);
+        if (KeyData) {
+            if (KeyData->dwExtraInfo == OMNI_INPUT_COOKIE) {
+                return CallNextHookEx(nullptr, NCode, WParam, LParam);
+            }
 
-    if (IOContext && LParam) {
-        KBDLLHOOKSTRUCT* pKey = reinterpret_cast<KBDLLHOOKSTRUCT*>(LParam);
+            if ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000) &&
+                (KeyData->vkCode == '1' || KeyData->vkCode == VK_NUMPAD1)) {
+                IOContext->DeactivateEdge();
+                return 1;
+            }
 
-        if (pKey->dwExtraInfo == OMNI_INPUT_COOKIE) {
-            return CallNextHookEx(nullptr, NCode, WParam, LParam);
-        }
-
-        if ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000) &&
-            (pKey->vkCode == '1' || pKey->vkCode == VK_NUMPAD1)) {
-            IOContext->DeactivateEdge();
-            return 1;
-        }
-
-        if (IOContext->InputLocked.load(std::memory_order_acquire)) {
             auto* NetSession = IOContext->ActiveNetSession.load(std::memory_order_acquire);
             if (NetSession) {
                 OmniNet::OmniHeader Header;
@@ -61,19 +58,19 @@ LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
                 Header.Flags      = 0;
 
                 OmniKeyPacket KeyPacket = {};
-                KeyPacket.VkCode        = static_cast<uint16_t>(pKey->vkCode);
-                KeyPacket.ScanCode      = static_cast<uint16_t>(pKey->scanCode);
+                KeyPacket.VkCode        = static_cast<uint16_t>(KeyData->vkCode);
+                KeyPacket.ScanCode      = static_cast<uint16_t>(KeyData->scanCode);
                 KeyPacket.Flags         = 0;
 
-                if (pKey->scanCode != 0) {
+                if (KeyData->scanCode != 0) {
                     KeyPacket.Flags |= KEYEVENTF_SCANCODE;
                 }
 
-                if (pKey->flags & LLKHF_EXTENDED) {
+                if (KeyData->flags & LLKHF_EXTENDED) {
                     KeyPacket.Flags |= KEYEVENTF_EXTENDEDKEY;
                 }
 
-                if (pKey->flags & LLKHF_UP) {
+                if (KeyData->flags & LLKHF_UP) {
                     KeyPacket.Flags |= KEYEVENTF_KEYUP;
                 }
 
@@ -90,19 +87,15 @@ LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
 
 LRESULT OmniIOShield::MouseProc(int NCode, WPARAM WParam, LPARAM LParam)
 {
-    if (NCode < 0)
-        return CallNextHookEx(nullptr, NCode, WParam, LParam);
-
-    if (LParam) {
-        MSLLHOOKSTRUCT* pMouse = reinterpret_cast<MSLLHOOKSTRUCT*>(LParam);
-        if (pMouse->dwExtraInfo == OMNI_INPUT_COOKIE) {
-            return CallNextHookEx(nullptr, NCode, WParam, LParam);
+    if (NCode >= 0 && IOContext && IOContext->InputLocked.load(std::memory_order_relaxed))
+        [[unlikely]] {
+        auto* MouseData = reinterpret_cast<MSLLHOOKSTRUCT*>(LParam);
+        if (!MouseData || MouseData->dwExtraInfo != OMNI_INPUT_COOKIE) {
+            return 1;
         }
     }
 
-    return (IOContext && IOContext->InputLocked.load(std::memory_order_acquire))
-               ? 1
-               : CallNextHookEx(nullptr, NCode, WParam, LParam);
+    return CallNextHookEx(nullptr, NCode, WParam, LParam);
 }
 
 OmniIOCap::OmniIOCap(IOLinkContext& Ctx) : IOCtx(Ctx)
