@@ -107,9 +107,6 @@ class OmniIOCap
     // Drain callback used during the teardown window.
     void VoidExitCallback(LPARAM& LParam);
 
-    // Window Move Detection
-    void WindowMoveListener(bool State = false);
-
     // Event-Driven Focus Detection, Mainly for games
     void FocusEventListener(bool State = true);
 
@@ -126,7 +123,6 @@ class OmniIOCap
 
     std::mutex ConditionMutex;
 
-    HWINEVENTHOOK WinCapHook   = NULL;
     HWINEVENTHOOK WinFocusHook = NULL;
     UINT          RawInputSize;
 
@@ -134,16 +130,6 @@ class OmniIOCap
 
     void CreateEdgeProbe(HWND Hwnd);
     void StopEdgeProbe();
-
-    static void CALLBACK WinMvEventProc(
-        HWINEVENTHOOK HWinEventHook,
-        DWORD         Event,
-        HWND          Hwnd,
-        LONG          IDObject,
-        LONG          IDChild,
-        DWORD         IDEventThread,
-        DWORD         DWMSEventTime
-    );
 
     static void CALLBACK WinFocusEventProc(
         HWINEVENTHOOK HWinEventHook,

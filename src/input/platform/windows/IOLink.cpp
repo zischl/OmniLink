@@ -117,7 +117,6 @@ OmniIOCap::OmniIOCap(IOLinkContext& Ctx) : IOCtx(Ctx)
 OmniIOCap::~OmniIOCap()
 {
     FocusEventListener(false);
-    WindowMoveListener(false);
     StopEdgeProbe();
 }
 
@@ -160,56 +159,6 @@ void CALLBACK OmniIOCap::WinFocusEventProc(
     CURSORINFO CursorInfo = {sizeof(CURSORINFO)};
     if (GetCursorInfo(&CursorInfo)) {
         OmniSynth::GameMode.store((CursorInfo.flags == 0), std::memory_order_relaxed);
-    }
-}
-
-void OmniIOCap::WindowMoveListener(bool State)
-{
-    if (WinCapHook == NULL && State == true) {
-        WinCapHook = SetWinEventHook(
-            EVENT_SYSTEM_MOVESIZESTART,
-            EVENT_SYSTEM_MOVESIZEEND,
-            NULL,
-            WinMvEventProc,
-            0,
-            0,
-            WINEVENT_OUTOFCONTEXT
-        );
-    } else if (WinCapHook != NULL && State == false) {
-        UnhookWinEvent(WinCapHook);
-        WinCapHook = NULL;
-    }
-}
-
-void CALLBACK OmniIOCap::WinMvEventProc(
-    HWINEVENTHOOK HWinEventHook,
-    DWORD         Event,
-    HWND          Hwnd,
-    LONG          IDObject,
-    LONG          IDChild,
-    DWORD         IDEventThread,
-    DWORD         DWMSEventTime
-)
-{
-    static std::atomic_bool EventStatus{false};
-
-    switch (Event) {
-    case EVENT_SYSTEM_MOVESIZESTART: {
-        EventStatus.store(true);
-        std::thread([Hwnd]() {
-            HWND Hwnd_ = Hwnd;
-            RECT Pos   = {};
-            while (EventStatus.load()) {
-                GetWindowRect(Hwnd_, &Pos);
-                OutputDebugStringA((std::to_string(Pos.right) + "\n").c_str());
-                std::this_thread::sleep_for(std::chrono::milliseconds(400));
-            }
-        }).detach();
-    } break;
-
-    case EVENT_SYSTEM_MOVESIZEEND:
-        EventStatus.store(false);
-        break;
     }
 }
 
@@ -290,8 +239,9 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                             Header.Flags      = 0;
 
                             OmniBoundaryPacket BoundaryData = {};
-                            BoundaryData.Action  = static_cast<uint8_t>(BoundaryAction::Enter);
-                            BoundaryData.Edge    = static_cast<uint8_t>(Name);
+
+                            BoundaryData.Action  = BoundaryAction::Enter;
+                            BoundaryData.Edge    = Name;
                             BoundaryData.Y_Ratio = YRatio;
                             BoundaryData.X_Ratio = XRatio;
 
@@ -551,7 +501,7 @@ std::atomic<bool> GameMode{false};
 
 void ProcBoundary(const OmniBoundaryPacket& Packet)
 {
-    if (Packet.Action == static_cast<uint8_t>(BoundaryAction::Enter)) {
+    if (Packet.Action == BoundaryAction::Enter) {
         Device::MonitorRes Res = Device::GetMonitorResolution();
 
         int TargetY =
@@ -564,7 +514,7 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
                 ? static_cast<int>((static_cast<uint64_t>(Packet.X_Ratio) * (Res.Width - 1)) >> 16)
                 : static_cast<int>(Res.Width >> 1);
 
-        DeviceMap Edge = static_cast<DeviceMap>(Packet.Edge);
+        DeviceMap Edge = Packet.Edge;
         switch (Edge) {
         case DeviceMap::L1:
         case DeviceMap::LU1:
@@ -587,7 +537,7 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
         }
 
         SetCursorPos(TargetX, TargetY);
-    } else if (Packet.Action == static_cast<uint8_t>(BoundaryAction::Return)) {
+    } else if (Packet.Action == BoundaryAction::Return) {
         auto* Ctx = OmniIOShield::GetContext();
         if (Ctx) {
             Ctx->DeactivateEdge();
@@ -599,7 +549,7 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
                 ? static_cast<int>((static_cast<uint64_t>(Packet.Y_Ratio) * (Res.Height - 1)) >> 16)
                 : static_cast<int>(Res.Height >> 1);
 
-        DeviceMap Edge    = static_cast<DeviceMap>(Packet.Edge);
+        DeviceMap Edge    = Packet.Edge;
         int       TargetX = 2;
         if (Edge == DeviceMap::L1 || Edge == DeviceMap::LU1 || Edge == DeviceMap::LD1) {
             TargetX = 2;

@@ -37,12 +37,12 @@ enum class BoundaryAction : uint8_t { Enter = 0, Return = 1 };
 
 struct alignas(16) OmniBoundaryPacket
 {
-    uint8_t  Action;    // BoundaryAction (0=Enter, 1=Return)
-    uint8_t  Edge;      // DeviceMap edge
-    uint16_t Y_Ratio;   // Normalized Y ratio (0..65535)
-    uint16_t X_Ratio;   // Normalized X ratio (0..65535)
-    uint16_t Reserved;  // Padding
-    uint64_t Reserved2; // Padding to 16 bytes
+    BoundaryAction Action;    // Enum.. right above this..
+    DeviceMap      Edge;      // DeviceMap edge
+    uint16_t       Y_Ratio;   // Normalized Y ratio (0..65535)
+    uint16_t       X_Ratio;   // Normalized X ratio (0..65535)
+    uint16_t       Reserved;  // Padding
+    uint64_t       Reserved2; // Padding to 16 bytes
 };
 
 struct alignas(16) OmniKeyPacket
