@@ -108,8 +108,7 @@ OmniIOCap::OmniIOCap(IOLinkContext& Ctx) : IOCtx(Ctx)
     RawInputSize = 48;
 
     Device::MonitorRes MonRes = Device::GetMonitorResolution();
-    IOCtx.ResHeight           = MonRes.Height;
-    IOCtx.ResWidth            = MonRes.Width;
+    IOCtx.OmniRouter.SetResolution(MonRes.Width, MonRes.Height);
 
     FocusEventListener(true);
 }
@@ -211,15 +210,15 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                         IOCtx.InputLocked.store(true, std::memory_order_release);
 
                         uint16_t YRatio =
-                            (IOCtx.ResHeight > 0)
+                            (IOCtx.OmniRouter.ResHeight > 0)
                                 ? static_cast<uint16_t>(
-                                      (static_cast<uint64_t>(Pos.y) << 16) / IOCtx.ResHeight
+                                      (static_cast<uint64_t>(Pos.y) << 16) / IOCtx.OmniRouter.ResHeight
                                   )
                                 : (1 << 15);
                         uint16_t XRatio =
-                            (IOCtx.ResWidth > 0)
+                            (IOCtx.OmniRouter.ResWidth > 0)
                                 ? static_cast<uint16_t>(
-                                      (static_cast<uint64_t>(Pos.x) << 16) / IOCtx.ResWidth
+                                      (static_cast<uint64_t>(Pos.x) << 16) / IOCtx.OmniRouter.ResWidth
                                   )
                                 : (1 << 15);
 
@@ -306,11 +305,11 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                     case DeviceMap::R1:
                     case DeviceMap::RU1:
                     case DeviceMap::RD1:
-                        targetX = static_cast<int>(IOCtx.ResWidth - 2);
+                        targetX = static_cast<int>(IOCtx.OmniRouter.ResWidth - 2);
                         break;
                     case DeviceMap::U1:
                         targetX = VirtualPosX;
-                        targetY = static_cast<int>(IOCtx.ResHeight - 2);
+                        targetY = static_cast<int>(IOCtx.OmniRouter.ResHeight - 2);
                         break;
                     case DeviceMap::D1:
                         targetX = VirtualPosX;
@@ -342,8 +341,8 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
 
 void OmniIOCap::AddEdgeCondition(DeviceMap Index)
 {
-    const uint32_t W = IOCtx.ResWidth;
-    const uint32_t H = IOCtx.ResHeight;
+    const uint32_t W = IOCtx.OmniRouter.ResWidth;
+    const uint32_t H = IOCtx.OmniRouter.ResHeight;
 
     switch (Index) {
     case DeviceMap::L1:
@@ -460,9 +459,9 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
             return;
 
         VirtualPosX =
-            std::clamp(VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.ResWidth - 1));
+            std::clamp(VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.OmniRouter.ResWidth - 1));
         VirtualPosY = std::clamp(
-            VirtualPosY + static_cast<int>(dY), 0, static_cast<int>(IOCtx.ResHeight - 1)
+            VirtualPosY + static_cast<int>(dY), 0, static_cast<int>(IOCtx.OmniRouter.ResHeight - 1)
         );
         MouseX += dX;
         MouseY += dY;
