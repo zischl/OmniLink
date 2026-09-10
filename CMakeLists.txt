@@ -98,6 +98,7 @@ set(COMMON_SOURCES
     src/core/ByteStream.cpp
     src/core/OmniLogger.cpp
     src/core/Helper.cpp
+    src/core/OmniRouterContext.cpp
     src/net/OmniDiscovery.cpp
     src/app/OmniCore.cpp
     src/app/OmniAPI.cpp
@@ -132,6 +133,7 @@ if(WIN32)
       src/render/platform/windows/D3D11RendererCore.cpp
       src/input/platform/windows/IOLink.cpp
       src/window/platform/windows/WinForge.cpp
+      src/window/platform/windows/WindowDragCap.cpp
       src/app/platform/windows/SystemLink.cpp
       src/clipboard/platform/windows/ClipBoardLink.cpp
       src/misc/platform/windows/system_probe.cpp

@@ -2,6 +2,7 @@
 
 #include "OmniEnums.h"
 #include "OmniRouterContext.h"
+#include "WindowDragTypes.h"
 #include <Windows.h>
 #include <atomic>
 #include <functional>
@@ -15,7 +16,7 @@ class WindowDragCap
 
     void WindowMoveListener(bool State = false);
 
-    std::function<void(HWND, DeviceMap)> WindowDragCallback = nullptr;
+    std::function<void(HWND, DeviceMap, WinDragAction)> WindowDragCallback = nullptr;
 
   private:
     OmniRouterContext&    Router;

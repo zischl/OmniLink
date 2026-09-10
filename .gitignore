@@ -6,3 +6,7 @@
 
 /out/
 /build/
+
+liss.dat
+.ignore
+dev.bat
