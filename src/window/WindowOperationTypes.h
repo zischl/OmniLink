@@ -23,3 +23,17 @@ struct alignas(16) OmniWinDragPacket
 #pragma pack(pop)
 
 static_assert(sizeof(OmniWinDragPacket) == 16, "OmniWinDragPacket must be exactly 16 bytes");
+
+#pragma pack(push, 1)
+
+struct alignas(8) OmniWinResizePacket
+{
+    uint16_t WindowKey;
+    uint16_t Width;
+    uint16_t Height;
+    uint16_t Reserved;
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(OmniWinResizePacket) == 8, "shit must be exactly 8 bytes");
