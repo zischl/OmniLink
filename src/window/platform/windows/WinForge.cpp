@@ -77,20 +77,19 @@ HWND WinForge::CreateWindowAsync(
     WindowThread = std::thread([this, name, hInstance, nCmdShow, Width, Height, D3DDevStruct] {
         hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
-        if (Width == 0 || Height == 0) {
+        uint32_t TargetWidth  = Width;
+        uint32_t TargetHeight = Height;
+        if (TargetWidth == 0 || TargetHeight == 0) {
             const int ScreenW = GetSystemMetrics(SM_CXSCREEN);
             const int ScreenH = GetSystemMetrics(SM_CYSCREEN);
-            WindowWidth       = (Width > 0) ? Width : static_cast<uint32_t>(ScreenW);
-            WindowHeight      = (Height > 0) ? Height : static_cast<uint32_t>(ScreenH);
-        } else {
-            WindowWidth  = Width;
-            WindowHeight = Height;
+            TargetWidth       = (TargetWidth > 0) ? TargetWidth : static_cast<uint32_t>(ScreenW);
+            TargetHeight      = (TargetHeight > 0) ? TargetHeight : static_cast<uint32_t>(ScreenH);
         }
 
-        TextureWidth  = WindowWidth;
-        TextureHeight = WindowHeight;
+        TextureWidth  = TargetWidth;
+        TextureHeight = TargetHeight;
 
-        WinConfig config(L"Linker", WindowWidth, WindowHeight, name.c_str(), this);
+        WinConfig config(L"Linker", TargetWidth, TargetHeight, name.c_str(), this);
         hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
         if (hwnd == NULL) {
             CoUninitialize();
@@ -107,7 +106,7 @@ HWND WinForge::CreateWindowAsync(
         HWNDxD3D11 RendererPtrs;
         RendererPtrs.D3D11Device  = D3DDevStruct.D3D11Device;
         RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
-        Renderer.RendererInit(hwnd, WindowWidth, WindowHeight, RendererPtrs);
+        Renderer.RendererInit(hwnd, TargetWidth, TargetHeight, RendererPtrs);
         D3D11Device = RendererPtrs.D3D11Device.Get();
         if (D3D11Device)
             D3D11Device->AddRef();
@@ -162,23 +161,13 @@ HWND WinForge::CreateWindowAsync(
         SrvDesc.Texture2D.MostDetailedMip = 0;
         SrvDesc.Texture2D.MipLevels       = 1;
 
-        D3D11_VIEWPORT viewport = {};
-        viewport.TopLeftX       = 0.0f;
-        viewport.TopLeftY       = 0.0f;
-        viewport.Width          = config.wdWidth;
-        viewport.Height         = config.wdHeight;
-        viewport.MinDepth       = 0.0f;
-        viewport.MaxDepth       = 1.0f;
-
-        if (D3D11Context) {
-            D3D11Context->RSSetViewports(1, &viewport);
-        }
+        UpdateDimensions(TargetWidth, TargetHeight);
 
         // ###############################################################################//
 
         CustommainBufferDesc           = {};
-        CustommainBufferDesc.Width     = WindowWidth;
-        CustommainBufferDesc.Height    = WindowHeight;
+        CustommainBufferDesc.Width     = TargetWidth;
+        CustommainBufferDesc.Height    = TargetHeight;
         CustommainBufferDesc.Format    = DXGI_FORMAT_B8G8R8A8_UNORM;
         CustommainBufferDesc.Usage     = D3D11_USAGE_DEFAULT;
         CustommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -203,7 +192,7 @@ HWND WinForge::CreateWindowAsync(
             UpdateWindow(hwnd);
         }
 
-        OmniDecoder.emplace<NvdecSession>(WindowWidth, WindowHeight, FrameBufferTex.Get());
+        OmniDecoder.emplace<NvdecSession>(TargetWidth, TargetHeight, FrameBufferTex.Get());
 
         MainLoop();
 
@@ -214,6 +203,46 @@ HWND WinForge::CreateWindowAsync(
     });
 
     return hwnd;
+}
+
+void WinForge::UpdateDimensions(uint32_t Width, uint32_t Height)
+{
+    if (!D3D11Context || (Width == WindowWidth && Height == WindowHeight))
+        return;
+
+    WindowWidth  = Width;
+    WindowHeight = Height;
+
+    D3D11_VIEWPORT viewport = {};
+    viewport.TopLeftX       = 0.0f;
+    viewport.TopLeftY       = 0.0f;
+    viewport.Width          = static_cast<float>(WindowWidth);
+    viewport.Height         = static_cast<float>(WindowHeight);
+    viewport.MinDepth       = 0.0f;
+    viewport.MaxDepth       = 1.0f;
+    D3D11Context->RSSetViewports(1, &viewport);
+
+    if (VertexBuffer && TextureWidth > 0 && TextureHeight > 0) {
+        const float U_max =
+            (std::min)(1.0f, static_cast<float>(WindowWidth) / static_cast<float>(TextureWidth));
+        const float V_max =
+            (std::min)(1.0f, static_cast<float>(WindowHeight) / static_cast<float>(TextureHeight));
+
+        struct VertexStruct
+        {
+            DirectX::XMFLOAT3 POSITION;
+            DirectX::XMFLOAT2 TEXCOORD;
+        };
+
+        VertexStruct vertices[] = {
+            {DirectX::XMFLOAT3(-1.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(0.0f, 0.0f)},
+            {DirectX::XMFLOAT3(1.0f, 1.0f, 0.0f), DirectX::XMFLOAT2(U_max, 0.0f)},
+            {DirectX::XMFLOAT3(-1.0f, -1.0f, 0.0f), DirectX::XMFLOAT2(0.0f, V_max)},
+            {DirectX::XMFLOAT3(1.0f, -1.0f, 0.0f), DirectX::XMFLOAT2(U_max, V_max)}
+        };
+
+        D3D11Context->UpdateSubresource(VertexBuffer, 0, nullptr, vertices, 0, 0);
+    }
 }
 
 void WinForge::Render()
@@ -364,11 +393,19 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     switch (uMsg) {
     case WM_SIZE:
         if (WinForgePtr) {
-            WinForgePtr->WindowWidth  = LOWORD(lParam);
-            WinForgePtr->WindowHeight = HIWORD(lParam);
+            WinForgePtr->UpdateDimensions(LOWORD(lParam), HIWORD(lParam));
         }
         return 0;
 
+    case WM_EXITSIZEMOVE:
+        if (WinForgePtr && WinForgePtr->EventHandler.OnResize) {
+            WinForgePtr->EventHandler.OnResize(
+                WinForgePtr->EventHandler.Context,
+                WinForgePtr->WindowWidth,
+                WinForgePtr->WindowHeight
+            );
+        }
+        return 0;
     case WM_MOUSEACTIVATE:
         SetFocus(hwnd);
         return MA_ACTIVATE;

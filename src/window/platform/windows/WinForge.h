@@ -220,11 +220,16 @@ class WinForge
     }
 
     inline HWND GetHwnd() const { return hwnd.load(std::memory_order_relaxed); }
+
+    // Sets viewport and updates vertex quad so that after the initial full resolution
+    // texture allocation only the active window sized rectangle gets sampled and mapped
+    // to the window view port
+    void UpdateDimensions(uint32_t Width, uint32_t Height);
   private:
     OmniWindowEvent   EventHandler{};
     std::atomic<bool> EventForwarderState{false};
-    uint32_t          WindowWidth     = 1920;
-    uint32_t          WindowHeight    = 1080;
+    uint32_t          WindowWidth     = 0;
+    uint32_t          WindowHeight    = 0;
     uint32_t          TextureWidth    = 1920;
     uint32_t          TextureHeight   = 1080;
     uint16_t          LastNormalizedX = 0xFFFF;
