@@ -17,7 +17,8 @@ enum PacketType : uint8_t {
     ProcBoundary,
     ProcKey,
     ProcClipboard,
-    ProcWinDrag
+    ProcWinDrag,
+    ProcWinResize
 };
 
 enum FlagTypes : uint8_t { VoidArg, Argonized };

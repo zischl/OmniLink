@@ -225,6 +225,9 @@ class WinForge
     // texture allocation only the active window sized rectangle gets sampled and mapped
     // to the window view port
     void UpdateDimensions(uint32_t Width, uint32_t Height);
+
+    void ProcWindowDrag(const OmniWinDragPacket& Packet);
+
   private:
     OmniWindowEvent   EventHandler{};
     std::atomic<bool> EventForwarderState{false};
