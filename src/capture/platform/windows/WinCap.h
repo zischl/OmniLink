@@ -292,12 +292,20 @@ class WGWindowCaptureEx : public WGCapture
     void StartSession();
     void CloseSession();
 
+    using ResizeCallback = std::function<void(uint32_t Width, uint32_t Height)>;
+
+    inline void SetResizeCallback(ResizeCallback Callback)
+    {
+        OnResizeCallback = std::move(Callback);
+    }
+
   private:
     winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
     winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
     winrt::event_token ClosedToken;
 
+    ResizeCallback OnResizeCallback;
     FrameCallback OnFrameArrived;
     HWND TargetHWnd = NULL;
     int CurrentWidth = 0;

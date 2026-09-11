@@ -661,6 +661,9 @@ void WGWindowCaptureEx::CreateWindowCapSession(
             Pool.Recreate(
                 D3DDevice_WGC, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 3, contentSize
             );
+            if (OnResizeCallback) {
+                OnResizeCallback(static_cast<uint32_t>(CurrentWidth), static_cast<uint32_t>(CurrentHeight));
+            }
         }
 
         auto access =

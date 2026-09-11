@@ -18,6 +18,9 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
     if (Mode == CaptureMode::WGC_Window ||
         (Mode == CaptureMode::WGC && Config.WindowHandle != NULL)) {
         WindowCaptureWGC* WGWinCapture = new WindowCaptureWGC(D3D11Device);
+        if (Config.OnResize) {
+            WGWinCapture->SetResizeCallback(Config.OnResize);
+        }
 
         BufferedNvencSession<CachedPoolNvencSession>* Encoder =
             new BufferedNvencSession<CachedPoolNvencSession>(

@@ -2,7 +2,7 @@
 
 #include "OmniEnums.h"
 #include "OmniRouterContext.h"
-#include "WindowDragTypes.h"
+#include "WindowOperationTypes.h"
 #include <Windows.h>
 #include <atomic>
 #include <functional>

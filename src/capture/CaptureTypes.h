@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 #if defined(_WIN32)
 #include <Windows.h>
 #endif
@@ -14,6 +15,7 @@ struct StreamConfig
     uint32_t Height = 1080;
 #if defined(_WIN32)
     HWND WindowHandle = NULL;
+    std::function<void(uint32_t, uint32_t)> OnResize;
 #endif
 };
 
