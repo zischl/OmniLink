@@ -17,7 +17,7 @@ struct alignas(16) OmniWinDragPacket
     uint16_t      WindowHeight; // Window height
     int16_t       CursorGripX;  // Cursor X offset relative to window top-left
     int16_t       CursorGripY;  // Same but for Y
-    uint16_t      Reserved;     // Padding to 16 bytes
+    uint16_t      WindowID;     // SubStream identifier for the dragged window
 };
 
 #pragma pack(pop)

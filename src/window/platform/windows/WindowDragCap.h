@@ -16,7 +16,8 @@ class WindowDragCap
 
     void WindowMoveListener(bool State = false);
 
-    std::function<void(HWND, DeviceMap, WinDragAction)> WindowDragCallback = nullptr;
+    // Returns a uint16_t id which can be used or passed around, as a unique window id helper
+    std::function<uint16_t(HWND, DeviceMap, WinDragAction)> WindowDragCallback = nullptr;
 
   private:
     OmniRouterContext&    Router;
@@ -37,7 +38,9 @@ class WindowDragCap
 
     // Final drop gurantees remote window position mirroring sits at the exact correct
     // position for the last time and takes focus to that window.
-    void FinalizeDrop(HWND Hwnd, DeviceMap Edge, const RECT& Pos, int GripX, int GripY);
+    void FinalizeDrop(
+        HWND Hwnd, DeviceMap Edge, const RECT& Pos, int GripX, int GripY, uint16_t WindowID
+    );
 
     static void CALLBACK WinMvEventProc(
         HWINEVENTHOOK HWinEventHook,

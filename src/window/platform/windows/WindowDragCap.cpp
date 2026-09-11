@@ -138,6 +138,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
     DeviceMap PrevEdge       = DeviceMap::C0;
     int       InitialGripX   = 0;
     int       InitialGripY   = 0;
+    uint16_t  WindowID       = 0;
 
     while (SessionId == DragSessionId.load(std::memory_order_relaxed)) {
         if (!IsWindow(Hwnd) || DragCapInstance != this)
@@ -196,6 +197,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
                     OmniWinDragPacket CancelPacket = {};
                     CancelPacket.Action            = WinDragAction::Cancel;
                     CancelPacket.Edge              = PrevEdge;
+                    CancelPacket.WindowID          = WindowID;
                     OldSession->SessionSend(
                         reinterpret_cast<CHAR*>(&CancelPacket),
                         sizeof(OmniWinDragPacket),
@@ -205,6 +207,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
                 if (WindowDragCallback) {
                     WindowDragCallback(Hwnd, PrevEdge, WinDragAction::Cancel);
                 }
+                WindowID       = 0;
                 EdgeCrossState = false;
             }
 
@@ -238,14 +241,16 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
                 Packet.Action  = WinDragAction::Begin;
 
                 if (WindowDragCallback) {
-                    WindowDragCallback(Hwnd, ActiveEdge, WinDragAction::Begin);
+                    WindowID = WindowDragCallback(Hwnd, ActiveEdge, WinDragAction::Begin);
                 }
+                Packet.WindowID = WindowID;
 
                 NetSession->SessionSend(
                     reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
                 );
             } else {
-                Packet.Action = WinDragAction::Move;
+                Packet.Action   = WinDragAction::Move;
+                Packet.WindowID = WindowID;
                 NetSession->SessionSend(
                     reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
                 );
@@ -262,6 +267,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
                 OmniWinDragPacket Packet = {};
                 Packet.Action            = WinDragAction::Cancel;
                 Packet.Edge              = PrevEdge;
+                Packet.WindowID          = WindowID;
                 Session->SessionSend(
                     reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
                 );
@@ -269,6 +275,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
             if (WindowDragCallback) {
                 WindowDragCallback(Hwnd, PrevEdge, WinDragAction::Cancel);
             }
+            WindowID = 0;
             PrevEdge = DeviceMap::C0;
         }
 
@@ -276,11 +283,13 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
     }
 
     if (EdgeCrossState && DragCapInstance == this) {
-        FinalizeDrop(Hwnd, PrevEdge, WindowPos, InitialGripX, InitialGripY);
+        FinalizeDrop(Hwnd, PrevEdge, WindowPos, InitialGripX, InitialGripY, WindowID);
     }
 }
 
-void WindowDragCap::FinalizeDrop(HWND Hwnd, DeviceMap Edge, const RECT& Pos, int GripX, int GripY)
+void WindowDragCap::FinalizeDrop(
+    HWND Hwnd, DeviceMap Edge, const RECT& Pos, int GripX, int GripY, uint16_t SubStreamID
+)
 {
     auto*          NetSession = Router.GetWindowSession(Edge);
     const uint32_t ResW       = Router.ResWidth.load(std::memory_order_relaxed);
@@ -314,6 +323,7 @@ void WindowDragCap::FinalizeDrop(HWND Hwnd, DeviceMap Edge, const RECT& Pos, int
         Packet.WindowHeight      = static_cast<uint16_t>(WinH);
         Packet.CursorGripX       = static_cast<int16_t>(GripX);
         Packet.CursorGripY       = static_cast<int16_t>(GripY);
+        Packet.WindowID          = SubStreamID;
 
         NetSession->SessionSend(
             reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
