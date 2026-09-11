@@ -10,7 +10,9 @@
 #include "D3D11Renderer.h"
 #include "DecoderConcept.h"
 #include "OmniConfig.h"
+#include "StreamWindow.h"
 #include "WinCap.h"
+#include "WindowOperationTypes.h"
 #include "nvdec.h"
 
 #include <Windows.h>
@@ -18,38 +20,43 @@
 #include <wrl/client.h>
 
 #include <atomic>
-#include <functional>
-#include <string>
 #include <thread>
 #include <variant>
 
 using Microsoft::WRL::ComPtr;
 
-using InputPacketCallback =
-    std::function<void(const void* Data, uint32_t Size, uint8_t PacketType)>;
+// It's.. prolly quite obvious but yes, inputs, resize, on close events all in one place
+struct OmniWindowEvent
+{
+    void* Context = nullptr;
+
+    void (*OnInput)(void* Ctx, const void* Data, uint32_t Size, bool MouseInput) = nullptr;
+    void (*OnResize)(void* Ctx, uint32_t Width, uint32_t Height)                 = nullptr;
+    void (*OnWindowClose)(void* Ctx)                                             = nullptr;
+};
 
 struct WinConfig
 {
-    std::wstring       class_name = L"Something";
-    const std::wstring Window_Name;
-    UINT               wdWidth  = 1280;
-    UINT               wdHeight = 720;
-    LPVOID             lParam   = NULL;
+    const wchar_t* ClassName  = L"Something";
+    const wchar_t* WindowName = L"";
+    UINT           wdWidth    = 1280;
+    UINT           wdHeight   = 720;
+    LPVOID         lParam     = nullptr;
 
     WinConfig(
-        const std::wstring ClassName,
-        const UINT         Width,
-        const UINT         Height,
-        const wchar_t*     WindowName,
-        LPVOID             lParam_
+        const wchar_t* ClassName_,
+        const UINT     Width,
+        const UINT     Height,
+        const wchar_t* WindowName_,
+        LPVOID         lParam_ = nullptr
     )
-        : class_name(ClassName), Window_Name(WindowName), wdWidth(Width), wdHeight(Height),
+        : ClassName(ClassName_), WindowName(WindowName_), wdWidth(Width), wdHeight(Height),
           lParam(lParam_)
     {
     }
 };
 
-HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc);
+HWND WindowInit(const WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc);
 
 constexpr UINT WM_SWAP_DECODER = WM_USER + 101;
 
@@ -63,7 +70,12 @@ class WinForge
     WinForge& operator=(const WinForge&) = delete;
 
     HWND CreateWindowAsync(
-        const wchar_t* window_name, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct = {}
+        const wchar_t* WindowName,
+        HINSTANCE&     hInstance,
+        int            nCmdShow,
+        uint32_t       Width        = 0,
+        uint32_t       Height       = 0,
+        D3DDevice      D3DDevStruct = {}
     );
 
     inline void SetFrameBufferSize(int Size)
@@ -171,54 +183,59 @@ class WinForge
         FrameTimeLimit = std::chrono::nanoseconds(1000000000LL / FPS);
     }
 
-    inline void SetInputCallback(InputPacketCallback Callback)
+    inline void SetEventForwarder(const OmniWindowEvent& Callback)
     {
-        InputCallback = std::move(Callback);
-
-        if (!InputCallback) {
-            InputForwarderState.store(false, std::memory_order_release);
+        EventHandler = Callback;
+        if (!EventHandler.OnInput) {
+            EventForwarderState.store(false, std::memory_order_release);
         }
     }
 
-    inline void SetInputForwarding(bool State)
+    inline void SetEventForwarding(bool State)
     {
-        InputForwarderState.store(
-            State && static_cast<bool>(InputCallback), std::memory_order_release
+        EventForwarderState.store(
+            State && (EventHandler.OnInput != nullptr), std::memory_order_release
         );
     }
 
-    inline bool GetInputForwardingState() const
+    inline bool GetEventForwardingState() const
     {
-        return InputForwarderState.load(std::memory_order_acquire);
+        return EventForwarderState.load(std::memory_order_acquire);
     }
 
-    inline void ToggleInputForwarding()
+    inline void ToggleEventForwarding()
     {
-        InputForwarderState.store(
-            !InputForwarderState.load(std::memory_order_relaxed) && InputCallback,
+        EventForwarderState.store(
+            !EventForwarderState.load(std::memory_order_relaxed) &&
+                (EventHandler.OnInput != nullptr),
             std::memory_order_release
         );
     }
 
-    inline void ForwardInput(const void* Data, uint32_t Size, uint8_t PacketType)
+    inline void InputHandler(const void* Data, uint32_t Size, bool MouseInput)
     {
-        InputCallback(Data, Size, PacketType);
+        if (EventHandler.OnInput) [[likely]] {
+            EventHandler.OnInput(EventHandler.Context, Data, Size, MouseInput);
+        }
     }
 
+    inline HWND GetHwnd() const { return hwnd.load(std::memory_order_relaxed); }
   private:
-    InputPacketCallback InputCallback = nullptr;
-    std::atomic<bool>   InputForwarderState{false};
-    uint32_t            WindowWidth     = 1920;
-    uint32_t            WindowHeight    = 1080;
-    uint16_t            LastNormalizedX = 0xFFFF;
-    uint16_t            LastNormalizedY = 0xFFFF;
+    OmniWindowEvent   EventHandler{};
+    std::atomic<bool> EventForwarderState{false};
+    uint32_t          WindowWidth     = 1920;
+    uint32_t          WindowHeight    = 1080;
+    uint32_t          TextureWidth    = 1920;
+    uint32_t          TextureHeight   = 1080;
+    uint16_t          LastNormalizedX = 0xFFFF;
+    uint16_t          LastNormalizedY = 0xFFFF;
 
-    HRESULT     hr      = NULL;
-    HWND        hwnd    = NULL;
-    WNDPROC     WProc   = NULL;
-    HANDLE*     Events  = nullptr;
-    DWORD       EventDW = NULL;
-    std::thread WindowThread;
+    HRESULT           hr = NULL;
+    std::atomic<HWND> hwnd{NULL};
+    WNDPROC           WProc   = NULL;
+    HANDLE*           Events  = nullptr;
+    DWORD             EventDW = NULL;
+    std::thread       WindowThread;
 
     std::chrono::steady_clock::duration FrameTimeLimit =
         std::chrono::nanoseconds(1000000000LL / 75);
@@ -286,8 +303,6 @@ class WinForge
             FramePool = nullptr;
         }
     }
-
-    __forceinline void null() {}
 
     // Streamer Links Window Proc
     static LRESULT CALLBACK WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

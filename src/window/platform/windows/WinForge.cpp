@@ -17,17 +17,17 @@ WinForge::~WinForge()
     CleanupFramePool();
 }
 
-HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc)
+HWND WindowInit(const WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WProc)
 {
-    WNDCLASSEXW wc = {};
-    if (!GetClassInfoExW(hInstance, Config.class_name.c_str(), &wc)) {
-        wc               = {};
-        wc.cbSize        = sizeof(WNDCLASSEXW);
-        wc.lpfnWndProc   = WProc;
-        wc.hInstance     = hInstance;
-        wc.lpszClassName = Config.class_name.c_str();
+    WNDCLASSEXW WndClassExW = {};
+    if (!GetClassInfoExW(hInstance, Config.ClassName, &WndClassExW)) {
+        WndClassExW               = {};
+        WndClassExW.cbSize        = sizeof(WNDCLASSEXW);
+        WndClassExW.lpfnWndProc   = WProc;
+        WndClassExW.hInstance     = hInstance;
+        WndClassExW.lpszClassName = Config.ClassName;
 
-        if (RegisterClassExW(&wc) == 0) {
+        if (RegisterClassExW(&WndClassExW) == 0) {
             OutputDebugString(
                 (L"Window Class Reg Died: " + std::to_wstring(GetLastError()) + L"\n").c_str()
             );
@@ -37,16 +37,16 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
     const int ScreenWidth  = GetSystemMetrics(SM_CXSCREEN);
     const int ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-    const int x = (ScreenWidth - Config.wdWidth) / 2;
-    const int y = (ScreenHeight - Config.wdHeight) / 2;
+    const int CenterX = (ScreenWidth - static_cast<int>(Config.wdWidth)) / 2;
+    const int CenterY = (ScreenHeight - static_cast<int>(Config.wdHeight)) / 2;
 
     HWND hwnd_ = CreateWindowExW(
         WS_EX_LAYERED,
-        Config.class_name.c_str(),
-        Config.Window_Name.c_str(),
+        Config.ClassName,
+        Config.WindowName,
         WS_POPUP,
-        x,
-        y,
+        CenterX,
+        CenterY,
         Config.wdWidth,
         Config.wdHeight,
         nullptr,
@@ -54,10 +54,6 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
         hInstance,
         Config.lParam
     );
-
-    // SetLayeredWindowAttributes(hwnd_, RGB(0,0,0), 0, ULW_COLORKEY);
-
-    SetProcessDPIAware();
 
     if (hwnd_ == NULL) {
         OutputDebugString(L"Window Creation Failed\n");
@@ -69,20 +65,37 @@ HWND WindowInit(WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDPROC WP
 }
 
 HWND WinForge::CreateWindowAsync(
-    const wchar_t* WindowName, HINSTANCE& hInstance, int nCmdShow, D3DDevice D3DDevStruct
+    const wchar_t* WindowName,
+    HINSTANCE&     hInstance,
+    int            nCmdShow,
+    uint32_t       Width,
+    uint32_t       Height,
+    D3DDevice      D3DDevStruct
 )
 {
-
-    std::wstring name(WindowName);
-    WindowThread = std::thread([this, name, hInstance, nCmdShow, D3DDevStruct] {
+    std::wstring name(WindowName ? WindowName : L"Window Link");
+    WindowThread = std::thread([this, name, hInstance, nCmdShow, Width, Height, D3DDevStruct] {
         hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        WinConfig config(L"Linker", 1920, 1080, name.c_str(), this);
+
+        if (Width == 0 || Height == 0) {
+            const int ScreenW = GetSystemMetrics(SM_CXSCREEN);
+            const int ScreenH = GetSystemMetrics(SM_CYSCREEN);
+            WindowWidth       = (Width > 0) ? Width : static_cast<uint32_t>(ScreenW);
+            WindowHeight      = (Height > 0) ? Height : static_cast<uint32_t>(ScreenH);
+        } else {
+            WindowWidth  = Width;
+            WindowHeight = Height;
+        }
+
+        TextureWidth  = WindowWidth;
+        TextureHeight = WindowHeight;
+
+        WinConfig config(L"Linker", WindowWidth, WindowHeight, name.c_str(), this);
         hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
         if (hwnd == NULL) {
             CoUninitialize();
             return;
         }
-        ShowWindow(hwnd, nCmdShow);
 
         Events    = new HANDLE[1];
         Events[0] = CreateEvent(NULL, FALSE, TRUE, NULL);
@@ -94,7 +107,7 @@ HWND WinForge::CreateWindowAsync(
         HWNDxD3D11 RendererPtrs;
         RendererPtrs.D3D11Device  = D3DDevStruct.D3D11Device;
         RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
-        Renderer.RendererInit(hwnd, config.wdWidth, config.wdHeight, RendererPtrs);
+        Renderer.RendererInit(hwnd, WindowWidth, WindowHeight, RendererPtrs);
         D3D11Device = RendererPtrs.D3D11Device.Get();
         if (D3D11Device)
             D3D11Device->AddRef();
@@ -164,8 +177,8 @@ HWND WinForge::CreateWindowAsync(
         // ###############################################################################//
 
         CustommainBufferDesc           = {};
-        CustommainBufferDesc.Width     = config.wdWidth;
-        CustommainBufferDesc.Height    = config.wdHeight;
+        CustommainBufferDesc.Width     = WindowWidth;
+        CustommainBufferDesc.Height    = WindowHeight;
         CustommainBufferDesc.Format    = DXGI_FORMAT_B8G8R8A8_UNORM;
         CustommainBufferDesc.Usage     = D3D11_USAGE_DEFAULT;
         CustommainBufferDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -185,10 +198,12 @@ HWND WinForge::CreateWindowAsync(
             );
         }
 
-        ShowWindow(hwnd, SW_SHOW);
-        UpdateWindow(hwnd);
+        if (nCmdShow != SW_HIDE) {
+            ShowWindow(hwnd, nCmdShow);
+            UpdateWindow(hwnd);
+        }
 
-        OmniDecoder.emplace<NvdecSession>(config.wdWidth, config.wdHeight, FrameBufferTex.Get());
+        OmniDecoder.emplace<NvdecSession>(WindowWidth, WindowHeight, FrameBufferTex.Get());
 
         MainLoop();
 
@@ -359,7 +374,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         return MA_ACTIVATE;
 
     case WM_MOUSEMOVE: {
-        if (WinForgePtr && WinForgePtr->GetInputForwardingState()) {
+        if (WinForgePtr && WinForgePtr->GetEventForwardingState()) {
             int x = GET_X_LPARAM(lParam);
             int y = GET_Y_LPARAM(lParam);
 
@@ -384,11 +399,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
                 Packet.dY              = normY;
                 Packet.Flags           = OMNI_MOUSE_ABSOLUTE;
 
-                WinForgePtr->ForwardInput(
-                    &Packet,
-                    sizeof(OmniMousePacket),
-                    static_cast<uint8_t>(OmniNet::PacketType::ProcMouse)
-                );
+                WinForgePtr->InputHandler(&Packet, sizeof(OmniMousePacket), true);
             }
         }
         return 0;
@@ -402,7 +413,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     case WM_MBUTTONUP:
     case WM_XBUTTONDOWN:
     case WM_XBUTTONUP: {
-        if (WinForgePtr && WinForgePtr->GetInputForwardingState()) {
+        if (WinForgePtr && WinForgePtr->GetEventForwardingState()) {
             int X = GET_X_LPARAM(lParam);
             int Y = GET_Y_LPARAM(lParam);
 
@@ -460,18 +471,14 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
                 }
             }
 
-            WinForgePtr->ForwardInput(
-                &Packet,
-                sizeof(OmniMousePacket),
-                static_cast<uint8_t>(OmniNet::PacketType::ProcMouse)
-            );
+            WinForgePtr->InputHandler(&Packet, sizeof(OmniMousePacket), true);
         }
         return 0;
     }
 
     case WM_MOUSEWHEEL:
     case WM_MOUSEHWHEEL: {
-        if (WinForgePtr && WinForgePtr->GetInputForwardingState()) {
+        if (WinForgePtr && WinForgePtr->GetEventForwardingState()) {
             POINT Point = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
             ScreenToClient(hwnd, &Point);
 
@@ -496,11 +503,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
             Packet.Buttons = (uMsg == WM_MOUSEWHEEL) ? MOUSEEVENTF_WHEEL : MOUSEEVENTF_HWHEEL;
             Packet.Wheel   = GET_WHEEL_DELTA_WPARAM(wParam);
 
-            WinForgePtr->ForwardInput(
-                &Packet,
-                sizeof(OmniMousePacket),
-                static_cast<uint8_t>(OmniNet::PacketType::ProcMouse)
-            );
+            WinForgePtr->InputHandler(&Packet, sizeof(OmniMousePacket), true);
         }
         return 0;
     }
@@ -516,12 +519,12 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         if ((wParam == 'X') && (GetKeyState(VK_CONTROL) & 0x8000) &&
             (GetKeyState(VK_SHIFT) & 0x8000)) {
             if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
-                WinForgePtr->ToggleInputForwarding();
+                WinForgePtr->ToggleEventForwarding();
             }
             return 0;
         }
 
-        if (WinForgePtr->GetInputForwardingState()) {
+        if (WinForgePtr->GetEventForwardingState()) {
             OmniKeyPacket KeyPacket = {};
             KeyPacket.VkCode        = static_cast<uint16_t>(wParam);
             KeyPacket.ScanCode      = static_cast<uint16_t>((lParam >> 16) & 0xFF);
@@ -537,11 +540,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
                 KeyPacket.Flags |= KEYEVENTF_KEYUP;
             }
 
-            WinForgePtr->ForwardInput(
-                &KeyPacket,
-                sizeof(OmniKeyPacket),
-                static_cast<uint8_t>(OmniNet::PacketType::ProcKey)
-            );
+            WinForgePtr->InputHandler(&KeyPacket, sizeof(OmniKeyPacket), false);
 
             // Alt+F4 will proceed to DefWindowProc so that this window can be closed normally
             if (uMsg == WM_SYSKEYDOWN && wParam == VK_F4 && (lParam & (1 << 29))) {
@@ -556,6 +555,9 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         PostQuitMessage(0);
         return 0;
     case WM_CLOSE:
+        if (WinForgePtr && WinForgePtr->EventHandler.OnWindowClose) {
+            WinForgePtr->EventHandler.OnWindowClose(WinForgePtr->EventHandler.Context);
+        }
         DestroyWindow(hwnd);
         return 0;
     case WM_SETCURSOR:
