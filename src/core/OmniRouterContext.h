@@ -24,6 +24,9 @@ struct OmniRouterContext
 
     void SetResolution(uint32_t Width, uint32_t Height);
 
+    void SetDeviceResolution(DeviceMap Edge, uint32_t Width, uint32_t Height);
+    void GetDeviceResolution(DeviceMap Edge, uint32_t& Width, uint32_t& Height) const;
+
     void RegisterSession(DeviceMap DeviceID, OmniNetSession<OmniMTU>* Session);
     void UnregisterSession(DeviceMap DeviceID);
 
@@ -31,8 +34,15 @@ struct OmniRouterContext
 
     OmniNetSession<OmniMTU>* GetSession(DeviceMap Edge) const;
 
+    void RegisterWindowSession(DeviceMap DeviceID, OmniNetSession<OmniMTU>* Session);
+    void UnregisterWindowSession(DeviceMap DeviceID);
+    OmniNetSession<OmniMTU>* GetWindowSession(DeviceMap Edge) const;
+
     void Reset();
 
   private:
     std::array<std::atomic<OmniNetSession<OmniMTU>*>, DeviceMap::END> Sessions;
+    std::array<std::atomic<OmniNetSession<OmniMTU>*>, DeviceMap::END> WindowSessions;
+    std::array<std::atomic<uint32_t>, DeviceMap::END>                 EdgeResWidth;
+    std::array<std::atomic<uint32_t>, DeviceMap::END>                 EdgeResHeight;
 };

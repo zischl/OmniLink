@@ -37,12 +37,15 @@ void WindowDragCap::WindowMoveListener(bool State)
     }
 }
 
-// Calculates remote window position based from source window postion and source device resolution
+// Calculates remote window position based on source window position
+// and source/target device resolutions
 static void ComputeEdgeTarget(
     DeviceMap   Edge,
     const RECT& WindowPosition,
-    uint32_t    ScreenResW,
-    uint32_t    ScreenResH,
+    uint32_t    LocalResW,
+    uint32_t    LocalResH,
+    uint32_t    TargetResW,
+    uint32_t    TargetResH,
     int&        OutTargetX,
     int&        OutTargetY
 )
@@ -54,12 +57,12 @@ static void ComputeEdgeTarget(
     case DeviceMap::R1:
     case DeviceMap::RU1:
     case DeviceMap::RD1:
-        OutTargetX = WindowPosition.left - static_cast<int>(ScreenResW);
+        OutTargetX = WindowPosition.left - static_cast<int>(LocalResW);
         break;
     case DeviceMap::L1:
     case DeviceMap::LU1:
     case DeviceMap::LD1:
-        OutTargetX = static_cast<int>(ScreenResW) + WindowPosition.left;
+        OutTargetX = static_cast<int>(TargetResW) + WindowPosition.left;
         break;
     default:
         break;
@@ -69,12 +72,12 @@ static void ComputeEdgeTarget(
     case DeviceMap::D1:
     case DeviceMap::RD1:
     case DeviceMap::LD1:
-        OutTargetY = WindowPosition.top - static_cast<int>(ScreenResH);
+        OutTargetY = WindowPosition.top - static_cast<int>(LocalResH);
         break;
     case DeviceMap::U1:
     case DeviceMap::RU1:
     case DeviceMap::LU1:
-        OutTargetY = static_cast<int>(ScreenResH) + WindowPosition.top;
+        OutTargetY = static_cast<int>(TargetResH) + WindowPosition.top;
         break;
     default:
         break;
@@ -167,24 +170,23 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
         const int Row =
             (WindowPos.top < 0) ? 0 : ((WindowPos.bottom > static_cast<int>(ResH)) ? 2 : 1);
 
-        const DeviceMap Candidate = Grid[Row][Column];
-        if (Candidate != DeviceMap::C0 && Router.GetSessionState(Candidate)) {
+        OmniNetSession<OmniMTU>* NetSession = nullptr;
+        const DeviceMap          Candidate  = Grid[Row][Column];
+        if (Candidate != DeviceMap::C0 && (NetSession = Router.GetWindowSession(Candidate))) {
             ActiveEdge = Candidate;
         } else if (Row != 1 && Column != 1) {
-            if (Router.GetSessionState(Grid[1][Column])) {
+            if ((NetSession = Router.GetWindowSession(Grid[1][Column]))) {
                 ActiveEdge = Grid[1][Column];
-            } else if (Router.GetSessionState(Grid[Row][1])) {
+            } else if ((NetSession = Router.GetWindowSession(Grid[Row][1]))) {
                 ActiveEdge = Grid[Row][1];
             }
         }
-
-        auto* NetSession = Router.GetSession(ActiveEdge);
 
         if (NetSession) {
             // If transitioning directly from one remote edge to another,
             // gotta cancel the old one first
             if (EdgeCrossState && PrevEdge != ActiveEdge) {
-                auto* OldSession = Router.GetSession(PrevEdge);
+                auto* OldSession = Router.GetWindowSession(PrevEdge);
                 if (OldSession) {
                     OmniNet::OmniHeader CancelHeader;
                     CancelHeader.Target     = 0;
@@ -206,9 +208,15 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
                 EdgeCrossState = false;
             }
 
-            int TargetX = 0;
-            int TargetY = 0;
-            ComputeEdgeTarget(ActiveEdge, WindowPos, ResW, ResH, TargetX, TargetY);
+            int      TargetX    = 0;
+            int      TargetY    = 0;
+            uint32_t TargetResW = 0;
+            uint32_t TargetResH = 0;
+
+            Router.GetDeviceResolution(ActiveEdge, TargetResW, TargetResH);
+            ComputeEdgeTarget(
+                ActiveEdge, WindowPos, ResW, ResH, TargetResW, TargetResH, TargetX, TargetY
+            );
 
             OmniNet::OmniHeader Header;
             Header.Target     = 0;
@@ -244,7 +252,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
             }
         } else if (EdgeCrossState) {
             EdgeCrossState = false;
-            auto* Session  = Router.GetSession(PrevEdge);
+            auto* Session  = Router.GetWindowSession(PrevEdge);
             if (Session) {
                 OmniNet::OmniHeader Header;
                 Header.Target     = 0;
@@ -274,7 +282,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
 
 void WindowDragCap::FinalizeDrop(HWND Hwnd, DeviceMap Edge, const RECT& Pos, int GripX, int GripY)
 {
-    auto*          NetSession = Router.GetSession(Edge);
+    auto*          NetSession = Router.GetWindowSession(Edge);
     const uint32_t ResW       = Router.ResWidth.load(std::memory_order_relaxed);
     const uint32_t ResH       = Router.ResHeight.load(std::memory_order_relaxed);
 
@@ -283,9 +291,13 @@ void WindowDragCap::FinalizeDrop(HWND Hwnd, DeviceMap Edge, const RECT& Pos, int
     int WinW = FinalPos.right - FinalPos.left;
     int WinH = FinalPos.bottom - FinalPos.top;
 
-    int TargetX = 0;
-    int TargetY = 0;
-    ComputeEdgeTarget(Edge, FinalPos, ResW, ResH, TargetX, TargetY);
+    int      TargetX    = 0;
+    int      TargetY    = 0;
+    uint32_t TargetResW = 0;
+    uint32_t TargetResH = 0;
+
+    Router.GetDeviceResolution(Edge, TargetResW, TargetResH);
+    ComputeEdgeTarget(Edge, FinalPos, ResW, ResH, TargetResW, TargetResH, TargetX, TargetY);
 
     if (NetSession) {
         OmniNet::OmniHeader Header;
