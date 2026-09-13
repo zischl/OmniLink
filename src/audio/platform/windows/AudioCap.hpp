@@ -51,14 +51,14 @@ using AudioPacketCallback = std::function<
 
 enum class CaptureState : uint8_t { Inactive = 0, Active = 1, Paused = 2 };
 
-class AudioCapture
+class OmniAudioLink
 {
   public:
-    AudioCapture();
-    ~AudioCapture();
+    OmniAudioLink();
+    ~OmniAudioLink();
 
-    AudioCapture(const AudioCapture&)            = delete;
-    AudioCapture& operator=(const AudioCapture&) = delete;
+    OmniAudioLink(const OmniAudioLink&)            = delete;
+    OmniAudioLink& operator=(const OmniAudioLink&) = delete;
 
     bool Init(
         AudioCaptureMode Mode       = AudioCaptureMode::DesktopOnly,

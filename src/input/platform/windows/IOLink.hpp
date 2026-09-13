@@ -51,18 +51,18 @@ static constexpr std::array<Point, 9> PointCache = {{
 template <uint32_t MTU> class OmniNetSession;
 
 // Installs keyboard/mouse hooks that suppress local input base on InputLocked
-class OmniIOShield
+class OmniInputFilter
 {
   public:
-    explicit OmniIOShield(IOLinkContext& Ctx);
+    explicit OmniInputFilter(InputLinkContext& Ctx);
 
     void InvokeInputFilter();
     void ReleaseInputFilter();
 
-    static IOLinkContext* GetContext() { return IOContext; }
+    static InputLinkContext* GetContext() { return IOContext; }
 
   private:
-    IOLinkContext& IOCtx;
+    InputLinkContext& IOCtx;
 
     HHOOK KeyboardBlock = NULL;
     HHOOK MouseBlock    = NULL;
@@ -70,15 +70,15 @@ class OmniIOShield
     static LRESULT CALLBACK KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam);
     static LRESULT CALLBACK MouseProc(int NCode, WPARAM WParam, LPARAM LParam);
 
-    static IOLinkContext* IOContext;
+    static InputLinkContext* IOContext;
 };
 
 // Handles screen-edge detection and high-performance raw input capture.
-class OmniIOCap
+class OmniInputLink
 {
   public:
-    explicit OmniIOCap(IOLinkContext& Ctx);
-    ~OmniIOCap();
+    explicit OmniInputLink(InputLinkContext& Ctx);
+    ~OmniInputLink();
 
     // Mouse cursor position tracked locally for edge detection and delta math.
     int MouseX      = 0;
@@ -94,7 +94,7 @@ class OmniIOCap
 
     // High Performance Input Capture
 
-    void (OmniIOCap::*InputProc)(LPARAM& LParam) = nullptr;
+    void (OmniInputLink::*InputProc)(LPARAM& LParam) = nullptr;
 
     void ToggleInputCapture(HWND Hwnd, bool State);
 
@@ -111,7 +111,7 @@ class OmniIOCap
     void FocusEventListener(bool State = true);
 
   private:
-    IOLinkContext& IOCtx;
+    InputLinkContext& IOCtx;
 
     std::atomic_bool InputLinkStatus{false};
     std::atomic_bool MouseEventCapStatus{false};

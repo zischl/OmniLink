@@ -4,7 +4,7 @@
 #include <utility>
 
 #if defined(_WIN32)
-OmniStreamController::StreamID OmniStreamController::AddStream(
+OmniStreamer::StreamID OmniStreamer::AddStream(
     ID3D11Device*        D3D11Device,
     ID3D11DeviceContext* D3D11Context,
     OmniNetSubStream*    SubStream,
@@ -88,7 +88,7 @@ OmniStreamController::StreamID OmniStreamController::AddStream(
     return id;
 }
 #elif defined(__linux__)
-StreamID OmniStreamController::AddStream(
+OmniStreamer::StreamID OmniStreamer::AddStream(
     OmniNetSubStream* SubStream, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config
 )
 {
@@ -98,7 +98,7 @@ StreamID OmniStreamController::AddStream(
 }
 #endif
 
-void OmniStreamController::RemoveStream(size_t StreamID)
+void OmniStreamer::RemoveStream(size_t StreamID)
 {
     auto iter = Streams.find(StreamID);
 
@@ -118,7 +118,7 @@ void OmniStreamController::RemoveStream(size_t StreamID)
     }
 }
 
-void OmniStreamController::StopAll()
+void OmniStreamer::StopAll()
 {
     for (auto& [id, variant_stream] : Streams) {
         std::visit(

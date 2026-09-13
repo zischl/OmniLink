@@ -21,7 +21,7 @@ enum CaptureMode { PW, X11_SHM };
 using EncodeStreamTypes = std::variant<EncodeStream<ScreenCapturePW, NvencSession, OmniNetSubStream>>;
 #endif
 
-struct OmniStreamController
+struct OmniStreamer
 {
     using StreamID = size_t;
 

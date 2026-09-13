@@ -61,10 +61,10 @@ static_assert(sizeof(OmniKeyPacket) == 16, "OmniKeyPacket must be exactly 16 byt
 
 template <uint32_t MTU> class OmniNetSession;
 
-// Shared input state between OmniIOCap and OmniIOShield.
-struct IOLinkContext
+// Shared input state between OmniInputLink and OmniInputFilter.
+struct InputLinkContext
 {
-    OmniRouterContext& OmniRouter;
+    OmniRouter& Router;
 
     std::atomic<OmniNetSession<OmniMTU>*> ActiveNetSession{nullptr};
 
@@ -72,11 +72,11 @@ struct IOLinkContext
 
     std::atomic<bool> InputLocked{false};
 
-    explicit IOLinkContext(OmniRouterContext& Router) : OmniRouter(Router) {}
+    explicit InputLinkContext(OmniRouter& Router_) : Router(Router_) {}
 
     void ActivateEdge(DeviceMap DeviceID)
     {
-        ActiveNetSession.store(OmniRouter.GetSession(DeviceID), std::memory_order_release);
+        ActiveNetSession.store(Router.GetSession(DeviceID), std::memory_order_release);
         ActiveEdge = DeviceID;
     }
 

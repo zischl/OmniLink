@@ -11,16 +11,16 @@ template <uint32_t MTU> class OmniNetSession;
 
 // 3x3 device matrix router and display context.
 // Links together Net Sessions and screen edge routing.
-struct OmniRouterContext
+struct OmniRouter
 {
     std::atomic<uint32_t> ResWidth{0};
     std::atomic<uint32_t> ResHeight{0};
 
-    OmniRouterContext();
-    ~OmniRouterContext() = default;
+    OmniRouter();
+    ~OmniRouter() = default;
 
-    OmniRouterContext(const OmniRouterContext&)            = delete;
-    OmniRouterContext& operator=(const OmniRouterContext&) = delete;
+    OmniRouter(const OmniRouter&)            = delete;
+    OmniRouter& operator=(const OmniRouter&) = delete;
 
     void SetResolution(uint32_t Width, uint32_t Height);
 

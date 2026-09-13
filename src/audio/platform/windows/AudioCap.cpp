@@ -9,17 +9,17 @@
 #define REFTIMES_PER_SEC 10000000
 #define REFTIMES_PER_MILLISEC 10000
 
-AudioCapture::AudioCapture()
+OmniAudioLink::OmniAudioLink()
 {
     MicRingBuffer.resize(MicRingBufferCapacity, 0.0f);
 }
 
-AudioCapture::~AudioCapture()
+OmniAudioLink::~OmniAudioLink()
 {
     Stop();
 }
 
-bool AudioCapture::Init(AudioCaptureMode Mode, uint32_t SampleRate, uint16_t Channels)
+bool OmniAudioLink::Init(AudioCaptureMode Mode, uint32_t SampleRate, uint16_t Channels)
 {
     if (GetState() != CaptureState::Inactive)
         return false;
@@ -29,28 +29,28 @@ bool AudioCapture::Init(AudioCaptureMode Mode, uint32_t SampleRate, uint16_t Cha
     return true;
 }
 
-void AudioCapture::SetPacketCallback(AudioPacketCallback APCallback)
+void OmniAudioLink::SetPacketCallback(AudioPacketCallback APCallback)
 {
     Callback = std::move(APCallback);
 }
 
-void AudioCapture::SetCaptureMode(AudioCaptureMode Mode)
+void OmniAudioLink::SetCaptureMode(AudioCaptureMode Mode)
 {
     TargetCaptureMode.store(Mode, std::memory_order_relaxed);
 }
 
-bool AudioCapture::Start()
+bool OmniAudioLink::Start()
 {
     CaptureState Expected = CaptureState::Inactive;
     if (!AudioCapState.compare_exchange_strong(Expected, CaptureState::Active)) {
         return true;
     }
     StopRequestedState = false;
-    WorkerThread       = std::thread(&AudioCapture::CaptureWorkerThread, this);
+    WorkerThread       = std::thread(&OmniAudioLink::CaptureWorkerThread, this);
     return true;
 }
 
-void AudioCapture::Stop()
+void OmniAudioLink::Stop()
 {
     StopRequestedState = true;
     AudioCapState.store(CaptureState::Inactive, std::memory_order_relaxed);
@@ -59,19 +59,19 @@ void AudioCapture::Stop()
     }
 }
 
-void AudioCapture::Pause()
+void OmniAudioLink::Pause()
 {
     CaptureState Expected = CaptureState::Active;
     AudioCapState.compare_exchange_strong(Expected, CaptureState::Paused);
 }
 
-void AudioCapture::Resume()
+void OmniAudioLink::Resume()
 {
     CaptureState Expected = CaptureState::Paused;
     AudioCapState.compare_exchange_strong(Expected, CaptureState::Active);
 }
 
-void AudioCapture::CaptureWorkerThread()
+void OmniAudioLink::CaptureWorkerThread()
 {
     HRESULT HResult       = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     bool    CoInitialized = SUCCEEDED(HResult);
@@ -106,7 +106,7 @@ void AudioCapture::CaptureWorkerThread()
 }
 
 // Desktop Loopback Worker
-void AudioCapture::RunDesktopCaptureLoop()
+void OmniAudioLink::RunDesktopCaptureLoop()
 {
     WAVEFORMATEX* WVFormat = nullptr;
     HANDLE        hEvent   = nullptr;
@@ -233,7 +233,7 @@ void AudioCapture::RunDesktopCaptureLoop()
 }
 
 // Microphone Worker
-void AudioCapture::RunMicCaptureLoop()
+void OmniAudioLink::RunMicCaptureLoop()
 {
     WAVEFORMATEX* WVFormat = nullptr;
     HANDLE        hEvent   = nullptr;
@@ -363,7 +363,7 @@ void AudioCapture::RunMicCaptureLoop()
     AudioClient->Stop();
 }
 
-void AudioCapture::RunDualCaptureLoop()
+void OmniAudioLink::RunDualCaptureLoop()
 {
     WAVEFORMATEX* DeskWVFormat = nullptr;
     WAVEFORMATEX* MicWVFormat  = nullptr;
@@ -624,7 +624,7 @@ void AudioCapture::RunDualCaptureLoop()
 }
 
 // Single Source Packet Processor
-void AudioCapture::ProcessSingleSourcePacket(
+void OmniAudioLink::ProcessSingleSourcePacket(
     const uint8_t* InputData, uint32_t NumFrames, const WAVEFORMATEX* WVFormat, float VolumeScale
 )
 {
@@ -752,7 +752,7 @@ void AudioCapture::ProcessSingleSourcePacket(
 }
 
 // Dual Source Mixer, yes.. also hopefully hardware vectorized
-void AudioCapture::ProcessDualMixedPacket(
+void OmniAudioLink::ProcessDualMixedPacket(
     const float* DAudioSample,
     uint32_t     DAudioFrames,
     uint32_t     DAudioChannels,

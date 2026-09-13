@@ -3,22 +3,22 @@
 #include "SessionHandler.hpp"
 #include <algorithm>
 
-WindowDragCap* WindowDragCap::DragCapInstance = nullptr;
+OmniDragLink* OmniDragLink::Instance = nullptr;
 
-WindowDragCap::WindowDragCap(OmniRouterContext& Context) : Router(Context)
+OmniDragLink::OmniDragLink(OmniRouter& Context) : Router(Context)
 {
-    DragCapInstance = this;
+    Instance = this;
 }
 
-WindowDragCap::~WindowDragCap()
+OmniDragLink::~OmniDragLink()
 {
     WindowMoveListener(false);
     DragSessionId.fetch_add(1, std::memory_order_release);
-    if (DragCapInstance == this)
-        DragCapInstance = nullptr;
+    if (Instance == this)
+        Instance = nullptr;
 }
 
-void WindowDragCap::WindowMoveListener(bool State)
+void OmniDragLink::WindowMoveListener(bool State)
 {
     if (WinCapHook == NULL && State == true) {
         WinCapHook = SetWinEventHook(
@@ -83,7 +83,7 @@ static void ComputeEdgeTarget(
     }
 }
 
-void CALLBACK WindowDragCap::WinMvEventProc(
+void CALLBACK OmniDragLink::WinMvEventProc(
     HWINEVENTHOOK HWinEventHook,
     DWORD         Event,
     HWND          Hwnd,
@@ -98,7 +98,7 @@ void CALLBACK WindowDragCap::WinMvEventProc(
     (void)IDEventThread;
     (void)DWMSEventTime;
 
-    if (IDObject != OBJID_WINDOW || Hwnd == NULL || !DragCapInstance)
+    if (IDObject != OBJID_WINDOW || Hwnd == NULL || !Instance)
         return;
 
     DWORD WindowPID = 0;
@@ -110,13 +110,13 @@ void CALLBACK WindowDragCap::WinMvEventProc(
         return;
 
     if (Event == EVENT_SYSTEM_MOVESIZESTART) {
-        DragCapInstance->StartDragTracking(Hwnd);
+        Instance->StartDragTracking(Hwnd);
     } else if (Event == EVENT_SYSTEM_MOVESIZEEND) {
-        DragCapInstance->StopDragTracking();
+        Instance->StopDragTracking();
     }
 }
 
-void WindowDragCap::StartDragTracking(HWND Hwnd)
+void OmniDragLink::StartDragTracking(HWND Hwnd)
 {
     uint64_t CurrentSession = DragSessionId.fetch_add(1, std::memory_order_relaxed) + 1;
     std::thread([this, Hwnd, CurrentSession]() {
@@ -124,12 +124,12 @@ void WindowDragCap::StartDragTracking(HWND Hwnd)
     }).detach();
 }
 
-void WindowDragCap::StopDragTracking()
+void OmniDragLink::StopDragTracking()
 {
     DragSessionId.fetch_add(1, std::memory_order_release);
 }
 
-void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
+void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
 {
     RECT      WindowPos      = {};
     POINT     CursorPt       = {};
@@ -140,7 +140,7 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
     uint16_t  WindowID       = 0;
 
     while (SessionId == DragSessionId.load(std::memory_order_relaxed)) {
-        if (!IsWindow(Hwnd) || DragCapInstance != this)
+        if (!IsWindow(Hwnd) || Instance != this)
             return;
 
         GetWindowRect(Hwnd, &WindowPos);
@@ -281,12 +281,12 @@ void WindowDragCap::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    if (EdgeCrossState && DragCapInstance == this) {
+    if (EdgeCrossState && Instance == this) {
         FinalizeDrop(Hwnd, PrevEdge, WindowPos, InitialGripX, InitialGripY, WindowID);
     }
 }
 
-void WindowDragCap::FinalizeDrop(
+void OmniDragLink::FinalizeDrop(
     HWND Hwnd, DeviceMap Edge, const RECT& Pos, int GripX, int GripY, uint16_t SubStreamID
 )
 {

@@ -27,10 +27,10 @@ NetworkPacketHandlerFn NetworkPacketHandler;
 
 struct OmniSystemLink
 {
-    OmniStreamController StreamController;
-    OmniIOCap            IOCapture;
-    OmniIOShield         IOShield;
-    ClipBoardLink        ClipboardService;
+    OmniStreamer         Streamer;
+    OmniInputLink        InputLink;
+    OmniInputFilter      InputFilter;
+    OmniClipboardLink   ClipboardLink;
 
     void* StreamingDevice  = nullptr;
     void* StreamingContext = nullptr;
@@ -38,7 +38,7 @@ struct OmniSystemLink
     OmniRenderState&                                             RenderState;
     std::vector<StreamWindow*>                                   ActiveWindows;
     std::unordered_map<uint16_t, StreamWindow*>                  WindowRegistry;
-    std::unordered_map<uint16_t, OmniStreamController::StreamID> StreamRegistry;
+    std::unordered_map<uint16_t, OmniStreamer::StreamID> StreamRegistry;
 
     HINSTANCE                hInstance       = nullptr;
     int                      nCmdShow        = 0;
@@ -59,7 +59,7 @@ struct OmniSystemLink
 
     void SyncInputFilter();
 
-    OmniStreamController::StreamID AddCaptureStream(
+    OmniStreamer::StreamID AddCaptureStream(
         OmniNetSubStream*   SubStream,
         DeviceMap           DeviceID,
         CaptureMode         Mode,

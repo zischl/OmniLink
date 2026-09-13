@@ -12,7 +12,7 @@ OmniSystemLink::OmniSystemLink(
 
 void OmniSystemLink::SetupSystemLink()
 {
-    ClipBoardLink::SetPasteRequestCallback(
+    OmniClipboardLink::SetPasteRequestCallback(
         [this](const ClipboardManifest& Manifest, uint32_t Format) -> std::vector<uint8_t> {
             (void)Format;
             if (!ActiveInstances || Manifest.ServerPort == 0 || Manifest.TotalSizeBytes == 0) {
@@ -67,11 +67,11 @@ void OmniSystemLink::UnbindSession(DeviceMap DeviceID)
 
 void OmniSystemLink::SyncInputFilter() {}
 
-OmniStreamController::StreamID OmniSystemLink::AddCaptureStream(
+OmniStreamer::StreamID OmniSystemLink::AddCaptureStream(
     OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode, const StreamConfig& Config
 )
 {
-    return StreamController.AddStream(SubStream, DeviceID, Mode, Config);
+    return Streamer.AddStream(SubStream, DeviceID, Mode, Config);
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
@@ -163,14 +163,14 @@ OmniNet::PoolConfig OmniSystemLink::SetClipboardLinkState(
     }
 
     if (Action == FeatureAction::Activate && Route == FeatureActionRoute::Outbound) {
-        if (!ClipboardService.GetState()) {
-            ClipboardService.StartMonitoring(
+        if (!ClipboardLink.GetState()) {
+            ClipboardLink.StartMonitoring(
                 [this](const std::string& Text) { TransmitClipboard(Text); },
                 [this](const ClipboardManifest& Manifest) { TransmitClipboardManifest(Manifest); }
             );
         }
     } else if (!OutboundActive) {
-        ClipboardService.StopMonitoring();
+        ClipboardLink.StopMonitoring();
     }
 
     return OmniNet::PoolConfig{};
@@ -220,7 +220,7 @@ void OmniSystemLink::TransmitClipboardManifest(const ClipboardManifest& Manifest
     CManifest.StreamID          = StreamID;
     CManifest.ServerPort        = Stream->GetLocalPort();
 
-    std::string LocalText = ClipBoardLink::GetClipTypeText();
+    std::string LocalText = OmniClipboardLink::GetClipTypeText();
     std::thread([Stream, Text = std::move(LocalText)]() {
         if (Stream->AcceptClient(15000)) {
             if (!Text.empty()) {

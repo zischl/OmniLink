@@ -2,14 +2,14 @@
 #include "SessionHandler.hpp"
 #include "system_probe_impl.hpp"
 
-IOLinkContext* OmniIOShield::IOContext = nullptr;
+InputLinkContext* OmniInputFilter::IOContext = nullptr;
 
-OmniIOShield::OmniIOShield(IOLinkContext& Ctx) : IOCtx(Ctx)
+OmniInputFilter::OmniInputFilter(InputLinkContext& Ctx) : IOCtx(Ctx)
 {
     IOContext = &Ctx;
 }
 
-void OmniIOShield::InvokeInputFilter()
+void OmniInputFilter::InvokeInputFilter()
 {
     if (!KeyboardBlock) {
         KeyboardBlock = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
@@ -22,7 +22,7 @@ void OmniIOShield::InvokeInputFilter()
         std::cout << "Failed to install input hooks.\n";
 }
 
-void OmniIOShield::ReleaseInputFilter()
+void OmniInputFilter::ReleaseInputFilter()
 {
     if (KeyboardBlock) {
         UnhookWindowsHookEx(KeyboardBlock);
@@ -34,7 +34,7 @@ void OmniIOShield::ReleaseInputFilter()
     }
 }
 
-LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
+LRESULT OmniInputFilter::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
 {
     if (NCode >= 0 && IOContext && IOContext->InputLocked.load(std::memory_order_relaxed))
         [[unlikely]] {
@@ -85,7 +85,7 @@ LRESULT OmniIOShield::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
     return CallNextHookEx(nullptr, NCode, WParam, LParam);
 }
 
-LRESULT OmniIOShield::MouseProc(int NCode, WPARAM WParam, LPARAM LParam)
+LRESULT OmniInputFilter::MouseProc(int NCode, WPARAM WParam, LPARAM LParam)
 {
     if (NCode >= 0 && IOContext && IOContext->InputLocked.load(std::memory_order_relaxed))
         [[unlikely]] {
@@ -98,7 +98,7 @@ LRESULT OmniIOShield::MouseProc(int NCode, WPARAM WParam, LPARAM LParam)
     return CallNextHookEx(nullptr, NCode, WParam, LParam);
 }
 
-OmniIOCap::OmniIOCap(IOLinkContext& Ctx) : IOCtx(Ctx)
+OmniInputLink::OmniInputLink(InputLinkContext& Ctx) : IOCtx(Ctx)
 {
     POINT Pos = {};
     GetCursorPos(&Pos);
@@ -108,18 +108,18 @@ OmniIOCap::OmniIOCap(IOLinkContext& Ctx) : IOCtx(Ctx)
     RawInputSize = 48;
 
     Device::MonitorRes MonRes = Device::GetMonitorResolution();
-    IOCtx.OmniRouter.SetResolution(MonRes.Width, MonRes.Height);
+    IOCtx.Router.SetResolution(MonRes.Width, MonRes.Height);
 
     FocusEventListener(true);
 }
 
-OmniIOCap::~OmniIOCap()
+OmniInputLink::~OmniInputLink()
 {
     FocusEventListener(false);
     StopEdgeProbe();
 }
 
-void OmniIOCap::FocusEventListener(bool State)
+void OmniInputLink::FocusEventListener(bool State)
 {
     if (WinFocusHook == NULL && State == true) {
         WinFocusHook = SetWinEventHook(
@@ -137,7 +137,7 @@ void OmniIOCap::FocusEventListener(bool State)
     }
 }
 
-void CALLBACK OmniIOCap::WinFocusEventProc(
+void CALLBACK OmniInputLink::WinFocusEventProc(
     HWINEVENTHOOK HWinEventHook,
     DWORD         Event,
     HWND          Hwnd,
@@ -161,7 +161,7 @@ void CALLBACK OmniIOCap::WinFocusEventProc(
     }
 }
 
-void OmniIOCap::ToggleEdgeProbe(HWND Hwnd)
+void OmniInputLink::ToggleEdgeProbe(HWND Hwnd)
 {
     if (InputLinkStatus.load()) {
         StopEdgeProbe();
@@ -170,12 +170,12 @@ void OmniIOCap::ToggleEdgeProbe(HWND Hwnd)
     }
 }
 
-bool OmniIOCap::GetEdgeProbeState()
+bool OmniInputLink::GetEdgeProbeState()
 {
     return InputLinkStatus.load();
 }
 
-void OmniIOCap::StopEdgeProbe()
+void OmniInputLink::StopEdgeProbe()
 {
     InputLinkStatus.store(false);
     MouseEventCapStatus.store(false);
@@ -184,7 +184,7 @@ void OmniIOCap::StopEdgeProbe()
         ProbeThread.join();
 }
 
-void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
+void OmniInputLink::CreateEdgeProbe(HWND Hwnd)
 {
     InputLinkStatus.store(true);
     MouseEventCapStatus.store(true);
@@ -210,15 +210,15 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                         IOCtx.InputLocked.store(true, std::memory_order_release);
 
                         uint16_t YRatio =
-                            (IOCtx.OmniRouter.ResHeight > 0)
+                            (IOCtx.Router.ResHeight > 0)
                                 ? static_cast<uint16_t>(
-                                      (static_cast<uint64_t>(Pos.y) << 16) / IOCtx.OmniRouter.ResHeight
+                                      (static_cast<uint64_t>(Pos.y) << 16) / IOCtx.Router.ResHeight
                                   )
                                 : (1 << 15);
                         uint16_t XRatio =
-                            (IOCtx.OmniRouter.ResWidth > 0)
+                            (IOCtx.Router.ResWidth > 0)
                                 ? static_cast<uint16_t>(
-                                      (static_cast<uint64_t>(Pos.x) << 16) / IOCtx.OmniRouter.ResWidth
+                                      (static_cast<uint64_t>(Pos.x) << 16) / IOCtx.Router.ResWidth
                                   )
                                 : (1 << 15);
 
@@ -305,11 +305,11 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
                     case DeviceMap::R1:
                     case DeviceMap::RU1:
                     case DeviceMap::RD1:
-                        targetX = static_cast<int>(IOCtx.OmniRouter.ResWidth - 2);
+                        targetX = static_cast<int>(IOCtx.Router.ResWidth - 2);
                         break;
                     case DeviceMap::U1:
                         targetX = VirtualPosX;
-                        targetY = static_cast<int>(IOCtx.OmniRouter.ResHeight - 2);
+                        targetY = static_cast<int>(IOCtx.Router.ResHeight - 2);
                         break;
                     case DeviceMap::D1:
                         targetX = VirtualPosX;
@@ -339,10 +339,10 @@ void OmniIOCap::CreateEdgeProbe(HWND Hwnd)
     });
 }
 
-void OmniIOCap::AddEdgeCondition(DeviceMap Index)
+void OmniInputLink::AddEdgeCondition(DeviceMap Index)
 {
-    const uint32_t W = IOCtx.OmniRouter.ResWidth;
-    const uint32_t H = IOCtx.OmniRouter.ResHeight;
+    const uint32_t W = IOCtx.Router.ResWidth;
+    const uint32_t H = IOCtx.Router.ResHeight;
 
     switch (Index) {
     case DeviceMap::L1:
@@ -397,7 +397,7 @@ void OmniIOCap::AddEdgeCondition(DeviceMap Index)
     }
 }
 
-void OmniIOCap::ToggleInputCapture(HWND Hwnd, bool State)
+void OmniInputLink::ToggleInputCapture(HWND Hwnd, bool State)
 {
     RAWINPUTDEVICE Devices[2];
 
@@ -416,9 +416,9 @@ void OmniIOCap::ToggleInputCapture(HWND Hwnd, bool State)
 
         RegisterRawInputDevices(Devices, 2, sizeof(Devices[0]));
 
-        InputProc = &OmniIOCap::InputProcCallback;
+        InputProc = &OmniInputLink::InputProcCallback;
     } else {
-        InputProc = &OmniIOCap::VoidExitCallback;
+        InputProc = &OmniInputLink::VoidExitCallback;
 
         Devices[0].hwndTarget = NULL;
         Devices[0].dwFlags    = RIDEV_REMOVE;
@@ -430,12 +430,12 @@ void OmniIOCap::ToggleInputCapture(HWND Hwnd, bool State)
     }
 }
 
-void OmniIOCap::InputProcInit(LPARAM& LParam)
+void OmniInputLink::InputProcInit(LPARAM& LParam)
 {
     InputProcCallback(LParam);
 }
 
-void OmniIOCap::InputProcCallback(LPARAM& LParam)
+void OmniInputLink::InputProcCallback(LPARAM& LParam)
 {
     alignas(RAWINPUT) BYTE RawBuffer[sizeof(RAWINPUT)] = {};
     UINT                   Size                        = sizeof(RawBuffer);
@@ -459,9 +459,9 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
             return;
 
         VirtualPosX =
-            std::clamp(VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.OmniRouter.ResWidth - 1));
+            std::clamp(VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.Router.ResWidth - 1));
         VirtualPosY = std::clamp(
-            VirtualPosY + static_cast<int>(dY), 0, static_cast<int>(IOCtx.OmniRouter.ResHeight - 1)
+            VirtualPosY + static_cast<int>(dY), 0, static_cast<int>(IOCtx.Router.ResHeight - 1)
         );
         MouseX += dX;
         MouseY += dY;
@@ -490,7 +490,7 @@ void OmniIOCap::InputProcCallback(LPARAM& LParam)
     }
 }
 
-void OmniIOCap::VoidExitCallback(LPARAM& LParam)
+void OmniInputLink::VoidExitCallback(LPARAM& LParam)
 {
     (void)LParam;
 }
@@ -537,7 +537,7 @@ void ProcBoundary(const OmniBoundaryPacket& Packet)
 
         SetCursorPos(TargetX, TargetY);
     } else if (Packet.Action == BoundaryAction::Return) {
-        auto* Ctx = OmniIOShield::GetContext();
+        auto* Ctx = OmniInputFilter::GetContext();
         if (Ctx) {
             Ctx->DeactivateEdge();
         }

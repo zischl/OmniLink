@@ -8,11 +8,11 @@
 #include <functional>
 #include <thread>
 
-class WindowDragCap
+class OmniDragLink
 {
   public:
-    explicit WindowDragCap(OmniRouterContext& Context);
-    ~WindowDragCap();
+    explicit OmniDragLink(OmniRouter& Context);
+    ~OmniDragLink();
 
     void WindowMoveListener(bool State = false);
 
@@ -20,11 +20,11 @@ class WindowDragCap
     std::function<uint16_t(HWND, DeviceMap, WinDragAction)> WindowDragCallback = nullptr;
 
   private:
-    OmniRouterContext&    Router;
+    OmniRouter&           Router;
     HWINEVENTHOOK         WinCapHook = NULL;
     std::atomic<uint64_t> DragSessionId{0};
 
-    static WindowDragCap* DragCapInstance;
+    static OmniDragLink* Instance;
 
     // Called on the moment drag starts to boot up a drag session
     void StartDragTracking(HWND Hwnd);
