@@ -1,6 +1,6 @@
-#include "OmniAPI.h"
-#include "OmniLink.h"
-#include "OmniPackets.h"
+#include "OmniAPI.hpp"
+#include "OmniLink.hpp"
+#include "OmniPackets.hpp"
 
 void OmniAPI::Ignite(OmniLink& OmniLinkInstance)
 {

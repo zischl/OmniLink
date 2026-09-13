@@ -1,4 +1,4 @@
-#include "PipeWireCap.h"
+#include "PipeWireCap.hpp"
 
 PipeWireCap::PipeWireCap() {}
 PipeWireCap::~PipeWireCap() {}

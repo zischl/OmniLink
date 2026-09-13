@@ -1,4 +1,4 @@
-#include "LinuxForge.h"
+#include "LinuxForge.hpp"
 
 LinuxForge::LinuxForge() {}
 LinuxForge::~LinuxForge() {}

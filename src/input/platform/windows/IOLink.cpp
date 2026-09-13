@@ -1,6 +1,6 @@
-#include "IOLink.h"
-#include "SessionHandler.h"
-#include "system_probe_impl.h"
+#include "IOLink.hpp"
+#include "SessionHandler.hpp"
+#include "system_probe_impl.hpp"
 
 IOLinkContext* OmniIOShield::IOContext = nullptr;
 

@@ -1,6 +1,6 @@
-#include "WindowDragCap.h"
-#include "OmniLogger.h"
-#include "SessionHandler.h"
+#include "WindowDragCap.hpp"
+#include "OmniLogger.hpp"
+#include "SessionHandler.hpp"
 #include <algorithm>
 
 WindowDragCap* WindowDragCap::DragCapInstance = nullptr;

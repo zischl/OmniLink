@@ -1,4 +1,4 @@
-#include "D3D11RendererCore.h"
+#include "D3D11RendererCore.hpp"
 
 using Microsoft::WRL::ComPtr;
 

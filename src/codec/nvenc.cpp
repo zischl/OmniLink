@@ -1,5 +1,5 @@
-#include "nvenc.h"
-#include "OmniLogger.h"
+#include "nvenc.hpp"
+#include "OmniLogger.hpp"
 
 #define NVCHECK(status, error)                                                                     \
     {                                                                                              \

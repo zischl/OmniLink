@@ -1,6 +1,6 @@
-#include "SystemLink.h"
-#include "CaptureController.h"
-#include "LinuxForge.h"
+#include "SystemLink.hpp"
+#include "CaptureController.hpp"
+#include "LinuxForge.hpp"
 #include "OmniTCPStream.h"
 
 OmniSystemLink::OmniSystemLink(

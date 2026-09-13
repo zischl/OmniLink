@@ -1,5 +1,5 @@
 #pragma once
-#include <OmniLink.h>
+#include <OmniLink.hpp>
 
 #include <iostream>
 

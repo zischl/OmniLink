@@ -1,4 +1,4 @@
-#include <D3D11Renderer.h>
+#include <D3D11Renderer.hpp>
 
 void D3D11Renderer::RendererInit(
     HWND hwnd, int wdWidth, int wdHeight, HWNDxD3D11& RendererPtrStruct

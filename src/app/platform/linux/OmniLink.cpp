@@ -1,9 +1,9 @@
-#include "OmniLink.h"
-#include "ClipBoardLink.h"
-#include "ClipboardTypes.h"
-#include "NetVariance.h"
-#include "OmniEnums.h"
-#include "OmniPackets.h"
+#include "OmniLink.hpp"
+#include "ClipBoardLink.hpp"
+#include "ClipboardTypes.hpp"
+#include "NetVariance.hpp"
+#include "OmniEnums.hpp"
+#include "OmniPackets.hpp"
 #include <cstdint>
 
 static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)

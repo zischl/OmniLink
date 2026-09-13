@@ -1,6 +1,6 @@
-#include "SubStream.h"
-#include "OmniConfig.h"
-#include "OmniNetContext.h"
+#include "SubStream.hpp"
+#include "OmniConfig.hpp"
+#include "OmniNetContext.hpp"
 
 #include <ws2tcpip.h>
 

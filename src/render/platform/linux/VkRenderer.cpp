@@ -1,4 +1,4 @@
-#include "VkRenderer.h"
+#include "VkRenderer.hpp"
 
 VkRenderer::VkRenderer() {}
 VkRenderer::~VkRenderer() {}

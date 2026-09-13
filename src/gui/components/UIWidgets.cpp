@@ -1,4 +1,4 @@
-#include "OmniGUI.h"
+#include "OmniGUI.hpp"
 
 bool OmniGUI::IconButton(
     const char* Icon, const char* Label, const ImVec2& Size, const ButtonColors& Colors

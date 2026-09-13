@@ -1,4 +1,4 @@
-#include "OmniGUI.h"
+#include "OmniGUI.hpp"
 
 #define IC_NETWORK "\xef\x80\x8e"
 #define IC_GAUGE "\xef\x80\x97"

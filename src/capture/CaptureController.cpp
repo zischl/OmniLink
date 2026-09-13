@@ -1,6 +1,6 @@
-#include "CaptureController.h"
-#include "Capture.h"
-#include "nvenc.h"
+#include "CaptureController.hpp"
+#include "Capture.hpp"
+#include "nvenc.hpp"
 #include <utility>
 
 #if defined(_WIN32)

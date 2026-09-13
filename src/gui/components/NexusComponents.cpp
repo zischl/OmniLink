@@ -1,4 +1,4 @@
-#include "OmniGUI.h"
+#include "OmniGUI.hpp"
 
 void OmniGUI::RenderFeatureControlBar(
     uint32_t featureFlags,

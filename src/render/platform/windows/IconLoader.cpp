@@ -1,4 +1,4 @@
-#include "IconLoader.h"
+#include "IconLoader.hpp"
 
 bool IconLoader::LoadEmbeddedRGBA(const unsigned char* bytes,
                                   unsigned int width,

@@ -1,8 +1,8 @@
-#include "OmniGUI.h"
+#include "OmniGUI.hpp"
 #include "AssetLogoNB.h"
-#include "InterFonts.h"
-#include "JetBrainsFonts.h"
-#include "OmniEnums.h"
+#include "InterFonts.hpp"
+#include "JetBrainsFonts.hpp"
+#include "OmniEnums.hpp"
 #include "OmniIcons.h"
 
 #include "imgui.h"

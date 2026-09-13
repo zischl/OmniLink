@@ -1,4 +1,4 @@
-#include "ByteStream.h"
+#include "ByteStream.hpp"
 
 void ByteStreamReader::ReadU64Ex(uint64_t& Dest)
 {

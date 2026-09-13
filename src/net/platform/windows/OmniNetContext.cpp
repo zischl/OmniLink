@@ -1,5 +1,5 @@
-#include "OmniNetContext.h"
-#include "OmniLogger.h"
+#include "OmniNetContext.hpp"
+#include "OmniLogger.hpp"
 
 #include <cstddef>
 

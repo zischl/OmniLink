@@ -1,5 +1,5 @@
-#include "OmniDiscovery.h"
-#include "OmniLogger.h"
+#include "OmniDiscovery.hpp"
+#include "OmniLogger.hpp"
 #include "asio/io_context.hpp"
 #include <chrono>
 #include <mutex>

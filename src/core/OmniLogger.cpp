@@ -1,5 +1,5 @@
 
-#include <OmniLogger.h>
+#include <OmniLogger.hpp>
 
 void Logger::log(std::string_view text)
 {

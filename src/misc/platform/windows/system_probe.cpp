@@ -1,11 +1,11 @@
-#include "system_probe_impl.h"
+#include "system_probe_impl.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include "OmniLogger.h"
-#include "SessionHandler.h"
+#include "OmniLogger.hpp"
+#include "SessionHandler.hpp"
 
 #include <Windows.h>
 

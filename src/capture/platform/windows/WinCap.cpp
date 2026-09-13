@@ -1,5 +1,5 @@
-#include "WinCap.h"
-#include "OmniLogger.h"
+#include "WinCap.hpp"
+#include "OmniLogger.hpp"
 
 #define NullCheck(item, text)                                                                      \
     {                                                                                              \

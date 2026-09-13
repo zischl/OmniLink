@@ -1,4 +1,4 @@
-#include "OmniGUI.h"
+#include "OmniGUI.hpp"
 
 // Helper function to render common handshake header, cards, metadata grid, and passkey
 void OmniGUI::HandshakeEventHeader(
