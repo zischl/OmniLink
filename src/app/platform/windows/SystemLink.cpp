@@ -3,6 +3,7 @@
 #include "OmniConfig.hpp"
 #include "OmniEnums.hpp"
 #include "OmniTCPStream.h"
+#include "SessionHandler.hpp"
 #include "SessionTypes.hpp"
 #include "WinForge.hpp"
 #include "system_probe_impl.hpp"
@@ -25,67 +26,6 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
     hInstance = hInstance_;
     nCmdShow  = nCmdShow_;
     WindowID  = WindowID_;
-
-    ClipBoardLink::SetPasteRequestCallback(
-    OmniClipboardLink::SetPasteRequestCallback(
-        [this](const ClipboardManifest& Manifest, UINT Format) -> std::vector<uint8_t> {
-            (void)Format;
-            if (!ActiveInstances || Manifest.ServerPort == 0 || Manifest.TotalSizeBytes == 0) {
-                return {};
-            }
-
-            for (auto& [DevID, Instance] : *ActiveInstances) {
-                if (Instance.GetFeatureState(
-                        FeatureTypes::ClipboardLink, FeatureActionRoute::Inbound
-                    )) {
-                    auto Stream = std::make_shared<OmniTCPStream>(Manifest.StreamID);
-                    if (Stream->Connect(Instance.IPv4_String, Manifest.ServerPort, 5000)) {
-                        auto StreamProg = std::make_shared<StreamProgress>();
-                        StreamProg->TotalBytes.store(
-                            Manifest.TotalSizeBytes, std::memory_order_relaxed
-                        );
-                        StreamProg->BytesTransferred.store(0, std::memory_order_relaxed);
-                        StreamProg->StreamState.store(true, std::memory_order_relaxed);
-                        StreamProg->Cancel.store(false, std::memory_order_relaxed);
-
-                        if (ClipboardCtx && ClipboardCtx->OnStreamEvent &&
-                            Manifest.TotalSizeBytes > 1048576) {
-                            std::string DisplayName = Manifest.Items.empty()
-                                                          ? "Clipboard Item"
-                                                          : Manifest.Items[0].ItemName;
-
-                            ClipboardStreamEvent CpEvent(
-                                Manifest.StreamID,
-                                DevID,
-                                DisplayName,
-                                Manifest.Category == ClipboardCategory::Image
-                                    ? "Image"
-                                    : (Manifest.Category == ClipboardCategory::FileList ? "File"
-                                                                                        : "Text"),
-                                Manifest.TotalSizeBytes,
-                                false,
-                                StreamProg
-                            );
-                            ClipboardCtx->OnStreamEvent(CpEvent);
-                        }
-
-                        std::vector<uint8_t> Buffer;
-                        if (Stream->ReceiveToBuffer(
-                                Buffer, static_cast<size_t>(Manifest.TotalSizeBytes)
-                            )) {
-                            StreamProg->BytesTransferred.store(
-                                Manifest.TotalSizeBytes, std::memory_order_relaxed
-                            );
-                            StreamProg->StreamState.store(false, std::memory_order_relaxed);
-                            Stream->End();
-                            return Buffer;
-                        }
-                    }
-                }
-            }
-            return {};
-        }
-    );
 }
 
 StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& WindowData, int ShowCmd)
@@ -460,7 +400,7 @@ OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    uint16_t           SubStreamID,
+    SubStreamID        SubStreamID,
     void*              Context
 )
 {
@@ -468,11 +408,11 @@ OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
     (void)Context;
     if (Route == FeatureActionRoute::Outbound) {
         if (Action == FeatureAction::Activate) {
-            IOCapture.AddEdgeCondition(DeviceID);
+            InputLink.AddEdgeCondition(DeviceID);
             BindIOLinkSession(DeviceID);
 
-            if (!IOCapture.GetEdgeProbeState())
-                IOCapture.ToggleEdgeProbe(WindowID);
+            if (!InputLink.GetEdgeProbeState())
+                InputLink.ToggleEdgeProbe(WindowID);
 
             SyncInputFilter();
 
@@ -495,7 +435,7 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    uint16_t           SubStreamID,
+    SubStreamID        SubStreamID,
     void*              Context
 )
 {
@@ -518,10 +458,7 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
                 }
             }
 
-            if (TargetSubStream) {
-                std::lock_guard<std::mutex> Lock(AudioBroadcastMutex);
-                ActiveAudioStreams[SubStreamID] = TargetSubStream;
-
+            if (TargetSubStream && DeviceID < DeviceMap::END) {
                 if (!AudioLink.GetCaptureThreadState()) {
                     if (AudioLink.Init(AudioCaptureMode::DesktopOnly)) {
                         AudioLink.SetPacketCallback(
@@ -529,8 +466,8 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
                                 const uint8_t* Data, size_t Size, const AudioFrameHeader& Header
                             ) {
                                 (void)Header;
-                                std::lock_guard<std::mutex> BroadcastLock(AudioBroadcastMutex);
-                                for (auto& [SubID, SubStream] : ActiveAudioStreams) {
+                                for (auto& SubStreamSlot : ActiveAudioStreams) {
+                                    auto* SubStream = SubStreamSlot.load(std::memory_order_acquire);
                                     if (SubStream) {
                                         SubStream->ChunkedSend(
                                             reinterpret_cast<CHAR*>(const_cast<uint8_t*>(Data)),
@@ -543,20 +480,22 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
                         AudioLink.Start();
                     }
                 }
-            }
-        } else {
-            std::lock_guard<std::mutex> Lock(AudioBroadcastMutex);
-            if (SubStreamID != 0) {
-                ActiveAudioStreams.erase(SubStreamID);
-            } else if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
-                auto& Instance = ActiveInstances->at(DeviceID);
-                auto  Streams  = Instance.GetSubStreams(FeatureTypes::AudioLink);
-                for (uint16_t id : Streams) {
-                    ActiveAudioStreams.erase(id);
+
+                auto* PrevStream = ActiveAudioStreams[DeviceID].exchange(
+                    TargetSubStream, std::memory_order_acq_rel
+                );
+                if (!PrevStream) {
+                    AudioStreamCount.fetch_add(1, std::memory_order_acq_rel);
                 }
             }
-            if (ActiveAudioStreams.empty() && AudioLink.GetCaptureThreadState()) {
-                AudioLink.Stop();
+        } else {
+            if (DeviceID < DeviceMap::END) {
+                if (ActiveAudioStreams[DeviceID].exchange(nullptr, std::memory_order_acq_rel) !=
+                    nullptr) {
+                    if (AudioStreamCount.fetch_sub(1, std::memory_order_acq_rel) <= 1) {
+                        AudioLink.Stop();
+                    }
+                }
             }
         }
     } else {
@@ -586,23 +525,23 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
             }
         } else {
             if (SubStreamID != 0) {
-                auto it = AudioRenderers.find(SubStreamID);
-                if (it != AudioRenderers.end()) {
-                    if (it->second) {
-                        it->second->Stop();
+                auto Iter = AudioRenderers.find(SubStreamID);
+                if (Iter != AudioRenderers.end()) {
+                    if (Iter->second) {
+                        Iter->second->Stop();
                     }
-                    AudioRenderers.erase(it);
+                    AudioRenderers.erase(Iter);
                 }
             } else if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
                 auto& Instance = ActiveInstances->at(DeviceID);
                 auto  Streams  = Instance.GetSubStreams(FeatureTypes::AudioLink);
-                for (uint16_t id : Streams) {
-                    auto it = AudioRenderers.find(id);
-                    if (it != AudioRenderers.end()) {
-                        if (it->second) {
-                            it->second->Stop();
+                for (auto StreamID : Streams) {
+                    auto Iter = AudioRenderers.find(StreamID);
+                    if (Iter != AudioRenderers.end()) {
+                        if (Iter->second) {
+                            Iter->second->Stop();
                         }
-                        AudioRenderers.erase(it);
+                        AudioRenderers.erase(Iter);
                     }
                 }
             }
@@ -615,42 +554,49 @@ OmniNet::PoolConfig OmniSystemLink::SetClipboardLinkState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    uint16_t           SubStreamID,
+    SubStreamID        SubStreamID,
     void*              Context
 )
 {
     (void)SubStreamID;
-    if (Context) {
-        ClipboardCtx = static_cast<ClipboardFeatureContext*>(Context);
-    }
-    bool OutboundActive = false;
-    if (ActiveInstances) {
-        for (const auto& [DevID, Instance] : *ActiveInstances) {
-            if (Instance.GetFeatureState(
-                    FeatureTypes::ClipboardLink, FeatureActionRoute::Outbound
-                )) {
-                OutboundActive = true;
-                break;
-            }
-        }
-    }
+    (void)Route;
+    (void)Context;
 
-    if (Action == FeatureAction::Activate && Route == FeatureActionRoute::Outbound) {
-        if (!ClipboardService.GetState()) {
-            ClipboardService.StartMonitoring(
+    uint16_t DeviceBit = (DeviceID < DeviceMap::END)
+                             ? static_cast<uint16_t>(1U << static_cast<uint8_t>(DeviceID))
+                             : 0;
+
+    if (Action == FeatureAction::Activate) {
+        uint16_t PrevMask =
+            ActiveClipboardSubscriptions.fetch_or(DeviceBit, std::memory_order_acq_rel);
+        if (PrevMask == 0 && !ClipboardLink.GetState()) {
+            ClipboardLink.StartMonitoring(
                 WindowID,
                 [this](const std::string& Text) { TransmitClipboard(Text); },
-                [this](const ClipboardManifest& Manifest) { TransmitClipboardManifest(Manifest); }
+                [this](const ClipboardManifest& Manifest) { TransmitClipboardManifest(Manifest); },
+                [this](const ClipboardManifest& Manifest, UINT Format) {
+                    return ReceiveClipboardData(Manifest, Format);
+                }
             );
         }
-    } else if (!OutboundActive) {
-        ClipboardService.StopMonitoring();
+    } else if (Action == FeatureAction::Deactivate) {
+        uint16_t PrevMask =
+            ActiveClipboardSubscriptions.fetch_and(~DeviceBit, std::memory_order_acq_rel);
+        if ((PrevMask & DeviceBit) != 0 && (PrevMask & ~DeviceBit) == 0) {
+            ClipboardLink.StopMonitoring();
+            std::lock_guard<std::mutex> Lock(ClipboardStreamsMutex);
+            for (auto& [StreamID, Stream] : ActiveClipboardStreams) {
+                if (Stream) {
+                    Stream->End();
+                }
+            }
+            ActiveClipboardStreams.clear();
+        }
     }
 
     Logger::log(
-        "{:s} ClipboardSync {:s} for DeviceID {:d}",
+        "{:s} ClipboardSync for DeviceID {:d}",
         Action == FeatureAction::Activate ? "Enabled" : "Disabled",
-        Route == FeatureActionRoute::Outbound ? "Outbound" : "Inbound",
         static_cast<int>(DeviceID)
     );
     return OmniNet::PoolConfig{};

@@ -91,6 +91,11 @@ struct OmniSystemLink
     std::atomic<uint32_t>                                      AudioStreamCount{0};
     std::map<SubStreamID, std::unique_ptr<AudioRender>>        AudioRenderers;
 
+    // ClipboardLink Subscribers listed in atomic bitmask, TCP streams, event callbacks
+    std::atomic<uint16_t>                                        ActiveClipboardSubscriptions{0};
+    std::mutex                                                   ClipboardStreamsMutex;
+    std::unordered_map<uint32_t, std::shared_ptr<OmniTCPStream>> ActiveClipboardStreams;
+    std::function<void(const ClipboardStreamEvent&)>             OnClipboardStreamEvent;
 
     OmniSystemLink(OmniGraphicsContext& GraphicsContext);
 
@@ -145,6 +150,11 @@ struct OmniSystemLink
         void*              Context     = nullptr
     );
 
+    // By default ClipboardLink is a Duplex route feature, meaning toggling is simple.
+    // Uses bitmasking for toggling, stops monitoring if no instance is subscribed to the clipboard
+    // On deactivation additionally ends all the tcp streams in ActiveClipboardStreams
+    // Activation requires TransmitClipboard, TransmitClipboardManifest, and ReceiveClipboardData
+    // callbacks to be set.
     OmniNet::PoolConfig SetClipboardLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
