@@ -2,8 +2,8 @@
 #define OMNIINSTANCES_H
 
 #pragma once
-#include "OmniConfig.h"
-#include "OmniEnums.h"
+#include "OmniConfig.hpp"
+#include "OmniEnums.hpp"
 
 #include <array>
 #include <atomic>
@@ -11,7 +11,7 @@
 #include <cstring>
 #include <ctime>
 #include <memory>
-#include <string>
+#include <optional>
 #include <unordered_map>
 
 #if defined(_WIN32)
@@ -24,6 +24,9 @@ template <uint32_t MTU> class OmniNetSession;
 class OmniNetSubStream;
 class OmniTCPStream;
 
+// Base OmniInstance Struct for holding Instance Data used in InstanceRegistry for mangement,
+// Includes Handshake data for instance wise action protection.
+// Includes Resolution data for scaling and mirroring purposes.
 struct OmniInstance
 {
     char         InstanceName[OmniDevNameLen + 1] = {};
@@ -33,6 +36,8 @@ struct OmniInstance
     NetLinkState LinkState                        = NetLinkState::INACTIVE;
     uint32_t     HandshakeToken                   = 0;
     DeviceType   Type                             = DeviceType::Unknown;
+    uint32_t     ResolutionWidth                  = 0;
+    uint32_t     ResolutionHeight                 = 0;
 
     OmniInstance() {}
 
@@ -43,8 +48,10 @@ struct OmniInstance
         memset(InstanceName, 0, sizeof(InstanceName));
         InstanceIP = 0;
         memset(IPv4_String, 0, sizeof(IPv4_String));
-        LinkState      = NetLinkState::INACTIVE;
-        HandshakeToken = 0;
+        LinkState        = NetLinkState::INACTIVE;
+        HandshakeToken   = 0;
+        ResolutionWidth  = 0;
+        ResolutionHeight = 0;
     }
 
     void Edit(char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_, DeviceMap DeviceID)
@@ -56,6 +63,8 @@ struct OmniInstance
     }
 };
 
+// Instance group entries are for one click workspace setups to avoid having to adjust device
+// topology and automate connections to devices saved.
 struct InstanceGroupEntry
 {
     char       InstanceName[OmniDevNameLen + 1] = {};
@@ -68,6 +77,7 @@ struct InstanceGroupEntry
 #define OmniGroupNameLen 31
 #define OmniGroupSubLen 47
 
+// Instance Group entries container
 struct OmniInstanceGroup
 {
     char                              GroupName[OmniGroupNameLen + 1] = {};
@@ -78,17 +88,29 @@ struct OmniInstanceGroup
     std::array<InstanceGroupEntry, 8> Instances                       = {};
 };
 
+// SubStreamEntry Structure to be used in OmniActiveInstance containers to manage SubStream States
+// SubStreamID is a handle synchronized on both ends of a stream to be used in.. anything.
+// Synchronization happens the moment an instance completes a handshake automatically by using the
+// same method as HTTP/2 and QUIC.
+// Initiator uses odd SubStreamIDs and the receiver uses even SubStreamIDs (Initiator if IP1 < IP2)
+// State indicates.. well.. state, Features..being features, Route being the directionality.
+struct SubStreamEntry
+{
+    SubStreamID        ID        = 0;
+    OmniNetSubStream*  SubStream = nullptr;
+    SubStreamState     State     = SubStreamState::Idle;
+    FeatureTypes       Feature   = FeatureTypes::ScreenLink;
+    FeatureActionRoute Route     = FeatureActionRoute::Outbound;
+};
+
+// Feature Tyoes to FeatureFlags bit masks for managing which feature is active to who on what route
 inline FeatureFlags FeatureTypeToFlag(FeatureTypes Feature)
 {
     return static_cast<FeatureFlags>(1 << static_cast<uint8_t>(Feature));
 }
 
-struct SubStreamEntry
-{
-    OmniNetSubStream* SubStream = nullptr;
-    SubStreamState    State     = SubStreamState::Idle;
-};
-
+// The main container for Active Omni Instances extending from the base class.
+// Includes the main NetSession, Active Feature States, SubStream and TCP Stream Registry.
 struct OmniActiveInstance : OmniInstance
 {
     std::unique_ptr<OmniNetSession<OmniMTU>> InstanceSession;
@@ -97,74 +119,13 @@ struct OmniActiveInstance : OmniInstance
     uint32_t                                 InboundFlags  = FeatureFlags::fInactive;
     uint32_t                                 ActiveFlags   = FeatureFlags::fInactive;
 
-    std::unordered_map<uint16_t, SubStreamEntry>    SubStreamRegistry;
-    std::unordered_multimap<FeatureTypes, uint16_t> FeatureSubStreams;
-    static inline std::atomic<uint16_t>             NextSubStreamID{1};
+    std::unordered_map<SubStreamID, SubStreamEntry> SubStreamRegistry;
+    std::atomic<SubStreamID>                        NextSubStreamID{1};
 
     std::unordered_map<uint32_t, std::shared_ptr<OmniTCPStream>> TCPStreamRegistry;
     static inline std::atomic<uint32_t>                          NextTCPStreamID{1};
 
-    SubStreamEntry* FindSubStream(uint16_t ID)
-    {
-        auto iter = SubStreamRegistry.find(ID);
-        return (iter != SubStreamRegistry.end()) ? &iter->second : nullptr;
-    }
-
-    inline void RegisterFeatureSubStream(FeatureTypes Feature, uint16_t SubStreamID)
-    {
-        FeatureSubStreams.insert({Feature, SubStreamID});
-    }
-
-    inline void UnregisterFeatureSubStream(uint16_t SubStreamID)
-    {
-        for (auto iter = FeatureSubStreams.begin(); iter != FeatureSubStreams.end(); ++iter) {
-            if (iter->second == SubStreamID) {
-                FeatureSubStreams.erase(iter);
-                break;
-            }
-        }
-    }
-
-    inline std::vector<uint16_t> GetSubStreams(FeatureTypes Feature) const
-    {
-        std::vector<uint16_t> Result;
-
-        auto Range = FeatureSubStreams.equal_range(Feature);
-        for (auto iter = Range.first; iter != Range.second; ++iter) {
-            Result.push_back(iter->second);
-        }
-        return Result;
-    }
-
-    inline bool HasSubStream(FeatureTypes Feature, uint16_t SubStreamID) const
-    {
-        auto Range = FeatureSubStreams.equal_range(Feature);
-        for (auto iter = Range.first; iter != Range.second; ++iter) {
-            if (iter->second == SubStreamID)
-                return true;
-        }
-        return false;
-    }
-
-    inline size_t GetSubStreamCount(FeatureTypes Feature) const
-    {
-        return FeatureSubStreams.count(Feature);
-    }
-
-    std::shared_ptr<OmniTCPStream> FindTCPStream(uint32_t StreamID)
-    {
-        auto iter = TCPStreamRegistry.find(StreamID);
-        return (iter != TCPStreamRegistry.end()) ? iter->second : nullptr;
-    }
-
-    inline void RegisterTCPStream(uint32_t StreamID, std::shared_ptr<OmniTCPStream> Stream)
-    {
-        TCPStreamRegistry[StreamID] = std::move(Stream);
-    }
-
-    inline void CloseTCPStream(uint32_t StreamID) { TCPStreamRegistry.erase(StreamID); }
-
-    OmniActiveInstance() {}
+    OmniActiveInstance() = default;
 
     OmniActiveInstance(
         char* InstanceName_, char* IPv4_String_, uint32_t InstanceIP_, uint8_t DeviceID
@@ -181,8 +142,106 @@ struct OmniActiveInstance : OmniInstance
         InstanceIP = Instance.InstanceIP;
         strncpy(IPv4_String, Instance.IPv4_String, 16);
         strncpy(InstanceName, Instance.InstanceName, (OmniDevNameLen + 1));
-        DevMapIndex = Instance.DevMapIndex;
+        DevMapIndex      = Instance.DevMapIndex;
+        ResolutionWidth  = Instance.ResolutionWidth;
+        ResolutionHeight = Instance.ResolutionHeight;
     }
+
+    OmniActiveInstance(OmniActiveInstance&& Other) noexcept
+        : OmniInstance(Other), InstanceSession(std::move(Other.InstanceSession)), port(Other.port),
+          OutboundFlags(Other.OutboundFlags), InboundFlags(Other.InboundFlags),
+          ActiveFlags(Other.ActiveFlags), SubStreamRegistry(std::move(Other.SubStreamRegistry)),
+          NextSubStreamID(Other.NextSubStreamID.load(std::memory_order_relaxed)),
+          TCPStreamRegistry(std::move(Other.TCPStreamRegistry))
+    {
+    }
+
+    OmniActiveInstance& operator=(OmniActiveInstance&& Other) noexcept
+    {
+        if (this != &Other) {
+            OmniInstance::operator=(Other);
+            InstanceSession   = std::move(Other.InstanceSession);
+            port              = Other.port;
+            OutboundFlags     = Other.OutboundFlags;
+            InboundFlags      = Other.InboundFlags;
+            ActiveFlags       = Other.ActiveFlags;
+            SubStreamRegistry = std::move(Other.SubStreamRegistry);
+            NextSubStreamID.store(
+                Other.NextSubStreamID.load(std::memory_order_relaxed), std::memory_order_relaxed
+            );
+            TCPStreamRegistry = std::move(Other.TCPStreamRegistry);
+        }
+        return *this;
+    }
+
+    // Fetch add 2 combined with the HTTP/2 / QUIC stream incremental method of Even and Odd numbers
+    // for the Initiator and the Receiver makes Peer 2 Peer ID collision impossible.
+    inline SubStreamID AllocateNextSubStreamID()
+    {
+        return NextSubStreamID.fetch_add(2, std::memory_order_relaxed);
+    }
+
+    inline void RegisterSubStream(
+        SubStreamID        ID,
+        OmniNetSubStream*  SubStream,
+        FeatureTypes       Feature = FeatureTypes::ScreenLink,
+        FeatureActionRoute Route   = FeatureActionRoute::Outbound,
+        SubStreamState     State   = SubStreamState::Pending
+    )
+    {
+        SubStreamRegistry[ID] = SubStreamEntry{ID, SubStream, State, Feature, Route};
+    }
+
+    SubStreamEntry* FindSubStream(SubStreamID ID)
+    {
+        auto Iter = SubStreamRegistry.find(ID);
+        return (Iter != SubStreamRegistry.end()) ? &Iter->second : nullptr;
+    }
+
+    inline void SetSubStreamFeature(
+        SubStreamID ID, FeatureTypes Feature, FeatureActionRoute Route = FeatureActionRoute::Inbound
+    )
+    {
+        auto* Entry = FindSubStream(ID);
+        if (Entry) {
+            Entry->Feature = Feature;
+            Entry->Route   = Route;
+        }
+    }
+
+    inline void SetSubStreamState(SubStreamID ID, SubStreamState State)
+    {
+        auto* Entry = FindSubStream(ID);
+        if (Entry) {
+            Entry->State = State;
+        }
+    }
+
+    inline void UnregisterSubStream(SubStreamID ID) { SubStreamRegistry.erase(ID); }
+
+    inline std::vector<SubStreamID> GetSubStreams(FeatureTypes Feature) const
+    {
+        std::vector<SubStreamID> Result;
+        for (const auto& [Id, Entry] : SubStreamRegistry) {
+            if (Entry.Feature == Feature) {
+                Result.push_back(Id);
+            }
+        }
+        return Result;
+    }
+
+    std::shared_ptr<OmniTCPStream> FindTCPStream(uint32_t StreamID)
+    {
+        auto iter = TCPStreamRegistry.find(StreamID);
+        return (iter != TCPStreamRegistry.end()) ? iter->second : nullptr;
+    }
+
+    inline void RegisterTCPStream(uint32_t StreamID, std::shared_ptr<OmniTCPStream> Stream)
+    {
+        TCPStreamRegistry[StreamID] = std::move(Stream);
+    }
+
+    inline void CloseTCPStream(uint32_t StreamID) { TCPStreamRegistry.erase(StreamID); }
 
     inline void SetFeatureState(FeatureTypes Feature, FeatureActionRoute Route, bool State)
     {
