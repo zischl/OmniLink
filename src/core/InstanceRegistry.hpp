@@ -26,9 +26,9 @@
 struct OmniInstanceRegistry
 {
   protected:
-    std::mutex Mutex;
+    std::mutex     Mutex;
     OmniDiscovery* InstanceProbe = nullptr;
-    uint32_t OpenSlotMask = 0x1FF;
+    uint32_t       OpenSlotMask  = 0x1FF;
 
   public:
     std::unordered_map<DeviceMap, OmniInstance> AllInstances = {};
@@ -80,7 +80,7 @@ struct OmniInstanceRegistry
 
         if (DeviceID == DeviceMap::END) {
             unsigned long BitIndex = BitScan(OpenSlotMask);
-            OpenSlot = static_cast<DeviceMap>(BitIndex);
+            OpenSlot               = static_cast<DeviceMap>(BitIndex);
         } else {
             if ((OpenSlotMask & (1U << DeviceID))) {
                 OpenSlot = DeviceID;
@@ -112,8 +112,13 @@ struct OmniInstanceRegistry
     inline void
     ActivateInstance(DeviceMap DeviceID, std::unique_ptr<OmniNetSession<OmniMTU>> NetSession)
     {
-        ActiveInstances[DeviceID] = OmniActiveInstance(AllInstances[DeviceID]);
+        ActiveInstances[DeviceID]                 = OmniActiveInstance(AllInstances[DeviceID]);
         ActiveInstances[DeviceID].InstanceSession = std::move(NetSession);
+        bool InitiatorMode =
+            (AllInstances[DeviceMap::C0].InstanceIP < AllInstances[DeviceID].InstanceIP);
+        ActiveInstances[DeviceID].NextSubStreamID.store(
+            InitiatorMode ? 1 : 2, std::memory_order_relaxed
+        );
     }
 
     // Check whether new scan results are available and get them if so
@@ -213,7 +218,7 @@ struct OmniInstanceRegistry
     inline void TransmitConnectionRequest(DeviceMap DeviceID, uint32_t HandshakeToken)
     {
         OmniPayloadBase Payload{};
-        Payload.Type = PayloadType::LinkRequest;
+        Payload.Type       = PayloadType::LinkRequest;
         Payload.PayloadLen = static_cast<uint16_t>(sizeof(uint32_t));
 
         std::memcpy(Payload.Payload, &HandshakeToken, sizeof(uint32_t));
@@ -226,9 +231,9 @@ struct OmniInstanceRegistry
     // Yes.. all state transmissions have the HandshakeToken for validation
     inline void TransmitConnectionState(DeviceMap DeviceID)
     {
-        uint32_t Token = AllInstances[DeviceID].HandshakeToken;
+        uint32_t        Token = AllInstances[DeviceID].HandshakeToken;
         OmniPayloadBase Payload{};
-        Payload.Type = PayloadType::LinkResponse;
+        Payload.Type       = PayloadType::LinkResponse;
         Payload.PayloadLen = static_cast<uint16_t>(sizeof(uint8_t) + sizeof(uint32_t));
         Payload.Payload[0] = static_cast<char>(AllInstances[DeviceID].LinkState);
 
@@ -286,7 +291,7 @@ struct OmniInstanceRegistry
             ActiveInstances[DeviceID].InstanceSession.reset();
             ActiveInstances.erase(DeviceID);
         }
-        AllInstances[DeviceID].LinkState = NetLinkState::INACTIVE;
+        AllInstances[DeviceID].LinkState      = NetLinkState::INACTIVE;
         AllInstances[DeviceID].HandshakeToken = 0;
     }
 
@@ -310,7 +315,7 @@ struct OmniInstanceRegistry
             strncpy(NewGroup.Subtitle, Subtitle, OmniGroupSubLen);
         }
         NewGroup.DateCreated = static_cast<uint64_t>(std::time(nullptr));
-        NewGroup.State = true;
+        NewGroup.State       = true;
 
         for (auto& Group : InstanceGroups) {
             Group.State = false;
@@ -324,9 +329,9 @@ struct OmniInstanceRegistry
                 InstanceGroupEntry Entry{};
                 strncpy(Entry.InstanceName, Inst.InstanceName, OmniDevNameLen);
                 strncpy(Entry.IPv4_String, Inst.IPv4_String, 15);
-                Entry.InstanceIP = Inst.InstanceIP;
+                Entry.InstanceIP  = Inst.InstanceIP;
                 Entry.DevMapIndex = DevMapIdx;
-                Entry.Type = Inst.Type;
+                Entry.Type        = Inst.Type;
 
                 NewGroup.Instances[Count++] = Entry;
             }
