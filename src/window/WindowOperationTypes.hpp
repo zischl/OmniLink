@@ -17,7 +17,7 @@ struct alignas(16) OmniWinDragPacket
     uint16_t      WindowHeight; // Window height
     int16_t       CursorGripX;  // Cursor X offset relative to window top-left
     int16_t       CursorGripY;  // Same but for Y
-    uint16_t      WindowID;     // SubStream identifier for the dragged window
+    SubStreamID   WindowID;     // SubStream identifier for the dragged window
 };
 
 #pragma pack(pop)
@@ -28,10 +28,10 @@ static_assert(sizeof(OmniWinDragPacket) == 16, "OmniWinDragPacket must be exactl
 
 struct alignas(8) OmniWinResizePacket
 {
-    uint16_t WindowKey;
-    uint16_t Width;
-    uint16_t Height;
-    uint16_t Reserved;
+    SubStreamID WindowKey;
+    uint16_t    Width;
+    uint16_t    Height;
+    uint16_t    Reserved;
 };
 
 #pragma pack(pop)

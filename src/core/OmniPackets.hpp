@@ -60,8 +60,8 @@ struct ConnectionRequest
 struct WindowCreationData
 {
     uint32_t NameLen = 0;
-    char8_t WindowName[64]{};
-    uint32_t Width = 1920;
+    char8_t  WindowName[64]{};
+    uint32_t Width  = 1920;
     uint32_t Height = 1080;
 
     WindowCreationData() { SetTitle("Default Window", 15); }
@@ -126,14 +126,14 @@ struct HandshakeData
 {
     struct MonitorRes
     {
-        uint32_t Width = 1920;
+        uint32_t Width  = 1920;
         uint32_t Height = 1080;
     };
 
-    uint32_t IP = 0;
-    DeviceMap DeviceID = DeviceMap::END;
-    uint32_t Token = 0;
-    uint8_t Key[32]{};
+    uint32_t   IP       = 0;
+    DeviceMap  DeviceID = DeviceMap::END;
+    uint32_t   Token    = 0;
+    uint8_t    Key[32]{};
     MonitorRes Resolution;
 
     static HandshakeData Deserialize(ByteStreamReader& reader)
@@ -176,8 +176,8 @@ struct HandshakeResponse
     enum Action : uint8_t { ACCEPT, REJECT, CANCEL };
 
     DeviceMap DeviceID = DeviceMap::END;
-    Action State = Action::CANCEL;
-    bool Trusted = false;
+    Action    State    = Action::CANCEL;
+    bool      Trusted  = false;
 
     static HandshakeResponse Deserialize(ByteStreamReader& reader)
     {
@@ -207,18 +207,18 @@ struct HandshakeResponse
 
 struct FeatureToggleData
 {
-    FeatureTypes FeatureType = FeatureTypes::ScreenLink;
-    FeatureAction Action = FeatureAction::Activate;
-    uint16_t SubStreamID = 0;
+    FeatureTypes  FeatureType = FeatureTypes::ScreenLink;
+    FeatureAction Action      = FeatureAction::Activate;
+    SubStreamID   SubStreamID = 0;
 
     static FeatureToggleData Deserialize(ByteStreamReader& reader)
     {
         FeatureToggleData obj;
-        uint8_t Feature = 0, FAction = 0;
+        uint8_t           Feature = 0, FAction = 0;
         reader.ReadU8Ex(Feature);
         reader.ReadU8Ex(FAction);
         obj.FeatureType = static_cast<FeatureTypes>(Feature);
-        obj.Action = static_cast<FeatureAction>(FAction);
+        obj.Action      = static_cast<FeatureAction>(FAction);
         reader.ReadU16Ex(obj.SubStreamID);
         return obj;
     }
@@ -235,14 +235,14 @@ struct FeatureToggleData
 
 struct SubStreamData
 {
-    SubStreamAction Action = SubStreamAction::Connect;
-    uint16_t SubStreamID = 0;
-    uint16_t Port = 0;
+    SubStreamAction Action      = SubStreamAction::Connect;
+    SubStreamID     SubStreamID = 0;
+    uint16_t        Port        = 0;
 
     static SubStreamData Deserialize(ByteStreamReader& reader)
     {
         SubStreamData obj;
-        uint8_t a = 0;
+        uint8_t       a = 0;
         reader.ReadU8Ex(a);
         obj.Action = static_cast<SubStreamAction>(a);
         reader.ReadU16Ex(obj.SubStreamID);
@@ -273,19 +273,19 @@ using DataTypes = std::variant<int>;
 
 struct OmniNetCommand
 {
-    CoreCommandsWArgs CommandType;
-    uint32_t ArgTypeIndex = 0;
-    uint32_t ArgArrayLength = 0;
-    uint64_t ActionToken = 0;
+    CoreCommandsWArgs    CommandType;
+    uint32_t             ArgTypeIndex   = 0;
+    uint32_t             ArgArrayLength = 0;
+    uint64_t             ActionToken    = 0;
     std::vector<uint8_t> Args;
 
     OmniNetCommand() = default;
 
     OmniNetCommand(
-        CoreCommandsWArgs InCommandType,
-        uint32_t InArgTypeIndex,
+        CoreCommandsWArgs    InCommandType,
+        uint32_t             InArgTypeIndex,
         std::vector<uint8_t> InArgs,
-        uint64_t InActionToken = 0
+        uint64_t             InActionToken = 0
     )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex),
           ArgArrayLength(static_cast<uint32_t>(InArgs.size())), ActionToken(InActionToken),
@@ -295,10 +295,10 @@ struct OmniNetCommand
 
     OmniNetCommand(
         CoreCommandsWArgs InCommandType,
-        uint32_t InArgTypeIndex,
-        uint32_t InLength,
-        const uint8_t* InArgs,
-        uint64_t InActionToken = 0
+        uint32_t          InArgTypeIndex,
+        uint32_t          InLength,
+        const uint8_t*    InArgs,
+        uint64_t          InActionToken = 0
     )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex), ArgArrayLength(InLength),
           ActionToken(InActionToken), Args(InArgs, InArgs + InLength)
@@ -323,7 +323,7 @@ struct OmniNetCommand
     static void Serialize(const OmniNetCommand& obj, std::vector<uint8_t>& out)
     {
         const uint32_t payloadLen = static_cast<uint32_t>(obj.Args.size());
-        const uint32_t totalSize = 1 + 4 + 4 + 8 + payloadLen;
+        const uint32_t totalSize  = 1 + 4 + 4 + 8 + payloadLen;
 
         out.clear();
         out.reserve(totalSize);
@@ -360,20 +360,20 @@ struct OmniNetCommand
 
 struct OmniCommand
 {
-    CoreCommandsWArgs CommandType = CoreCommandsWArgs::SwapLayout;
-    uint32_t ArgTypeIndex = 0;
-    uint64_t ActionToken = 0;
-    FuncArgTypes Args = ArraySwapLayout{0, 0};
-    DeviceMap DeviceID = DeviceMap::C0;
+    CoreCommandsWArgs CommandType  = CoreCommandsWArgs::SwapLayout;
+    uint32_t          ArgTypeIndex = 0;
+    uint64_t          ActionToken  = 0;
+    FuncArgTypes      Args         = ArraySwapLayout{0, 0};
+    DeviceMap         DeviceID     = DeviceMap::C0;
 
     OmniCommand() = default;
 
     OmniCommand(
         CoreCommandsWArgs InCommandType,
-        uint32_t InArgTypeIndex,
-        FuncArgTypes InArgs,
-        uint64_t InActionToken = 0,
-        DeviceMap InDeviceID = DeviceMap::C0
+        uint32_t          InArgTypeIndex,
+        FuncArgTypes      InArgs,
+        uint64_t          InActionToken = 0,
+        DeviceMap         InDeviceID    = DeviceMap::C0
     )
         : CommandType(InCommandType), ArgTypeIndex(InArgTypeIndex), ActionToken(InActionToken),
           DeviceID(InDeviceID), Args(std::move(InArgs))

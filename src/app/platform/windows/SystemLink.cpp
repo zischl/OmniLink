@@ -1,14 +1,24 @@
 #include "SystemLink.h"
-#include "ClipboardTypes.h"
-#include "OmniConfig.h"
+#include "ClipboardTypes.hpp"
+#include "OmniConfig.hpp"
+#include "OmniEnums.hpp"
 #include "OmniTCPStream.h"
-#include "SessionTypes.h"
-#include "WinForge.h"
+#include "SessionTypes.hpp"
+#include "WinForge.hpp"
+#include "system_probe_impl.hpp"
 
+#include <atomic>
 #include <codecvt>
 #include <d3d11.h>
 
-OmniSystemLink::OmniSystemLink(OmniRenderState& RenderState) : RenderState(RenderState) {}
+OmniSystemLink::OmniSystemLink(OmniGraphicsContext& GraphicsContext)
+    : GraphicsContext(GraphicsContext)
+{
+    DragLink.WindowDragCallback =
+        [this](HWND Hwnd, DeviceMap TargetDevice, WinDragAction Action) -> SubStreamID {
+        return HandleWindowDragEvent(Hwnd, TargetDevice, Action);
+    };
+}
 
 void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND WindowID_)
 {
@@ -17,6 +27,7 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
     WindowID  = WindowID_;
 
     ClipBoardLink::SetPasteRequestCallback(
+    OmniClipboardLink::SetPasteRequestCallback(
         [this](const ClipboardManifest& Manifest, UINT Format) -> std::vector<uint8_t> {
             (void)Format;
             if (!ActiveInstances || Manifest.ServerPort == 0 || Manifest.TotalSizeBytes == 0) {
@@ -77,7 +88,7 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
     );
 }
 
-StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& WindowData)
+StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& WindowData, int ShowCmd)
 {
     auto* Window   = new WinForge();
     auto  Iterator = std::find(ActiveWindows.begin(), ActiveWindows.end(), nullptr);
@@ -90,25 +101,27 @@ StreamWindow* OmniSystemLink::CreateStreamWindow(const WindowCreationData& Windo
     std::wstring                                           WindowTitle =
         converter.from_bytes(reinterpret_cast<const char*>(WindowData.GetTitleU8().data()));
 
-    Window->CreateWindowAsync(WindowTitle.c_str(), hInstance, nCmdShow);
+    Window->CreateWindowAsync(
+        WindowTitle.c_str(), hInstance, ShowCmd, WindowData.Width, WindowData.Height
+    );
     return Window;
 }
 
 void OmniSystemLink::ToggleEdgeProbe()
 {
-    IOCapture.ToggleEdgeProbe(WindowID);
+    InputLink.ToggleEdgeProbe(WindowID);
 }
 
 void OmniSystemLink::SyncInputFilter()
 {
-    if (IOCapture.GetEdgeProbeState()) {
-        IOShield.InvokeInputFilter();
+    if (InputLink.GetEdgeProbeState()) {
+        InputFilter.InvokeInputFilter();
     } else {
-        IOShield.ReleaseInputFilter();
+        InputFilter.ReleaseInputFilter();
     }
 }
 
-OmniStreamController::StreamID OmniSystemLink::AddCaptureStream(
+OmniStreamer::StreamID OmniSystemLink::AddCaptureStream(
     OmniNetSubStream* SubStream, DeviceMap DeviceID, CaptureMode Mode, const StreamConfig& Config
 )
 {
@@ -138,7 +151,7 @@ OmniStreamController::StreamID OmniSystemLink::AddCaptureStream(
         }
     }
 
-    return StreamController.AddStream(
+    return Streamer.AddStream(
         StreamingDevice.Get(), StreamingContext.Get(), SubStream, DeviceID, Mode, Config
     );
 }
@@ -147,17 +160,20 @@ void OmniSystemLink::BindIOLinkSession(DeviceMap DeviceID)
 {
     if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
         auto& instance = ActiveInstances->at(DeviceID);
-        IOCtx.RegisterSession(DeviceID, instance.InstanceSession.get());
+        OmniRouter.RegisterSession(DeviceID, instance.InstanceSession.get());
     }
 }
 
 void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
 {
-    IOCtx.UnregisterSession(DeviceID);
-    IOCapture.ConditionManager.Remove(DeviceID);
+    OmniRouter.UnregisterSession(DeviceID);
+    if (InputLinkCtx.ActiveEdge == DeviceID) {
+        InputLinkCtx.DeactivateEdge();
+    }
+    InputLink.ConditionManager.Remove(DeviceID);
 
-    if (IOCapture.ConditionManager.Empty() && IOCapture.GetEdgeProbeState()) {
-        IOCapture.ToggleEdgeProbe(WindowID);
+    if (InputLink.ConditionManager.Empty() && InputLink.GetEdgeProbeState()) {
+        InputLink.ToggleEdgeProbe(WindowID);
     }
 
     SyncInputFilter();
@@ -167,7 +183,7 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    uint16_t           SubStreamID,
+    SubStreamID        SubStreamID,
     void*              Context
 )
 {
@@ -178,10 +194,10 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
                 auto&           Instance = ActiveInstances->at(DeviceID);
                 SubStreamEntry* Entry    = Instance.FindSubStream(SubStreamID);
                 if (Entry && Entry->SubStream) {
-                    StreamConfig                   Config{};
-                    OmniStreamController::StreamID StreamID =
+                    StreamConfig           Config{};
+                    OmniStreamer::StreamID StreamID =
                         AddCaptureStream(Entry->SubStream, DeviceID, CaptureMode::DXGI, Config);
-                    StreamRegistry[SubStreamID] = StreamID;
+                    StreamerIDRegistry[SubStreamID] = StreamID;
                 }
             }
             Logger::log(
@@ -191,19 +207,19 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
             );
         } else {
             if (SubStreamID != 0) {
-                auto it = StreamRegistry.find(SubStreamID);
-                if (it != StreamRegistry.end()) {
-                    StreamController.RemoveStream(it->second);
-                    StreamRegistry.erase(it);
+                auto it = StreamerIDRegistry.find(SubStreamID);
+                if (it != StreamerIDRegistry.end()) {
+                    Streamer.RemoveStream(it->second);
+                    StreamerIDRegistry.erase(it);
                 }
             } else if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
                 auto& Instance = ActiveInstances->at(DeviceID);
                 auto  Streams  = Instance.GetSubStreams(FeatureTypes::ScreenLink);
                 for (uint16_t id : Streams) {
-                    auto it = StreamRegistry.find(id);
-                    if (it != StreamRegistry.end()) {
-                        StreamController.RemoveStream(it->second);
-                        StreamRegistry.erase(it);
+                    auto it = StreamerIDRegistry.find(id);
+                    if (it != StreamerIDRegistry.end()) {
+                        Streamer.RemoveStream(it->second);
+                        StreamerIDRegistry.erase(it);
                     }
                 }
             }
@@ -215,39 +231,61 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
         }
     } else {
         if (Action == FeatureAction::Activate) {
-            WindowCreationData WindowConfig{"Screen Stream Window"};
-            StreamWindow*      Window = CreateStreamWindow(WindowConfig);
+            uint32_t TargetW = 0, TargetH = 0;
+            OmniRouter.GetDeviceResolution(DeviceID, TargetW, TargetH);
+
+            WindowCreationData WindowConfig{"Screen Link"};
+            WindowConfig.Width   = TargetW;
+            WindowConfig.Height  = TargetH;
+            StreamWindow* Window = CreateStreamWindow(WindowConfig);
             Logger::log(
-                "StreamWindow created for device {:d}, SubStreamID={:d}",
+                "StreamWindow created for device {:d}, SubStreamID={:d}, Res: {}x{}",
                 static_cast<int>(DeviceID),
-                SubStreamID
+                SubStreamID,
+                TargetW,
+                TargetH
             );
 
             OmniNet::PoolConfig Config{};
             if (Window) {
                 if (SubStreamID != 0) {
-                    WindowRegistry[SubStreamID] = Window;
+                    StreamWindowRegistry[SubStreamID] = Window;
                 }
 
-                Window->SetInputCallback(
-                    [this, DeviceID](const void* Data, uint32_t Size, uint8_t PacketType) {
-                        if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
-                            auto& Instance = ActiveInstances->at(DeviceID);
-                            if (Instance.InstanceSession) {
-                                OmniNet::OmniHeader Header;
-                                Header.Target     = 0;
-                                Header.PacketType = static_cast<OmniNet::PacketType>(PacketType);
-                                Header.Flags      = 0;
-                                Instance.InstanceSession->SessionSend(
-                                    reinterpret_cast<CHAR*>(const_cast<void*>(Data)),
-                                    static_cast<int>(Size),
-                                    Header
-                                );
-                            }
+                OmniNetSession<OmniMTU>* NetSession = nullptr;
+                if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
+                    NetSession = ActiveInstances->at(DeviceID).InstanceSession.get();
+                }
+
+                auto& StreamerContext = StreamContexts[SubStreamID] = WindowStreamContext{
+                    .SysLink   = this,
+                    .Session   = NetSession,
+                    .DeviceID  = DeviceID,
+                    .WindowKey = SubStreamID
+                };
+
+                OmniWindowEvent WindowEvent{};
+                WindowEvent.Context = &StreamerContext;
+
+                WindowEvent.OnInput =
+                    [](void* Ctx, const void* Data, uint32_t Size, bool MouseInput) {
+                        auto* StreamerContext = static_cast<WindowStreamContext*>(Ctx);
+                        if (StreamerContext && StreamerContext->Session) {
+                            OmniNet::OmniHeader Header;
+                            Header.Target     = 0;
+                            Header.PacketType = MouseInput ? OmniNet::PacketType::ProcMouse
+                                                           : OmniNet::PacketType::ProcKey;
+                            Header.Flags      = 0;
+                            StreamerContext->Session->SessionSend(
+                                reinterpret_cast<CHAR*>(const_cast<void*>(Data)),
+                                static_cast<int>(Size),
+                                Header
+                            );
                         }
-                    }
-                );
-                Window->SetInputForwarding(true);
+                    };
+
+                Window->SetEventForwarder(WindowEvent);
+                Window->SetEventForwarding(true);
 
                 Window->GetFramePool(
                     Config.Data,
@@ -260,8 +298,8 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
             return Config;
         } else {
             if (SubStreamID != 0) {
-                auto iter = WindowRegistry.find(SubStreamID);
-                if (iter != WindowRegistry.end()) {
+                auto iter = StreamWindowRegistry.find(SubStreamID);
+                if (iter != StreamWindowRegistry.end()) {
                     StreamWindow* Window = iter->second;
                     auto          WindowsIter =
                         std::find(ActiveWindows.begin(), ActiveWindows.end(), Window);
@@ -269,14 +307,15 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
                         *WindowsIter = nullptr;
                     }
                     delete Window;
-                    WindowRegistry.erase(iter);
+                    StreamWindowRegistry.erase(iter);
                 }
+                StreamContexts.erase(SubStreamID);
             } else if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
                 auto& Instance = ActiveInstances->at(DeviceID);
                 auto  Streams  = Instance.GetSubStreams(FeatureTypes::ScreenLink);
                 for (uint16_t id : Streams) {
-                    auto iter = WindowRegistry.find(id);
-                    if (iter != WindowRegistry.end()) {
+                    auto iter = StreamWindowRegistry.find(id);
+                    if (iter != StreamWindowRegistry.end()) {
                         StreamWindow* Window = iter->second;
                         auto          WindowsIter =
                             std::find(ActiveWindows.begin(), ActiveWindows.end(), Window);
@@ -284,8 +323,9 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
                             *WindowsIter = nullptr;
                         }
                         delete Window;
-                        WindowRegistry.erase(iter);
+                        StreamWindowRegistry.erase(iter);
                     }
+                    StreamContexts.erase(id);
                 }
             }
             Logger::log(
@@ -302,7 +342,7 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    uint16_t           SubStreamID,
+    SubStreamID        SubStreamID,
     void*              Context
 )
 {
@@ -482,10 +522,9 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
                 std::lock_guard<std::mutex> Lock(AudioBroadcastMutex);
                 ActiveAudioStreams[SubStreamID] = TargetSubStream;
 
-                if (!OmniAudioCapture) {
-                    OmniAudioCapture = std::make_unique<AudioCapture>();
-                    if (OmniAudioCapture->Init(AudioCaptureMode::DesktopOnly)) {
-                        OmniAudioCapture->SetPacketCallback(
+                if (!AudioLink.GetCaptureThreadState()) {
+                    if (AudioLink.Init(AudioCaptureMode::DesktopOnly)) {
+                        AudioLink.SetPacketCallback(
                             [this](
                                 const uint8_t* Data, size_t Size, const AudioFrameHeader& Header
                             ) {
@@ -501,7 +540,7 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
                                 }
                             }
                         );
-                        OmniAudioCapture->Start();
+                        AudioLink.Start();
                     }
                 }
             }
@@ -516,9 +555,8 @@ OmniNet::PoolConfig OmniSystemLink::SetAudioLinkState(
                     ActiveAudioStreams.erase(id);
                 }
             }
-            if (ActiveAudioStreams.empty() && OmniAudioCapture) {
-                OmniAudioCapture->Stop();
-                OmniAudioCapture.reset();
+            if (ActiveAudioStreams.empty() && AudioLink.GetCaptureThreadState()) {
+                AudioLink.Stop();
             }
         }
     } else {

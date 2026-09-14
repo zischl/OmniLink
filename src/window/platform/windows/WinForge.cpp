@@ -1,7 +1,6 @@
-#include "WinForge.h"
-#include "IOLinkContext.h"
-#include "OmniTypes.h"
-#include "system_probe_impl.h"
+#include "WinForge.hpp"
+#include "IOLinkContext.hpp"
+
 #include <windowsx.h>
 
 WinForge::WinForge(WNDPROC WindowProc)

@@ -1,17 +1,20 @@
 #pragma once
 
-#include "AudioCap.h"
-#include "AudioRender.h"
-#include "CaptureController.h"
+#include "AudioCap.hpp"
+#include "AudioRender.hpp"
+#include "CaptureController.hpp"
 #include "ClipBoardLink.h"
-#include "ClipboardTypes.h"
-#include "IOLink.h"
-#include "IOLinkContext.h"
-#include "OmniEnums.h"
+#include "ClipboardTypes.hpp"
+#include "IOLink.hpp"
+#include "IOLinkContext.hpp"
+#include "OmniEnums.hpp"
+#include "OmniGraphicsContext.hpp"
 #include "OmniInstances.h"
-#include "OmniPackets.h"
-#include "RenderState.h"
-#include "StreamWindow.h"
+#include "OmniPackets.hpp"
+#include "OmniRouterContext.hpp"
+#include "OmniTCPStream.h"
+#include "StreamWindow.hpp"
+#include "WindowDragCap.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -30,41 +33,71 @@ template <uint32_t MTU> class OmniNetSession;
 class OmniNetSubStream;
 
 using NetworkPacketHandlerFn = void(char*, uint32_t, uint8_t, void*);
+using SubStreamID            = uint16_t;
 
 NetworkPacketHandlerFn NetworkPacketHandler;
 
 struct OmniSystemLink
 {
-    IOLinkContext                                    IOCtx;
-    OmniIOCap                                        IOCapture{IOCtx};
-    OmniIOShield                                     IOShield{IOCtx};
-    OmniStreamController                             StreamController;
-    ClipBoardLink                                    ClipboardService;
-    std::unique_ptr<AudioCapture>                    OmniAudioCapture = nullptr;
-    std::map<uint16_t, OmniNetSubStream*>            ActiveAudioStreams;
-    std::mutex                                       AudioBroadcastMutex;
-    std::map<uint16_t, std::unique_ptr<AudioRender>> AudioRenderers;
+    // Main Window Data
+    HINSTANCE hInstance = nullptr;
+    int       nCmdShow  = 0;
+    HWND      WindowID  = nullptr;
 
+    // Active Instances borrowed from InstanceRegistry
+    ActiveInstanceContainer* ActiveInstances = nullptr;
+
+    // Feature Class Instances for main 5 Feature
+    OmniRouter        OmniRouter;
+    OmniStreamer      Streamer;
+    OmniDragLink      DragLink{OmniRouter};
+    InputLinkContext  InputLinkCtx{OmniRouter};
+    OmniInputLink     InputLink{InputLinkCtx};
+    OmniInputFilter   InputFilter{InputLinkCtx};
+    OmniClipboardLink ClipboardLink;
+    OmniAudioLink     AudioLink;
+
+    // D3D Device and Context for Capture Streams
+    OmniGraphicsContext&        GraphicsContext;
     ComPtr<ID3D11Device>        StreamingDevice  = nullptr;
     ComPtr<ID3D11DeviceContext> StreamingContext = nullptr;
 
-    OmniRenderState&                                             RenderState;
-    std::vector<StreamWindow*>                                   ActiveWindows;
-    std::unordered_map<uint16_t, StreamWindow*>                  WindowRegistry;
-    std::unordered_map<uint16_t, OmniStreamController::StreamID> StreamRegistry;
+    // StreamWindow Container and SubStream to StreamWindow / StreamWindowID lookup
+    std::vector<StreamWindow*>                              ActiveWindows;
+    std::unordered_map<SubStreamID, StreamWindow*>          StreamWindowRegistry;
+    std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
 
-    HINSTANCE                hInstance       = nullptr;
-    int                      nCmdShow        = 0;
-    HWND                     WindowID        = nullptr;
-    ActiveInstanceContainer* ActiveInstances = nullptr;
+    // Map/Reverse Map Hwnd with Sub Streams for the DragDetection in WindowLink
+    std::unordered_map<HWND, SubStreamID>      Hwnd2SubStreamRegistry;
+    std::unordered_map<SubStreamID, HWND>      SubStream2HwndRegistry;
+    std::unordered_map<SubStreamID, DeviceMap> SubStreamToDevice;
 
-    ClipboardFeatureContext* ClipboardCtx = nullptr;
+    struct WindowStreamContext
+    {
+        OmniSystemLink*          SysLink   = nullptr;
+        OmniNetSession<OmniMTU>* Session   = nullptr;
+        DeviceMap                DeviceID  = DeviceMap::C0;
+        SubStreamID              WindowKey = 0;
+    };
 
-    OmniSystemLink(OmniRenderState& RenderState);
+    std::unordered_map<SubStreamID, WindowStreamContext> StreamContexts;
+
+    // Callbacks on Streamer Window Open and Close
+    std::function<SubStreamID(DeviceMap, HWND)> OnOpenWindowStream;
+    std::function<void(DeviceMap, SubStreamID)> OnCloseWindowStream;
+
+    // AudioStreams and renderers
+    std::array<std::atomic<OmniNetSubStream*>, DeviceMap::END> ActiveAudioStreams{};
+    std::atomic<uint32_t>                                      AudioStreamCount{0};
+    std::map<SubStreamID, std::unique_ptr<AudioRender>>        AudioRenderers;
+
+
+    OmniSystemLink(OmniGraphicsContext& GraphicsContext);
 
     void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
 
-    StreamWindow* CreateStreamWindow(const WindowCreationData& WindowData);
+    StreamWindow*
+    CreateStreamWindow(const WindowCreationData& WindowData, int ShowCmd = SW_SHOWNORMAL);
 
     void ToggleEdgeProbe();
 
@@ -73,7 +106,7 @@ struct OmniSystemLink
 
     void SyncInputFilter();
 
-    OmniStreamController::StreamID AddCaptureStream(
+    OmniStreamer::StreamID AddCaptureStream(
         OmniNetSubStream*   SubStream,
         DeviceMap           DeviceID,
         CaptureMode         Mode,
@@ -84,7 +117,7 @@ struct OmniSystemLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        uint16_t           SubStreamID = 0,
+        SubStreamID        SubStreamID = 0,
         void*              Context     = nullptr
     );
 
@@ -92,7 +125,7 @@ struct OmniSystemLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        uint16_t           SubStreamID = 0,
+        SubStreamID        SubStreamID = 0,
         void*              Context     = nullptr
     );
 
@@ -100,7 +133,7 @@ struct OmniSystemLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        uint16_t           SubStreamID = 0,
+        SubStreamID        SubStreamID = 0,
         void*              Context     = nullptr
     );
 
@@ -108,7 +141,7 @@ struct OmniSystemLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        uint16_t           SubStreamID = 0,
+        SubStreamID        SubStreamID = 0,
         void*              Context     = nullptr
     );
 
@@ -116,7 +149,7 @@ struct OmniSystemLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        uint16_t           SubStreamID = 0,
+        SubStreamID        SubStreamID = 0,
         void*              Context     = nullptr
     );
 
