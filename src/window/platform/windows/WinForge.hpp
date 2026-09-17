@@ -12,7 +12,6 @@
 #include "OmniConfig.hpp"
 #include "StreamWindow.hpp"
 #include "WinCap.hpp"
-#include "WindowOperationTypes.hpp"
 #include "nvdec.hpp"
 
 #include <Windows.h>
@@ -25,14 +24,18 @@
 
 using Microsoft::WRL::ComPtr;
 
+struct OmniMousePacket;
+struct OmniKeyPacket;
+
 // It's.. prolly quite obvious but yes, inputs, resize, on close events all in one place
-struct OmniWindowEvent
+struct OmniWindowEventHandlers
 {
     void* Context = nullptr;
 
-    void (*OnInput)(void* Ctx, const void* Data, uint32_t Size, bool MouseInput) = nullptr;
-    void (*OnResize)(void* Ctx, uint32_t Width, uint32_t Height)                 = nullptr;
-    void (*OnWindowClose)(void* Ctx)                                             = nullptr;
+    void (*OnMouseInput)(void* Ctx, const OmniMousePacket& Packet) = nullptr;
+    void (*OnKeyInput)(void* Ctx, const OmniKeyPacket& Packet)     = nullptr;
+    void (*OnResize)(void* Ctx, uint32_t Width, uint32_t Height)   = nullptr;
+    void (*OnWindowClose)(void* Ctx)                               = nullptr;
 };
 
 struct WinConfig
@@ -183,10 +186,10 @@ class WinForge
         FrameTimeLimit = std::chrono::nanoseconds(1000000000LL / FPS);
     }
 
-    inline void SetEventForwarder(const OmniWindowEvent& Callback)
+    inline void SetEventForwarder(const OmniWindowEventHandlers& Callback)
     {
         EventHandler = Callback;
-        if (!EventHandler.OnInput) {
+        if (!EventHandler.OnMouseInput && !EventHandler.OnKeyInput) {
             EventForwarderState.store(false, std::memory_order_release);
         }
     }
@@ -194,7 +197,8 @@ class WinForge
     inline void SetEventForwarding(bool State)
     {
         EventForwarderState.store(
-            State && (EventHandler.OnInput != nullptr), std::memory_order_release
+            State && (EventHandler.OnMouseInput != nullptr || EventHandler.OnKeyInput != nullptr),
+            std::memory_order_release
         );
     }
 
@@ -207,15 +211,22 @@ class WinForge
     {
         EventForwarderState.store(
             !EventForwarderState.load(std::memory_order_relaxed) &&
-                (EventHandler.OnInput != nullptr),
+                (EventHandler.OnMouseInput != nullptr || EventHandler.OnKeyInput != nullptr),
             std::memory_order_release
         );
     }
 
-    inline void InputHandler(const void* Data, uint32_t Size, bool MouseInput)
+    inline void MouseInputHandler(const OmniMousePacket& Packet)
     {
-        if (EventHandler.OnInput) [[likely]] {
-            EventHandler.OnInput(EventHandler.Context, Data, Size, MouseInput);
+        if (EventHandler.OnMouseInput) [[likely]] {
+            EventHandler.OnMouseInput(EventHandler.Context, Packet);
+        }
+    }
+
+    inline void KeyInputHandler(const OmniKeyPacket& Packet)
+    {
+        if (EventHandler.OnKeyInput) [[likely]] {
+            EventHandler.OnKeyInput(EventHandler.Context, Packet);
         }
     }
 
@@ -226,17 +237,16 @@ class WinForge
     // to the window view port
     void UpdateDimensions(uint32_t Width, uint32_t Height);
 
-    void ProcWindowDrag(const OmniWinDragPacket& Packet);
-
   private:
-    OmniWindowEvent   EventHandler{};
-    std::atomic<bool> EventForwarderState{false};
-    uint32_t          WindowWidth     = 0;
-    uint32_t          WindowHeight    = 0;
-    uint32_t          TextureWidth    = 1920;
-    uint32_t          TextureHeight   = 1080;
-    uint16_t          LastNormalizedX = 0xFFFF;
-    uint16_t          LastNormalizedY = 0xFFFF;
+    OmniWindowEventHandlers EventHandler{};
+    std::atomic<bool>       EventForwarderState{false};
+
+    uint32_t WindowWidth     = 0;
+    uint32_t WindowHeight    = 0;
+    uint32_t TextureWidth    = 1920;
+    uint32_t TextureHeight   = 1080;
+    uint16_t LastNormalizedX = 0xFFFF;
+    uint16_t LastNormalizedY = 0xFFFF;
 
     HRESULT           hr = NULL;
     std::atomic<HWND> hwnd{NULL};

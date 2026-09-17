@@ -436,7 +436,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
                 Packet.dY              = normY;
                 Packet.Flags           = OMNI_MOUSE_ABSOLUTE;
 
-                WinForgePtr->InputHandler(&Packet, sizeof(OmniMousePacket), true);
+                WinForgePtr->MouseInputHandler(Packet);
             }
         }
         return 0;
@@ -508,7 +508,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
                 }
             }
 
-            WinForgePtr->InputHandler(&Packet, sizeof(OmniMousePacket), true);
+            WinForgePtr->MouseInputHandler(Packet);
         }
         return 0;
     }
@@ -540,7 +540,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
             Packet.Buttons = (uMsg == WM_MOUSEWHEEL) ? MOUSEEVENTF_WHEEL : MOUSEEVENTF_HWHEEL;
             Packet.Wheel   = GET_WHEEL_DELTA_WPARAM(wParam);
 
-            WinForgePtr->InputHandler(&Packet, sizeof(OmniMousePacket), true);
+            WinForgePtr->MouseInputHandler(Packet);
         }
         return 0;
     }
@@ -577,7 +577,7 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
                 KeyPacket.Flags |= KEYEVENTF_KEYUP;
             }
 
-            WinForgePtr->InputHandler(&KeyPacket, sizeof(OmniKeyPacket), false);
+            WinForgePtr->KeyInputHandler(KeyPacket);
 
             // Alt+F4 will proceed to DefWindowProc so that this window can be closed normally
             if (uMsg == WM_SYSKEYDOWN && wParam == VK_F4 && (lParam & (1 << 29))) {
@@ -608,53 +608,4 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     }
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
-
-void WinForge::ProcWindowDrag(const OmniWinDragPacket& Packet)
-{
-    HWND TargetHwnd = hwnd.load(std::memory_order_relaxed);
-    if (!TargetHwnd)
-        return;
-
-    switch (Packet.Action) {
-    case WinDragAction::Begin: {
-        UpdateDimensions(Packet.WindowWidth, Packet.WindowHeight);
-        SetWindowPos(
-            TargetHwnd,
-            NULL,
-            Packet.WindowX,
-            Packet.WindowY,
-            Packet.WindowWidth,
-            Packet.WindowHeight,
-            SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW
-        );
-        break;
-    }
-    case WinDragAction::Move: {
-        SetWindowPos(
-            TargetHwnd,
-            NULL,
-            Packet.WindowX,
-            Packet.WindowY,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-        );
-        break;
-    }
-    case WinDragAction::Drop: {
-        if (Packet.WindowWidth > 0 && Packet.WindowHeight > 0) {
-            UpdateDimensions(Packet.WindowWidth, Packet.WindowHeight);
-        }
-        SetWindowPos(
-            TargetHwnd, NULL, Packet.WindowX, Packet.WindowY, 0, 0, SWP_NOSIZE | SWP_NOZORDER
-        );
-        SetForegroundWindow(TargetHwnd);
-        break;
-    }
-    case WinDragAction::Cancel: {
-        ShowWindow(TargetHwnd, SW_HIDE);
-        break;
-    }
-    }
 }
