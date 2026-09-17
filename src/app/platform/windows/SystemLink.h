@@ -15,6 +15,7 @@
 #include "OmniTCPStream.h"
 #include "StreamWindow.hpp"
 #include "WindowDragCap.hpp"
+#include "WindowOperationTypes.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -63,7 +64,6 @@ struct OmniSystemLink
     ComPtr<ID3D11DeviceContext> StreamingContext = nullptr;
 
     // StreamWindow Container and SubStream to StreamWindow / StreamWindowID lookup
-    std::vector<StreamWindow*>                              ActiveWindows;
     std::unordered_map<SubStreamID, StreamWindow*>          StreamWindowRegistry;
     std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
 
@@ -98,11 +98,53 @@ struct OmniSystemLink
     std::function<void(const ClipboardStreamEvent&)>             OnClipboardStreamEvent;
 
     OmniSystemLink(OmniGraphicsContext& GraphicsContext);
+    ~OmniSystemLink();
 
     void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
 
+    // Base function to create a DXGI/WGC capture stream.
+    OmniStreamer::StreamID AddCaptureStream(
+        OmniNetSubStream*   SubStream,
+        DeviceMap           DeviceID,
+        CaptureMode         Mode,
+        const StreamConfig& Config = {}
+    );
+
+    // Sends a Window Resize Event packet over the network.. the end..
+    void TransmitWindowResizeEvent(
+        SubStreamID WindowKey, DeviceMap DeviceID, uint32_t NewWidth, uint32_t NewHeight
+    );
+
+    // For the given SubStream, DeviceID and window HWND handle, boot up and setup a capture stream
+    OmniStreamer::StreamID
+    StartWindowCaptureStream(SubStreamID SubStreamID, DeviceMap DeviceID, HWND Hwnd);
+
+    // Removes stream, cleans up mappings
+    void StopWindowCaptureStream(SubStreamID SubStreamID);
+
+    // Base function to create an async WinForge stream window.
     StreamWindow*
     CreateStreamWindow(const WindowCreationData& WindowData, int ShowCmd = SW_SHOWNORMAL);
+
+    // Handles the OnClose event of a stream window, closes the sub stream, destroys the window.
+    // FYI it's delegating work to a thread to let the window proc msg end to safely deconstruct.
+    void OnStreamWindowClose(SubStreamID WindowKey, DeviceMap DeviceID);
+
+    // Creates a Stream Window to receive a capture stream over the network.
+    // Additionally sets up window event handling such as OnInput, OnResize and OnWindowClose.
+    // Returns the StreamWindow's populated frame buffer PoolConfig
+    // Frame bytes are expected to be written to the pool after which gets decoded and rendered
+    OmniNet::PoolConfig SetupStreamRenderWindow(
+        SubStreamID SubStreamID,
+        DeviceMap   DeviceID,
+        uint32_t    Width   = 0,
+        uint32_t    Height  = 0,
+        int16_t     X       = 0,
+        int16_t     Y       = 0,
+        int         ShowCmd = SW_SHOW
+    );
+
+    void DestroyStreamRenderWindow(SubStreamID SubStreamID);
 
     void ToggleEdgeProbe();
 
