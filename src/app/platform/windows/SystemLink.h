@@ -21,6 +21,8 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -68,9 +70,8 @@ struct OmniSystemLink
     std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
 
     // Map/Reverse Map Hwnd with Sub Streams for the DragDetection in WindowLink
-    std::unordered_map<HWND, SubStreamID>      Hwnd2SubStreamRegistry;
-    std::unordered_map<SubStreamID, HWND>      SubStream2HwndRegistry;
-    std::unordered_map<SubStreamID, DeviceMap> SubStreamToDevice;
+    std::unordered_map<HWND, SubStreamID> Hwnd2SubStreamRegistry;
+    std::unordered_map<SubStreamID, HWND> SubStream2HwndRegistry;
 
     struct WindowStreamContext
     {
@@ -82,9 +83,10 @@ struct OmniSystemLink
 
     std::unordered_map<SubStreamID, WindowStreamContext> StreamContexts;
 
-    // Callbacks on Streamer Window Open and Close
-    std::function<SubStreamID(DeviceMap, HWND)> OnOpenWindowStream;
-    std::function<void(DeviceMap, SubStreamID)> OnCloseWindowStream;
+    // SubStream request, release, and configuration callbacks.
+    std::function<SubStreamID(DeviceMap, FeatureTypes)>                     RequestSubStream;
+    std::function<void(DeviceMap, SubStreamID, bool)>                       ReleaseSubStream;
+    std::function<void(DeviceMap, SubStreamID, const OmniNet::PoolConfig&)> ConfigureSubStream;
 
     // AudioStreams and renderers
     std::array<std::atomic<OmniNetSubStream*>, DeviceMap::END> ActiveAudioStreams{};
@@ -115,11 +117,19 @@ struct OmniSystemLink
         SubStreamID WindowKey, DeviceMap DeviceID, uint32_t NewWidth, uint32_t NewHeight
     );
 
+    // For the given SubStream and DeviceID, boot up and setup a DXGI screen capture stream
+    // Populates the StreamLookup Registries
+    OmniStreamer::StreamID StartScreenCaptureStream(SubStreamID SubStreamID, DeviceMap DeviceID);
+
+    // Removes screen capture stream, cleans up stream lookup mappings
+    void StopScreenCaptureStream(SubStreamID SubStreamID);
+
     // For the given SubStream, DeviceID and window HWND handle, boot up and setup a capture stream
+    // Populates the StreamLookup Registries
     OmniStreamer::StreamID
     StartWindowCaptureStream(SubStreamID SubStreamID, DeviceMap DeviceID, HWND Hwnd);
 
-    // Removes stream, cleans up mappings
+    // Removes window capture stream, cleans up stream lookup mappings
     void StopWindowCaptureStream(SubStreamID SubStreamID);
 
     // Base function to create an async WinForge stream window.
@@ -135,16 +145,22 @@ struct OmniSystemLink
     // Returns the StreamWindow's populated frame buffer PoolConfig
     // Frame bytes are expected to be written to the pool after which gets decoded and rendered
     OmniNet::PoolConfig SetupStreamRenderWindow(
-        SubStreamID SubStreamID,
-        DeviceMap   DeviceID,
-        uint32_t    Width   = 0,
-        uint32_t    Height  = 0,
-        int16_t     X       = 0,
-        int16_t     Y       = 0,
-        int         ShowCmd = SW_SHOW
+        SubStreamID      SubStreamID,
+        DeviceMap        DeviceID,
+        uint32_t         Width   = 0,
+        uint32_t         Height  = 0,
+        int16_t          X       = 0,
+        int16_t          Y       = 0,
+        int              ShowCmd = SW_SHOW,
+        std::string_view Title   = "Stream Window"
     );
 
     void DestroyStreamRenderWindow(SubStreamID SubStreamID);
+
+    // Callback for WindowLink stream source window
+    // Called upon a DragLink trigger when an edge crossing drag event begins, Drops, Cancels
+    // Although move is handled here it's not called, unused for now
+    SubStreamID HandleWindowDragEvent(HWND Hwnd, DeviceMap TargetDevice, WinDragAction Action);
 
     // Toggles edge crossing detection for the cursor.
     void ToggleEdgeProbe();
@@ -155,13 +171,6 @@ struct OmniSystemLink
 
     // Blocks input pass throught to the callers device, but I did include a breakout
     void ToggleInputFilter();
-
-    OmniStreamer::StreamID AddCaptureStream(
-        OmniNetSubStream*   SubStream,
-        DeviceMap           DeviceID,
-        CaptureMode         Mode,
-        const StreamConfig& Config = {}
-    );
 
     OmniNet::PoolConfig SetScreenLinkState(
         DeviceMap          DeviceID,
