@@ -70,6 +70,7 @@ struct OmniSystemLink
     std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
 
     // Map/Reverse Map Hwnd with Sub Streams for the DragDetection in WindowLink
+    // FYI these 2 are for the source window handles
     std::unordered_map<HWND, SubStreamID> Hwnd2SubStreamRegistry;
     std::unordered_map<SubStreamID, HWND> SubStream2HwndRegistry;
 
@@ -139,6 +140,17 @@ struct OmniSystemLink
     // Handles the OnClose event of a stream window, closes the sub stream, destroys the window.
     // FYI it's delegating work to a thread to let the window proc msg end to safely deconstruct.
     void OnStreamWindowClose(SubStreamID WindowKey, DeviceMap DeviceID);
+
+    // Processes Window Drag Events received from the source stream
+    // On Begin starts up a Stream Window and configure the substream with the pool.
+    // On Move looks up the correct window and sets position
+    // On Drag looks up the correct window, sets the position, handles dimension change and focus
+    // On Cancel Destroys the Stream Window created on begin and releases the sub stream
+    void
+    HandleStreamWindowDrag(const OmniWinDragPacket& Packet, DeviceMap SenderDevice = DeviceMap::C0);
+
+    // Processes Window Resize Events for both ends, simply looks up the correct HWND and resizes
+    void HandleStreamWindowResize(const OmniWinResizePacket Packet);
 
     // Creates a Stream Window to receive a capture stream over the network.
     // Additionally sets up window event handling such as OnInput, OnResize and OnWindowClose.

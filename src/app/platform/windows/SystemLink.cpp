@@ -412,6 +412,152 @@ OmniSystemLink::HandleWindowDragEvent(HWND Hwnd, DeviceMap TargetDevice, WinDrag
     }
 }
 
+void OmniSystemLink::HandleStreamWindowDrag(const OmniWinDragPacket& Packet, DeviceMap SenderDevice)
+{
+    DeviceMap DeviceID = (SenderDevice != DeviceMap::C0) ? SenderDevice : Packet.Edge;
+
+    switch (Packet.Action) {
+    case WinDragAction::Begin: {
+        auto IterStreamWindows = StreamWindowRegistry.find(Packet.WindowID);
+        if (IterStreamWindows == StreamWindowRegistry.end() || !IterStreamWindows->second) {
+            OmniNet::PoolConfig PoolConfig = SetupStreamRenderWindow(
+                Packet.WindowID,
+                DeviceID,
+                Packet.WindowWidth,
+                Packet.WindowHeight,
+                Packet.WindowX,
+                Packet.WindowY,
+                SW_SHOW
+            );
+            if (ConfigureSubStream && PoolConfig.Data != nullptr) {
+                ConfigureSubStream(DeviceID, Packet.WindowID, PoolConfig);
+            }
+            return;
+        }
+
+        StreamWindow* Window     = IterStreamWindows->second;
+        HWND          TargetHwnd = Window->GetHwnd();
+        if (TargetHwnd) {
+            Window->UpdateDimensions(Packet.WindowWidth, Packet.WindowHeight);
+            SetWindowPos(
+                TargetHwnd,
+                NULL,
+                Packet.WindowX,
+                Packet.WindowY,
+                Packet.WindowWidth,
+                Packet.WindowHeight,
+                SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW
+            );
+        }
+        break;
+    }
+    case WinDragAction::Move: {
+        auto IterStreamWindows = StreamWindowRegistry.find(Packet.WindowID);
+        if (IterStreamWindows == StreamWindowRegistry.end() || !IterStreamWindows->second) {
+            return;
+        }
+        HWND TargetHwnd = IterStreamWindows->second->GetHwnd();
+        if (TargetHwnd) {
+            SetWindowPos(
+                TargetHwnd,
+                NULL,
+                Packet.WindowX,
+                Packet.WindowY,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+            );
+        }
+        break;
+    }
+    case WinDragAction::Drop: {
+        auto IterStreamWindow = StreamWindowRegistry.find(Packet.WindowID);
+        if (IterStreamWindow == StreamWindowRegistry.end() || !IterStreamWindow->second) {
+            return;
+        }
+        StreamWindow* Window     = IterStreamWindow->second;
+        HWND          TargetHwnd = Window->GetHwnd();
+        if (TargetHwnd) {
+            if (Packet.WindowWidth > 0 && Packet.WindowHeight > 0) {
+                Window->UpdateDimensions(Packet.WindowWidth, Packet.WindowHeight);
+            }
+            SetWindowPos(
+                TargetHwnd, NULL, Packet.WindowX, Packet.WindowY, 0, 0, SWP_NOSIZE | SWP_NOZORDER
+            );
+            SetForegroundWindow(TargetHwnd);
+        }
+        break;
+    }
+    case WinDragAction::Cancel: {
+        DestroyStreamRenderWindow(Packet.WindowID);
+        if (ReleaseSubStream) {
+            ReleaseSubStream(DeviceID, Packet.WindowID, false);
+        }
+        break;
+    }
+    }
+}
+
+void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
+{
+    const SubStreamID StreamID  = Packet.WindowKey;
+    const uint32_t    NewWidth  = Packet.Width;
+    const uint32_t    NewHeight = Packet.Height;
+
+    if (NewWidth == 0 || NewHeight == 0) {
+        return;
+    }
+
+    auto IterSourceWindows = SubStream2HwndRegistry.find(StreamID);
+    if (IterSourceWindows != SubStream2HwndRegistry.end()) {
+        HWND SourceHwnd = IterSourceWindows->second;
+        if (IsWindow(SourceHwnd)) {
+            SetWindowPos(
+                SourceHwnd,
+                nullptr,
+                0,
+                0,
+                static_cast<int>(NewWidth),
+                static_cast<int>(NewHeight),
+                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+            );
+            Logger::log(
+                "Resized source HWND={:p} to {}x{} for SubStreamID={:d}",
+                static_cast<void*>(SourceHwnd),
+                NewWidth,
+                NewHeight,
+                StreamID
+            );
+        }
+        return;
+    }
+
+    auto IterStreamWindows = StreamWindowRegistry.find(StreamID);
+    if (IterStreamWindows != StreamWindowRegistry.end() && IterStreamWindows->second) {
+        StreamWindow* Window = IterStreamWindows->second;
+        Window->UpdateDimensions(NewWidth, NewHeight);
+        HWND StreamHwnd = Window->GetHwnd();
+        if (StreamHwnd && IsWindow(StreamHwnd)) {
+            SetWindowPos(
+                StreamHwnd,
+                nullptr,
+                0,
+                0,
+                static_cast<int>(NewWidth),
+                static_cast<int>(NewHeight),
+                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+            );
+        }
+        Logger::log(
+            "Resized stream window dimensions to {}x{} for "
+            "SubStreamID={:d}",
+            NewWidth,
+            NewHeight,
+            StreamID
+        );
+    }
+}
+
 void OmniSystemLink::ToggleEdgeProbe()
 {
     InputLink.ToggleEdgeProbe(WindowID);
