@@ -310,11 +310,22 @@ void OmniSystemLink::DestroyStreamRenderWindow(SubStreamID SubStreamID)
     Logger::log("StreamWindow destroyed for SubStreamID={:d}", SubStreamID);
 }
 
+
+void OmniSystemLink::ToggleEdgeProbe()
+{
+    InputLink.ToggleEdgeProbe(WindowID);
+}
+
 void OmniSystemLink::BindIOLinkSession(DeviceMap DeviceID)
 {
     if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
         auto& instance = ActiveInstances->at(DeviceID);
         OmniRouter.RegisterSession(DeviceID, instance.InstanceSession.get());
+        InputLink.AddEdgeCondition(DeviceID);
+        if (!InputLink.GetEdgeProbeState())
+            InputLink.ToggleEdgeProbe(WindowID);
+
+        ToggleInputFilter();
     }
 }
 
@@ -330,7 +341,16 @@ void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
         InputLink.ToggleEdgeProbe(WindowID);
     }
 
-    SyncInputFilter();
+    ToggleInputFilter();
+}
+
+void OmniSystemLink::ToggleInputFilter()
+{
+    if (InputLink.GetEdgeProbeState()) {
+        InputFilter.InvokeInputFilter();
+    } else {
+        InputFilter.ReleaseInputFilter();
+    }
 }
 
 OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
@@ -567,8 +587,6 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
     return OmniNet::PoolConfig{};
 }
 
-// Register/Unregister the edge trigger condition for this device and bind/Unbind the net session.
-// Setup Edge Probe and Input Shields if not active.. or... remove.
 OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
@@ -581,13 +599,7 @@ OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
     (void)Context;
     if (Route == FeatureActionRoute::Outbound) {
         if (Action == FeatureAction::Activate) {
-            InputLink.AddEdgeCondition(DeviceID);
             BindIOLinkSession(DeviceID);
-
-            if (!InputLink.GetEdgeProbeState())
-                InputLink.ToggleEdgeProbe(WindowID);
-
-            SyncInputFilter();
 
             Logger::log("InputLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
         } else {

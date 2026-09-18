@@ -146,12 +146,15 @@ struct OmniSystemLink
 
     void DestroyStreamRenderWindow(SubStreamID SubStreamID);
 
+    // Toggles edge crossing detection for the cursor.
     void ToggleEdgeProbe();
 
+    // Registers/Unregisters a device in the OmniRouter for InputLink
     void BindIOLinkSession(DeviceMap DeviceID);
     void UnbindIOLinkSession(DeviceMap DeviceID);
 
-    void SyncInputFilter();
+    // Blocks input pass throught to the callers device, but I did include a breakout
+    void ToggleInputFilter();
 
     OmniStreamer::StreamID AddCaptureStream(
         OmniNetSubStream*   SubStream,
@@ -176,6 +179,8 @@ struct OmniSystemLink
         void*              Context     = nullptr
     );
 
+    // Register/Unregister the edge cross condition for this device and bind/Unbind the net session.
+    // Setup Edge Probe and Input Shields if not active.. or... remove.
     OmniNet::PoolConfig SetInputLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
