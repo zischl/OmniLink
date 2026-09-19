@@ -309,7 +309,16 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
         TransmitNetCommand(DeviceID, Command, 0, OmniNet::Argonized);
     }
 
-    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING_AUTH);
+    if (!InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::LINKING_AUTH)) {
+        CurrentLinkState = InstanceRegistry.GetConnectionState(DeviceID);
+        if (CurrentLinkState == NetLinkState::LINKED) {
+            Logger::log(
+                "Device {} already linked, way too fast, skipping confirmation alert",
+                InstanceRegistry.AllInstances[DeviceID].InstanceName
+            );
+        }
+        return;
+    }
 
     // If this is the receiver...
     if (ResponseRequired) {
@@ -573,8 +582,13 @@ void OmniCore::FailHandshake(DeviceMap DeviceID, const char* Reason)
         InstanceRegistry.AllInstances[DeviceID].InstanceName,
         Reason
     );
-    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::FAILED);
 
+    QryptManager.ClearSession(DeviceID);
+
+    InstanceRegistry.SetConnectionState(DeviceID, NetLinkState::FAILED);
+    InstanceRegistry.TransmitConnectionState(DeviceID);
+
+    CancelNotification(DeviceID);
     PushNotification(
         Notification{
             Alert{
