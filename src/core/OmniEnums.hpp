@@ -68,7 +68,6 @@ enum CoreCommandsWArgs : uint8_t {
     AuthlessGate,
 
     SwapLayout = AuthlessGate,
-    CreateStreamLink,
     ToggleFeature,
     SubStream,
 };

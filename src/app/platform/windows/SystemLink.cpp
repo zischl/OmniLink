@@ -356,6 +356,23 @@ void OmniSystemLink::DestroyStreamRenderWindow(SubStreamID SubStreamID)
     Logger::log("StreamWindow destroyed for SubStreamID={:d}", SubStreamID);
 }
 
+OmniNet::PoolConfig OmniSystemLink::GetStreamWindowPoolConfig(SubStreamID SubStreamID)
+{
+    auto IterStreamWindows = StreamWindowRegistry.find(SubStreamID);
+    if (IterStreamWindows != StreamWindowRegistry.end() && IterStreamWindows->second) {
+        OmniNet::PoolConfig PoolConfig{};
+        IterStreamWindows->second->GetFramePool(
+            PoolConfig.Data,
+            PoolConfig.DataSize,
+            PoolConfig.NumSlots,
+            &PoolConfig.OnSlotComplete,
+            PoolConfig.Ctx
+        );
+        return PoolConfig;
+    }
+    return OmniNet::PoolConfig{};
+}
+
 SubStreamID
 OmniSystemLink::HandleWindowDragEvent(HWND Hwnd, DeviceMap TargetDevice, WinDragAction Action)
 {

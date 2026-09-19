@@ -3,20 +3,20 @@
 
 #pragma once
 
-#include "BurstQ.h"
-#include "InstanceRegistry.h"
-#include "OmniDiscovery.h"
-#include "OmniEnums.h"
-#include "OmniLogger.h"
-#include "OmniPackets.h"
-#include "OmniQrypt.h"
-#include "OmniTypes.h"
-#include "RenderState.h"
-#include "SessionHandler.h"
-#include "SessionManager.h"
-#include "SystemLink.h"
-#include "UIEvents.h"
-#include "nvenc.h"
+#include "BurstQ.hpp"
+#include "InstanceRegistry.hpp"
+#include "OmniDiscovery.hpp"
+#include "OmniEnums.hpp"
+#include "OmniGraphicsContext.hpp"
+#include "OmniLogger.hpp"
+#include "OmniPackets.hpp"
+#include "OmniQrypt.hpp"
+#include "OmniTypes.hpp"
+#include "SessionHandler.hpp"
+#include "SessionManager.hpp"
+#include "SystemLink.hpp"
+#include "UIEvents.hpp"
+#include "nvenc.hpp"
 
 #include <array>
 #include <chrono>
@@ -32,8 +32,8 @@ class OmniCore
     OmniAppState AppState = OmniAppState::RUNNING;
     OmniGUIState UIState  = OmniGUIState::RENDER;
 
-    const float          clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    OmniRenderState      RenderState;
+    const float          ClearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    OmniGraphicsContext  GraphicsContext;
     OmniInstanceRegistry InstanceRegistry;
     OmniSessionManager   SessionManager;
     OmniQrypt            QryptManager;
@@ -42,7 +42,7 @@ class OmniCore
 
     DeviceMap SelectedInstance = DeviceMap::L1;
 
-    OmniSystemLink SystemLink{RenderState};
+    OmniSystemLink SystemLink{GraphicsContext};
 
     static DeviceMap ActiveIOProcTarget;
 
@@ -137,8 +137,6 @@ class OmniCore
     void ConnectInstance(DeviceMap DeviceID);
 
     void SwapInstanceLayout(int DeviceID1, int DeviceID2);
-
-    void CreateStreamLink(WindowCreationData& WindowInfo);
 
     std::mutex              CommandQMutex;
     std::condition_variable CommandQCV;
@@ -239,16 +237,7 @@ class OmniCore
             }
 
             case 2: {
-                WindowCreationData args = std::get<2>(Command.Args);
-                (CreateStreamLink)(args);
-
-                if (!CommandBurstQWArgs.pop()) {
-                    Logger::log("Command Execution Failure");
-                }
-                break;
-            }
-            case 3: {
-                HandshakeData args = std::get<3>(Command.Args);
+                HandshakeData args = std::get<2>(Command.Args);
                 HandshakeHandler(args);
 
                 if (!CommandBurstQWArgs.pop()) {
@@ -257,8 +246,8 @@ class OmniCore
 
                 break;
             }
-            case 4: {
-                HandshakeResponse args = std::get<4>(Command.Args);
+            case 3: {
+                HandshakeResponse args = std::get<3>(Command.Args);
                 if (args.State == HandshakeResponse::Action::ACCEPT) {
                     AcceptConnection(args.DeviceID, args.Trusted);
                 } else {
@@ -271,8 +260,8 @@ class OmniCore
 
                 break;
             }
-            case 5: {
-                FeatureToggleData args = std::get<5>(Command.Args);
+            case 4: {
+                FeatureToggleData args = std::get<4>(Command.Args);
                 FeatureStateHandler(DeviceID, args);
 
                 if (!CommandBurstQWArgs.pop()) {
@@ -281,8 +270,8 @@ class OmniCore
 
                 break;
             }
-            case 6: {
-                SubStreamData args = std::get<6>(Command.Args);
+            case 5: {
+                SubStreamData args = std::get<5>(Command.Args);
                 SubStreamHandler(DeviceID, args);
 
                 if (!CommandBurstQWArgs.pop()) {
@@ -363,25 +352,31 @@ class OmniCore
         FeatureTypes       Feature,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        uint16_t           SubStreamID = 0,
+        SubStreamID        SubStreamID = 0,
         void*              Context     = nullptr
     );
+
     OmniNet::PoolConfig DispatchFeatureState(
         FeatureTypes       Feature,
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        uint16_t           SubStreamID = 0,
+        SubStreamID        SubStreamID = 0,
         void*              Context     = nullptr
     );
 
-    // Sub-stream management
-    OmniNetSubStream* OpenSubStream(DeviceMap Device, uint16_t SubStreamID);
+    // Sub stream management
+    // Opens a sub stream, requests the other device to create one as well.
+    // Registers the sub stream info
+    SubStreamID OpenSubStream(DeviceMap DeviceID, FeatureTypes Feature);
 
-    void
-    ConfigureSubStream(DeviceMap Device, uint16_t SubStreamID, const OmniNet::PoolConfig& Config);
+    // Used for late binding receive pools onto a substream
+    void ConfigureSubStream(
+        DeviceMap Device, SubStreamID SubStreamID, const OmniNet::PoolConfig& Config
+    );
 
-    void CloseSubStream(DeviceMap DeviceID, uint16_t SubStreamID, bool NotifyPeer = true);
+    // Closes a sub stream and sends a disconnection request to the peer if needed
+    void CloseSubStream(DeviceMap DeviceID, SubStreamID SubStreamID, bool NotifyPeer = true);
 
     void CloseSubStreams(DeviceMap DeviceID, FeatureTypes Feature);
 

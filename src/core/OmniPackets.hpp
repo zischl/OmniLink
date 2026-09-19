@@ -263,7 +263,6 @@ struct SubStreamData
 using FuncArgTypes = std::variant<
     ArraySwapLayout,
     ConnectionRequest,
-    WindowCreationData,
     HandshakeData,
     HandshakeResponse,
     FeatureToggleData,

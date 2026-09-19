@@ -169,6 +169,8 @@ struct OmniSystemLink
 
     void DestroyStreamRenderWindow(SubStreamID SubStreamID);
 
+    OmniNet::PoolConfig GetStreamWindowPoolConfig(SubStreamID SubStreamID);
+
     // Callback for WindowLink stream source window
     // Called upon a DragLink trigger when an edge crossing drag event begins, Drops, Cancels
     // Although move is handled here it's not called, unused for now

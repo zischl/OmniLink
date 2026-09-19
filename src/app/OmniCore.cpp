@@ -1,12 +1,12 @@
 #include "OmniCore.h"
-#include "Helper.h"
-#include "OmniEnums.h"
+#include "Helper.hpp"
+#include "OmniEnums.hpp"
 #include "OmniInstances.h"
-#include "OmniLogger.h"
-#include "OmniPackets.h"
-#include "OmniTypes.h"
-#include "SystemLink.h"
-#include "UIEvents.h"
+#include "OmniLogger.hpp"
+#include "OmniPackets.hpp"
+#include "OmniTypes.hpp"
+#include "SystemLink.hpp"
+#include "UIEvents.hpp"
 #include <vector>
 
 DeviceMap OmniCore::ActiveIOProcTarget   = DeviceMap::C0;
@@ -14,7 +14,17 @@ DeviceMap OmniCore::SelectedTargetDevice = DeviceMap::C0;
 
 OmniCore::OmniCore()
 {
-    SystemLink.ActiveInstances = &InstanceRegistry.ActiveInstances;
+    SystemLink.ActiveInstances  = &InstanceRegistry.ActiveInstances;
+    SystemLink.RequestSubStream = [this](DeviceMap DeviceID, FeatureTypes Feature) -> SubStreamID {
+        return OpenSubStream(DeviceID, Feature);
+    };
+    SystemLink.ReleaseSubStream = [this](
+                                      DeviceMap DeviceID, SubStreamID SubStreamID, bool NotifyPeer
+                                  ) { CloseSubStream(DeviceID, SubStreamID, NotifyPeer); };
+    SystemLink.ConfigureSubStream =
+        [this](DeviceMap DeviceID, SubStreamID SubStreamID, const OmniNet::PoolConfig& Config) {
+            ConfigureSubStream(DeviceID, SubStreamID, Config);
+        };
     QryptManager.LoadPairingTokensFromFile();
 }
 
@@ -188,12 +198,14 @@ void OmniCore::RequestHandshake(DeviceMap DeviceID)
     uint32_t             HandshakeToken = InstanceRegistry.GetHandshakeToken(DeviceID);
     std::vector<uint8_t> LocalPublicKey = QryptManager.GenerateKeyPair(DeviceID);
 
+    Device::MonitorRes LocalRes = Device::GetMonitorResolution();
+
     HandshakeData Data{
         InstanceRegistry.UserInstance.InstanceIP,
         DeviceID,
         HandshakeToken,
         {},
-        HandshakeData::MonitorRes{1920, 1080}
+        HandshakeData::MonitorRes{LocalRes.Width, LocalRes.Height}
     };
 
     if (LocalPublicKey.size() == 32) {
@@ -250,6 +262,16 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
         return;
     }
 
+    InstanceRegistry.AllInstances[DeviceID].ResolutionWidth  = Data.Resolution.Width;
+    InstanceRegistry.AllInstances[DeviceID].ResolutionHeight = Data.Resolution.Height;
+    if (InstanceRegistry.ActiveInstances.contains(DeviceID)) {
+        InstanceRegistry.ActiveInstances[DeviceID].ResolutionWidth  = Data.Resolution.Width;
+        InstanceRegistry.ActiveInstances[DeviceID].ResolutionHeight = Data.Resolution.Height;
+    }
+    SystemLink.OmniRouter.SetDeviceResolution(
+        DeviceID, Data.Resolution.Width, Data.Resolution.Height
+    );
+
     bool PriorSessionAuth = QryptManager.SessionAuthState(DeviceID);
 
     // ECDH plus Passkey..
@@ -258,19 +280,22 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
     int32_t PassKey = QryptManager.GeneratePasskey(DeviceID);
 
     Logger::log(
-        "Derived ECDH Shared Secret for device {}, PassKey: {:06d}",
+        "Derived ECDH Shared Secret for device {}, PassKey: {:06d}, Res: {}x{}",
         InstanceRegistry.AllInstances[DeviceID].InstanceName,
-        PassKey
+        PassKey,
+        Data.Resolution.Width,
+        Data.Resolution.Height
     );
 
     bool ResponseRequired = (CurrentLinkState == NetLinkState::LINKING_WAIT);
     if (ResponseRequired) {
-        HandshakeData HandshakeResponse{
+        Device::MonitorRes LocalRes = Device::GetMonitorResolution();
+        HandshakeData      HandshakeResponse{
             InstanceRegistry.UserInstance.InstanceIP,
             DeviceID,
             Data.Token,
             {},
-            HandshakeData::MonitorRes{1920, 1080}
+            HandshakeData::MonitorRes{LocalRes.Width, LocalRes.Height}
         };
         if (LocalPubKey.size() == 32) {
             std::copy_n(LocalPubKey.data(), 32, HandshakeResponse.Key);
@@ -386,7 +411,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
                 SessionManager.Connect<NetworkPacketHandler>(
                     InstanceRegistry.UserInstance,
                     InstanceRegistry.AllInstances[DeviceID],
-                    &SystemLink.ActiveWindows
+                    &SystemLink
                 );
 
             if (!NetSession) {
@@ -448,7 +473,7 @@ void OmniCore::ConnectInstance(DeviceMap DeviceID)
                 SessionManager.Connect<NetworkPacketHandler>(
                     InstanceRegistry.UserInstance,
                     InstanceRegistry.AllInstances[DeviceID],
-                    &SystemLink.ActiveWindows
+                    &SystemLink
                 );
 
             if (!NetSession) {
@@ -640,13 +665,8 @@ void OmniCore::SwapInstanceLayout(int DeviceID1, int DeviceID2)
     InstanceRegistry.SwapInstances(DeviceMap(DeviceID1), DeviceMap(DeviceID2));
 }
 
-void OmniCore::CreateStreamLink(WindowCreationData& WindowInfo)
-{
-    SystemLink.CreateStreamWindow(WindowInfo);
-}
-
 typedef OmniNet::PoolConfig (OmniSystemLink::*FeatureHandlerFn)(
-    DeviceMap, FeatureActionRoute, FeatureAction, uint16_t, void*
+    DeviceMap, FeatureActionRoute, FeatureAction, SubStreamID, void*
 );
 
 static const std::unordered_map<FeatureTypes, FeatureHandlerFn> FeatureDispatchTable = {
@@ -662,7 +682,7 @@ OmniNet::PoolConfig OmniCore::DispatchFeatureState(
     DeviceMap          Device,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    uint16_t           SubStreamID,
+    SubStreamID        SubStreamID,
     void*              Context
 )
 {
@@ -678,7 +698,7 @@ OmniNet::PoolConfig OmniCore::UpdateFeatureState(
     FeatureTypes       Feature,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    uint16_t           SubStreamID,
+    SubStreamID        SubStreamID,
     void*              Context
 )
 {
@@ -841,41 +861,57 @@ void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& 
     }
 }
 
-OmniNetSubStream* OmniCore::OpenSubStream(DeviceMap Device, uint16_t SubStreamID)
+SubStreamID OmniCore::OpenSubStream(DeviceMap DeviceID, FeatureTypes Feature)
 {
-    if (!InstanceRegistry.ActiveInstances.contains(Device)) {
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID)) {
         Logger::log(
             "SubStream for Non-Existent Device {:d}? How did we get here ?",
-            static_cast<int>(Device)
+            static_cast<int>(DeviceID)
         );
-        return nullptr;
+        return 0;
     }
 
-    auto& Instance = InstanceRegistry.ActiveInstances.at(Device);
+    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+    if (!Instance.InstanceSession) {
+        Logger::log("InstanceSession doesn't exist for device {:d}", static_cast<int>(DeviceID));
+        return 0;
+    }
 
     OmniNetSubStream* SubStream = Instance.InstanceSession->OpenSubStream();
     if (!SubStream) {
         Logger::log(
             "No free SubStream slots for device {:d}, hopefully that's the case",
-            static_cast<int>(Device)
+            static_cast<int>(DeviceID)
         );
-        return nullptr;
+        return 0;
     }
 
-    Instance.SubStreamRegistry[SubStreamID] = SubStreamEntry{SubStream, SubStreamState::Pending};
-
-    Logger::log(
-        "SubStream Awaiting @SubStreamID={:d} Port={:d} for device {:d}",
-        SubStreamID,
-        SubStream->GetLocalPort(),
-        static_cast<int>(Device)
+    const SubStreamID ID = Instance.AllocateNextSubStreamID();
+    Instance.RegisterSubStream(
+        ID, SubStream, Feature, FeatureActionRoute::Outbound, SubStreamState::Pending
     );
 
-    return SubStream;
+    SubStreamData  CreationData{SubStreamAction::Create, ID, SubStream->GetLocalPort()};
+    OmniNetCommand CreationCommand{
+        CoreCommandsWArgs::SubStream,
+        Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
+        SubStreamData::Serialize(CreationData)
+    };
+    TransmitNetCommand(DeviceID, CreationCommand, 0, OmniNet::Argonized);
+
+    Logger::log(
+        "SubStream awaiting @ SubStreamID={:d}, Feature={:d}, Port={:d} for DeviceID={:d}",
+        ID,
+        static_cast<int>(Feature),
+        SubStream->GetLocalPort(),
+        static_cast<int>(DeviceID)
+    );
+
+    return ID;
 }
 
 void OmniCore::ConfigureSubStream(
-    DeviceMap Device, uint16_t SubStreamID, const OmniNet::PoolConfig& Config
+    DeviceMap Device, SubStreamID SubStreamID, const OmniNet::PoolConfig& Config
 )
 {
     if (!InstanceRegistry.ActiveInstances.contains(Device)) {
@@ -914,6 +950,62 @@ void OmniCore::ConfigureSubStream(
     );
 }
 
+void OmniCore::CloseSubStream(DeviceMap DeviceID, SubStreamID SubStreamID, bool NotifyPeer)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
+        return;
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+
+    SubStreamEntry* Entry = Instance.FindSubStream(SubStreamID);
+    if (!Entry) {
+        Logger::log(
+            "Can't cleanup non-existent SubStreamID={:d} for device {:d}",
+            SubStreamID,
+            static_cast<int>(DeviceID)
+        );
+        return;
+    }
+
+    Entry->State = SubStreamState::Terminating;
+
+    if (NotifyPeer) {
+        SubStreamData  DeletionData{SubStreamAction::Disconnect, SubStreamID, 0};
+        OmniNetCommand DisconnectCmd{
+            CoreCommandsWArgs::SubStream,
+            Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
+            SubStreamData::Serialize(DeletionData)
+        };
+        TransmitNetCommand(DeviceID, DisconnectCmd, 0, OmniNet::Argonized);
+    }
+
+    if (Entry->SubStream) {
+        Instance.InstanceSession->CloseSubStream(Entry->SubStream);
+        Entry->SubStream = nullptr;
+    }
+
+    Instance.UnregisterSubStream(SubStreamID);
+
+    Logger::log(
+        "SubStream SubStreamID={:d} For Device {:d} Exterminated !",
+        SubStreamID,
+        static_cast<int>(DeviceID)
+    );
+}
+
+void OmniCore::CloseSubStreams(DeviceMap DeviceID, FeatureTypes Feature)
+{
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
+        return;
+
+    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+
+    std::vector<SubStreamID> SubStreamIDs = Instance.GetSubStreams(Feature);
+    for (SubStreamID ID : SubStreamIDs) {
+        CloseSubStream(DeviceID, ID);
+    }
+}
+
 void OmniCore::SubStreamHandler(DeviceMap Device, SubStreamData Data)
 {
     if (!InstanceRegistry.ActiveInstances.contains(Device)) {
@@ -937,20 +1029,30 @@ void OmniCore::SubStreamHandler(DeviceMap Device, SubStreamData Data)
             return;
         }
 
-        Instance.SubStreamRegistry[Data.SubStreamID] =
-            SubStreamEntry{SubStream, SubStreamState::Pending};
+        Instance.RegisterSubStream(
+            Data.SubStreamID,
+            SubStream,
+            FeatureTypes::ScreenLink,
+            FeatureActionRoute::Inbound,
+            SubStreamState::Pending
+        );
 
         if (Data.Port) {
             if (!SubStream->Connect(Instance.IPv4_String, Data.Port)) {
                 Logger::log(
                     "SubStream Connection to {:s}:{:d} failed", Instance.IPv4_String, Data.Port
                 );
-                Instance.SubStreamRegistry.erase(Data.SubStreamID);
+                Instance.UnregisterSubStream(Data.SubStreamID);
                 Instance.InstanceSession->CloseSubStream(SubStream);
                 return;
             }
 
-            Instance.SubStreamRegistry[Data.SubStreamID].State = SubStreamState::Active;
+            Instance.SetSubStreamState(Data.SubStreamID, SubStreamState::Active);
+
+            OmniNet::PoolConfig PoolConfig = SystemLink.GetStreamWindowPoolConfig(Data.SubStreamID);
+            if (PoolConfig.Data != nullptr) {
+                ConfigureSubStream(Device, Data.SubStreamID, PoolConfig);
+            }
 
             SubStreamData StreamConfig{
                 SubStreamAction::Connect, Data.SubStreamID, SubStream->GetLocalPort()
@@ -1005,67 +1107,5 @@ void OmniCore::SubStreamHandler(DeviceMap Device, SubStreamData Data)
 
     default:
         break;
-    }
-}
-
-void OmniCore::CloseSubStream(DeviceMap DeviceID, uint16_t SubStreamID, bool NotifyPeer)
-{
-    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
-        return;
-
-    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
-
-    SubStreamEntry* Entry = Instance.FindSubStream(SubStreamID);
-    if (!Entry) {
-        Logger::log(
-            "Can't cleanup non-existent SubStreamID={:d} for device {:d}",
-            SubStreamID,
-            static_cast<int>(DeviceID)
-        );
-        return;
-    }
-
-    Entry->State = SubStreamState::Terminating;
-
-    if (NotifyPeer) {
-        SubStreamData  DisconnectData{SubStreamAction::Disconnect, SubStreamID, 0};
-        OmniNetCommand DisconnectCmd{
-            CoreCommandsWArgs::SubStream,
-            Variance::GetVariantTypeIndex<SubStreamData, FuncArgTypes>,
-            SubStreamData::Serialize(DisconnectData)
-        };
-        TransmitNetCommand(DeviceID, DisconnectCmd, 0, OmniNet::Argonized);
-    }
-
-    if (Entry->SubStream) {
-        Instance.InstanceSession->CloseSubStream(Entry->SubStream);
-        Entry->SubStream = nullptr;
-    }
-
-    Instance.UnregisterFeatureSubStream(SubStreamID);
-    Instance.SubStreamRegistry.erase(SubStreamID);
-
-    Logger::log(
-        "SubStream SubStreamID={:d} For Device {:d} Exterminated !",
-        SubStreamID,
-        static_cast<int>(DeviceID)
-    );
-}
-
-void OmniCore::CloseSubStreams(DeviceMap DeviceID, FeatureTypes Feature)
-{
-    if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
-        return;
-
-    auto& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
-
-    std::vector<uint16_t> SubStreamIDs;
-    auto                  range = Instance.FeatureSubStreams.equal_range(Feature);
-    for (auto it = range.first; it != range.second; ++it) {
-        SubStreamIDs.push_back(it->second);
-    }
-
-    for (uint16_t ID : SubStreamIDs) {
-        CloseSubStream(DeviceID, ID);
     }
 }
