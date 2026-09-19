@@ -64,8 +64,6 @@ class OmniLink : public OmniCore
 
     MSG msg = {};
 
-    ClipboardFeatureContext ClipboardCtx;
-
     std::mutex EventTokensMutex;
 
     std::unordered_map<DeviceMap, std::shared_ptr<std::atomic<bool>>> ActiveEventTokens;

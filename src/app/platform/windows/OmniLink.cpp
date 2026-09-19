@@ -1,20 +1,25 @@
 #include "ClipBoardLink.h"
-#include "ClipboardTypes.h"
-#include "D3D11Renderer.h"
-#include "NetVariance.h"
-#include "OmniDiscovery.h"
-#include "OmniEnums.h"
-#include "OmniPackets.h"
-#include "WinForge.h"
-#include <OmniLink.h>
+#include "ClipboardTypes.hpp"
+#include "D3D11Renderer.hpp"
+#include "NetVariance.hpp"
+#include "OmniDiscovery.hpp"
+#include "OmniEnums.hpp"
+#include "OmniPackets.hpp"
+#include "SystemLink.h"
+#include "WinForge.hpp"
+#include "WindowOperationTypes.hpp"
+#include <OmniLink.hpp>
+
 #include <memory>
 
-static void HandleFrame(std::vector<StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)
+static void
+HandleFrame(std::unordered_map<SubStreamID, StreamWindow*>* Windows, CHAR* Buffer, DWORD BufferSize)
 {
     OmniNet::OmniHeader* Header = reinterpret_cast<OmniNet::OmniHeader*>((Buffer + BufferSize - 3));
-    if (Windows && Header->Target < Windows->size()) {
-        StreamWindow* Target = Windows->at(Header->Target);
-        if (Target) {
+    if (Windows) {
+        auto IterStreamWindows = Windows->find(Header->Target);
+        if (IterStreamWindows != Windows->end() && IterStreamWindows->second) {
+            StreamWindow* Target = IterStreamWindows->second;
             Target->SetBufferData(Buffer, BufferSize - OmniHeaderSize);
             Target->SetRenderEvent();
         }
@@ -98,11 +103,11 @@ static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
     uint8_t Op = static_cast<uint8_t>(Buffer[0]);
     if (Op == static_cast<uint8_t>(ClipboardOp::LightGram)) {
         std::string Text(Buffer + 1, PayloadSize - 1);
-        ClipBoardLink::SetClipTypeText(Text);
+        OmniClipboardLink::SetClipTypeText(Text);
     } else if (Op == static_cast<uint8_t>(ClipboardOp::Manifest)) {
         ByteStreamReader  Reader{PayloadSize - 1, reinterpret_cast<uint8_t*>(Buffer + 1)};
         ClipboardManifest Manifest = ClipboardManifest::Deserialize(Reader);
-        ClipBoardLink::AddClipItemPromise(Manifest);
+        OmniClipboardLink::AddClipItemPromise(Manifest);
     }
 }
 
@@ -110,14 +115,19 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
 {
     OmniNet::SessionPacketContext* SessionCtx =
         reinterpret_cast<OmniNet::SessionPacketContext*>(Context);
-    std::vector<StreamWindow*>* WindowContext =
-        reinterpret_cast<std::vector<StreamWindow*>*>(SessionCtx->UserContext);
     DeviceMap DeviceID = static_cast<DeviceMap>(SessionCtx->UniqueKey);
 
     switch (BufferHeader) {
-    case OmniNet::PacketType::ChunkEnd:
+    case OmniNet::PacketType::ChunkEnd: {
+        // This route is now deprecated due to capture streams using SubStreams
+        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
+
+        std::unordered_map<SubStreamID, StreamWindow*>* WindowContext =
+            SysLink ? &SysLink->StreamWindowRegistry : nullptr;
+
         HandleFrame(WindowContext, Buffer, BufferSize);
         break;
+    }
     case OmniNet::Command: {
         HandleCommand(Buffer, BufferSize, DeviceID);
         break;
@@ -132,6 +142,26 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
     }
     case OmniNet::PacketType::ProcBoundary: {
         HandleBoundary(Buffer, BufferSize);
+        break;
+    }
+    case OmniNet::PacketType::ProcWinDrag: {
+        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
+
+        if (BufferSize >= sizeof(OmniWinDragPacket)) {
+            SysLink->HandleStreamWindowDrag(
+                *reinterpret_cast<const OmniWinDragPacket*>(Buffer), DeviceID
+            );
+        }
+        break;
+    }
+    case OmniNet::PacketType::ProcWinResize: {
+        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
+
+        if (BufferSize >= sizeof(OmniWinResizePacket)) {
+            SysLink->HandleStreamWindowResize(
+                *reinterpret_cast<const OmniWinResizePacket*>(Buffer)
+            );
+        }
         break;
     }
     case OmniNet::PacketType::ProcClipboard: {
@@ -149,6 +179,7 @@ OmniLink::OmniLink(HINSTANCE hInstance_, int nCmdShow_)
 
 void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 {
+    SetProcessDPIAware();
     OmniAPI::Ignite(*this);
 
     Logger::log("Event Handler Setup Complete");
@@ -175,15 +206,15 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
     RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
     Renderer.RendererInit(hwnd, 1280, 810, RendererPtrs);
 
-    RenderState.Device    = RendererPtrs.D3D11Device.Get();
-    RenderState.Context   = RendererPtrs.D3D11Context.Get();
-    RenderState.Swapchain = RendererPtrs.swapchain.Get();
-    RenderState.RTV       = RendererPtrs.renderTargetView.Get();
+    GraphicsContext.Device    = RendererPtrs.D3D11Device.Get();
+    GraphicsContext.Context   = RendererPtrs.D3D11Context.Get();
+    GraphicsContext.Swapchain = RendererPtrs.swapchain.Get();
+    GraphicsContext.RTV       = RendererPtrs.renderTargetView.Get();
 
     Logger::log("Renderer Initialization Complete");
 
     GUI = std::make_unique<OmniGUI>(*this);
-    GUI->SetupImGui(hwnd, RenderState.Device, RenderState.Context);
+    GUI->SetupImGui(hwnd, GraphicsContext.Device, GraphicsContext.Context);
 
     Logger::log("GUI Initialization Complete");
 
@@ -197,20 +228,13 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
 
     Logger::log("Instance Discovery Initialization Complete");
 
-    ClipboardCtx.OnStreamEvent = [this](const ClipboardStreamEvent& Event) {
+    SystemLink.SetupSystemLink(hInstance, nCmdShow, hwnd);
+    SystemLink.OnClipboardStreamEvent = [this](const ClipboardStreamEvent& Event) {
         Notification Notif{
             Event, "ClipboardStream", Notification::EventLayout::BOTTOM_RIGHT, 30.0f, true, nullptr
         };
         PushNotification(Event.DeviceID, Notif);
     };
-
-    SystemLink.SetupSystemLink(hInstance, nCmdShow, hwnd);
-    SystemLink.ClipboardCtx = &ClipboardCtx;
-
-    /// Input Capture Test Cases ///
-
-    // OmniCap.WindowMoveListener(true);
-    // OmniCap.ToggleInputCapture(hwnd, true);
 
     /// ......................................... ///
 
@@ -263,12 +287,12 @@ void OmniLink::OmniMainLoop()
             if (CurrentTime - LastFrameTime >= FrameTimeLimit) {
                 GUI->FrameBegin();
 
-                RenderState.Context->ClearRenderTargetView(RenderState.RTV, clearColor);
-                RenderState.Context->OMSetRenderTargets(1, &RenderState.RTV, nullptr);
+                GraphicsContext.Context->ClearRenderTargetView(GraphicsContext.RTV, ClearColor);
+                GraphicsContext.Context->OMSetRenderTargets(1, &GraphicsContext.RTV, nullptr);
 
                 GUI->Render();
 
-                RenderState.Swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
+                GraphicsContext.Swapchain->Present(0, DXGI_PRESENT_ALLOW_TEARING);
 
                 LastFrameTime = CurrentTime;
             }
@@ -288,7 +312,7 @@ void OmniLink::InitTrayIcon(HWND hwnd)
     TrayIconData.hIcon            = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(OmniIcon));
     lstrcpyW(TrayIconData.szTip, L"OmniLink");
 
-    Shell_NotifyIcon(NIM_ADD, &TrayIconData);
+    Shell_NotifyIconW(NIM_ADD, &TrayIconData);
 }
 
 void OmniLink::PushNotification(const Notification& notification)
@@ -349,17 +373,17 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     switch (uMsg) {
     case WM_CLIPBOARDUPDATE:
         if (Omni) {
-            Omni->SystemLink.ClipboardService.OnClipboardUpdate();
+            Omni->SystemLink.ClipboardLink.OnClipboardUpdate();
         }
         return 0;
     case WM_RENDERFORMAT:
         if (Omni) {
-            Omni->SystemLink.ClipboardService.OnPasteRequest(static_cast<UINT>(wParam));
+            Omni->SystemLink.ClipboardLink.OnPasteRequest(static_cast<UINT>(wParam));
         }
         return 0;
     case WM_DESTROYCLIPBOARD:
         if (Omni) {
-            Omni->SystemLink.ClipboardService.OnRequestInvalidation();
+            Omni->SystemLink.ClipboardLink.OnRequestInvalidation();
         }
         return 0;
     case WM_TRAYICON:
@@ -394,7 +418,7 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         break;
     case WM_DESTROY:
         if (Omni) {
-            Shell_NotifyIcon(NIM_DELETE, &(Omni->TrayIconData));
+            Shell_NotifyIconW(NIM_DELETE, &(Omni->TrayIconData));
         }
         PostQuitMessage(0);
         ImGui_ImplDX11_Shutdown();
@@ -408,8 +432,8 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         SetCursor(LoadCursor(NULL, IDC_ARROW));
         return true;
     case WM_INPUT:
-        if (Omni && Omni->SystemLink.IOCapture.InputProc != nullptr) {
-            (Omni->SystemLink.IOCapture.*(Omni->SystemLink.IOCapture.InputProc))(lParam);
+        if (Omni && Omni->SystemLink.InputLink.InputProc != nullptr) {
+            (Omni->SystemLink.InputLink.*(Omni->SystemLink.InputLink.InputProc))(lParam);
         }
         break;
     case WM_NCCREATE:
