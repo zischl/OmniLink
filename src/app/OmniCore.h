@@ -344,6 +344,14 @@ class OmniCore
         }
     }
 
+    // Feature toggling system for user actions
+    // Notes for anyone wondering:
+    // WindowLink and ScreenLink are mutually exclusive per device.
+    // If ScreenLink is active, the entire desktop is already streamed, so WindowLink is redundant.
+    // InputLink doesn't need a UDP SubStream while ClipboardLink spins up TCP streams on the go.
+    // ScreenLink and AudioLink both just need 1 UDP SubStream per device hence grouped.
+    // WindowLink needs UDP SubStreams on the go unlike ScreenLink and AudioLink that uses only one.
+    // Additionally WindowLink needs Input Link to function, otherwise u can't drag a window can u..
     void ToggleFeature(FeatureTypes FeatureIndex, DeviceMap Index, void* Context = nullptr);
     void FeatureStateHandler(DeviceMap SenderID, const FeatureToggleData& ToggleConfig);
 
