@@ -164,6 +164,19 @@ OmniSystemLink::StartWindowCaptureStream(SubStreamID SubStreamID, DeviceMap Devi
     Config.OnResize = [this, DeviceID, SubStreamID](uint32_t Width, uint32_t Height) {
         TransmitWindowResizeEvent(SubStreamID, DeviceID, Width, Height);
     };
+    Config.OnClose = [this, DeviceID, SubStreamID]() {
+        Logger::log(
+            "Captured window closed for SubStreamID={:d}, DeviceID={:d}",
+            SubStreamID,
+            static_cast<int>(DeviceID)
+        );
+        std::thread([this, DeviceID, SubStreamID]() {
+            StopWindowCaptureStream(SubStreamID);
+            if (ReleaseSubStream) {
+                ReleaseSubStream(DeviceID, SubStreamID, true);
+            }
+        }).detach();
+    };
 
     OmniStreamer::StreamID CaptureStreamID =
         AddCaptureStream(Entry->SubStream, DeviceID, CaptureMode::WGC_Window, Config);
@@ -528,7 +541,17 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
     auto IterSourceWindows = SubStream2HwndRegistry.find(StreamID);
     if (IterSourceWindows != SubStream2HwndRegistry.end()) {
         HWND SourceHwnd = IterSourceWindows->second;
+
         if (IsWindow(SourceHwnd)) {
+            RECT CurrentRect{};
+            if (GetWindowRect(SourceHwnd, &CurrentRect)) {
+                uint32_t CurrentWidth = static_cast<uint32_t>(CurrentRect.right - CurrentRect.left);
+                uint32_t CurrentHeight =
+                    static_cast<uint32_t>(CurrentRect.bottom - CurrentRect.top);
+                if (CurrentWidth == NewWidth && CurrentHeight == NewHeight) {
+                    return;
+                }
+            }
             SetWindowPos(
                 SourceHwnd,
                 nullptr,
@@ -551,10 +574,20 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
 
     auto IterStreamWindows = StreamWindowRegistry.find(StreamID);
     if (IterStreamWindows != StreamWindowRegistry.end() && IterStreamWindows->second) {
-        StreamWindow* Window = IterStreamWindows->second;
-        Window->UpdateDimensions(NewWidth, NewHeight);
-        HWND StreamHwnd = Window->GetHwnd();
+        StreamWindow* Window     = IterStreamWindows->second;
+        HWND          StreamHwnd = Window->GetHwnd();
+
         if (StreamHwnd && IsWindow(StreamHwnd)) {
+            RECT CurrentRect{};
+            if (GetWindowRect(StreamHwnd, &CurrentRect)) {
+                uint32_t CurrentWidth = static_cast<uint32_t>(CurrentRect.right - CurrentRect.left);
+                uint32_t CurrentHeight =
+                    static_cast<uint32_t>(CurrentRect.bottom - CurrentRect.top);
+                if (CurrentWidth == NewWidth && CurrentHeight == NewHeight) {
+                    return;
+                }
+            }
+            Window->UpdateDimensions(NewWidth, NewHeight);
             SetWindowPos(
                 StreamHwnd,
                 nullptr,
@@ -564,14 +597,14 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
                 static_cast<int>(NewHeight),
                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
             );
+            Logger::log(
+                "Resized stream window dimensions to {}x{} for "
+                "SubStreamID={:d}",
+                NewWidth,
+                NewHeight,
+                StreamID
+            );
         }
-        Logger::log(
-            "Resized stream window dimensions to {}x{} for "
-            "SubStreamID={:d}",
-            NewWidth,
-            NewHeight,
-            StreamID
-        );
     }
 }
 

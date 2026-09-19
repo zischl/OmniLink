@@ -38,11 +38,17 @@ struct OmniRouter
     void UnregisterWindowSession(DeviceMap DeviceID);
     OmniNetSession<OmniMTU>* GetWindowSession(DeviceMap Edge) const;
 
+    inline uint32_t GetWindowSessionCount() const
+    {
+        return WindowSessionCount.load(std::memory_order_acquire);
+    }
+
     void Reset();
 
   private:
     std::array<std::atomic<OmniNetSession<OmniMTU>*>, DeviceMap::END> Sessions;
     std::array<std::atomic<OmniNetSession<OmniMTU>*>, DeviceMap::END> WindowSessions;
+    std::atomic<uint32_t>                                             WindowSessionCount{0};
     std::array<std::atomic<uint32_t>, DeviceMap::END>                 EdgeResWidth;
     std::array<std::atomic<uint32_t>, DeviceMap::END>                 EdgeResHeight;
 };

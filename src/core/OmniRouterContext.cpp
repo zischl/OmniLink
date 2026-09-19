@@ -1,4 +1,5 @@
 #include "OmniRouterContext.hpp"
+#include <atomic>
 
 OmniRouter::OmniRouter()
 {
@@ -51,7 +52,9 @@ void OmniRouter::UnregisterSession(DeviceMap DeviceID)
 {
     if (DeviceID < DeviceMap::END) {
         Sessions[DeviceID].store(nullptr, std::memory_order_release);
-        WindowSessions[DeviceID].store(nullptr, std::memory_order_release);
+        auto* PrevSession = WindowSessions[DeviceID].exchange(nullptr, std::memory_order_release);
+        if (PrevSession)
+            WindowSessionCount.fetch_sub(1, std::memory_order_acq_rel);
     }
 }
 
@@ -74,14 +77,19 @@ OmniNetSession<OmniMTU>* OmniRouter::GetSession(DeviceMap Edge) const
 void OmniRouter::RegisterWindowSession(DeviceMap DeviceID, OmniNetSession<OmniMTU>* Session)
 {
     if (DeviceID < DeviceMap::END) {
-        WindowSessions[DeviceID].store(Session, std::memory_order_release);
+        auto* PrevSession = WindowSessions[DeviceID].exchange(Session, std::memory_order_release);
+
+        if (!PrevSession && Session)
+            WindowSessionCount.fetch_add(1, std::memory_order_acq_rel);
     }
 }
 
 void OmniRouter::UnregisterWindowSession(DeviceMap DeviceID)
 {
     if (DeviceID < DeviceMap::END) {
-        WindowSessions[DeviceID].store(nullptr, std::memory_order_release);
+        auto* PrevSession = WindowSessions[DeviceID].exchange(nullptr, std::memory_order_release);
+        if (PrevSession)
+            WindowSessionCount.fetch_sub(1, std::memory_order_acq_rel);
     }
 }
 
@@ -95,6 +103,7 @@ OmniNetSession<OmniMTU>* OmniRouter::GetWindowSession(DeviceMap Edge) const
 
 void OmniRouter::Reset()
 {
+    WindowSessionCount.store(0, std::memory_order_release);
     for (size_t i = 0; i < DeviceMap::END; ++i) {
         Sessions[i].store(nullptr, std::memory_order_release);
         WindowSessions[i].store(nullptr, std::memory_order_release);

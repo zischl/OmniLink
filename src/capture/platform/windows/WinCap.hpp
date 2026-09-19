@@ -30,11 +30,11 @@ class DXGICapture
     ComPtr<IDXGIOutputDuplication> DXGIOutDuplication;
 
     DXGI_OUTDUPL_FRAME_INFO FrameInfo;
-    ComPtr<IDXGIResource> FramePixelData = nullptr;
+    ComPtr<IDXGIResource>   FramePixelData = nullptr;
 
     // Returned by GetBuffer, which is where the latest frames are stored
     ComPtr<ID3D11Texture2D> DXGIComBuffer = nullptr;
-    bool CaptureState = false;
+    bool                    CaptureState  = false;
 
   public:
     // Run this once and use GetBuffer, already aquires a frame once to get the Tex2D interface
@@ -50,7 +50,7 @@ class DXGICapture
     void ReleaseFrame();
 
     static constexpr FrameAquisition FrameAqMode = FrameAquisition::Polling;
-    static constexpr CaptureAPI Type = CaptureAPI::DXGI;
+    static constexpr CaptureAPI      Type        = CaptureAPI::DXGI;
 };
 
 // This class will be the base class for WGC Screen Capture and later on WGC Window Capture
@@ -65,7 +65,7 @@ class WGCapture
     inline void SetWrappedD3D11Device(ID3D11Device* D3D11DevicePtr)
     {
         ComPtr<ID3D11Device> ComID3D11Device = D3D11DevicePtr;
-        ComPtr<IDXGIDevice> DXGIDevice;
+        ComPtr<IDXGIDevice>  DXGIDevice;
         ComID3D11Device.As(&DXGIDevice);
 
         winrt::com_ptr<IInspectable> inspectableSurface;
@@ -80,7 +80,7 @@ class WGCapture
 
     inline HMONITOR GetActiveMonitor()
     {
-        HWND WindowHandle = GetForegroundWindow();
+        HWND     WindowHandle  = GetForegroundWindow();
         HMONITOR ActiveMonitor = MonitorFromWindow(WindowHandle, MONITOR_DEFAULTTONEAREST);
         return ActiveMonitor;
     }
@@ -124,13 +124,13 @@ class WGCapture
 class WGScreenCapture : public WGCapture
 {
   private:
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession     Session{nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem        CaptureItem{nullptr};
 
-    std::mutex FrameMutex;
+    std::mutex                                                FrameMutex;
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame LatestFrame{nullptr};
-    bool FrameAvailability = false;
+    bool                                                      FrameAvailability = false;
 
     ID3D11Texture2D* WBuffer = nullptr;
 
@@ -155,7 +155,7 @@ class WGScreenCaptureEx : public WGCapture
 {
   public:
     static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
-    static constexpr CaptureAPI Type = CaptureAPI::WGC;
+    static constexpr CaptureAPI      Type        = CaptureAPI::WGC;
 
     using FrameCallback = std::function<void(ID3D11Texture2D*)>;
 
@@ -172,9 +172,9 @@ class WGScreenCaptureEx : public WGCapture
     void CloseSession();
 
   private:
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession     Session{nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem        CaptureItem{nullptr};
 
     FrameCallback OnFrameArrived;
 };
@@ -185,36 +185,36 @@ class WGScreenCaptureRTV : public WGCapture
 {
   public:
     static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
-    static constexpr CaptureAPI Type = CaptureAPI::WGC;
+    static constexpr CaptureAPI      Type        = CaptureAPI::WGC;
 
     WGScreenCaptureRTV(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11ContextPtr);
     ~WGScreenCaptureRTV();
 
     void CreateMonitorCapSession(
-        UINT Width,
-        UINT Height,
+        UINT                    Width,
+        UINT                    Height,
         ID3D11RenderTargetView* RenderTargetView,
-        IDXGISwapChain* Swapchain,
-        const float ClearColor[4]
+        IDXGISwapChain*         Swapchain,
+        const float             ClearColor[4]
     );
 
     void StartSession();
     void CloseSession();
 
   private:
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession     Session{nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem        CaptureItem{nullptr};
 
-    ID3D11Device* D3D11Device = nullptr;
-    ID3D11DeviceContext* D3D11Context = nullptr;
-    ID3D11RenderTargetView* RTV = nullptr;
-    IDXGISwapChain* SwapChain = nullptr;
-    float ClearCol[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    ID3D11Device*           D3D11Device  = nullptr;
+    ID3D11DeviceContext*    D3D11Context = nullptr;
+    ID3D11RenderTargetView* RTV          = nullptr;
+    IDXGISwapChain*         SwapChain    = nullptr;
+    float                   ClearCol[4]  = {0.0f, 0.0f, 0.0f, 1.0f};
 
     struct SRVCacheSlot
     {
-        IUnknown* SurfacePtr = nullptr;
+        IUnknown*                        SurfacePtr  = nullptr;
         ComPtr<ID3D11ShaderResourceView> TextureView = nullptr;
     };
     std::array<SRVCacheSlot, 3> SRVCache;
@@ -225,19 +225,19 @@ class WGScreenCaptureRTV : public WGCapture
 class WGWindowCapture : public WGCapture
 {
   private:
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession     Session{nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
-    winrt::event_token ClosedToken;
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem        CaptureItem{nullptr};
+    winrt::event_token                                            ClosedToken;
 
-    std::mutex FrameMutex;
+    std::mutex                                                FrameMutex;
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame LatestFrame{nullptr};
-    bool FrameAvailability = false;
+    bool                                                      FrameAvailability = false;
 
-    ID3D11Texture2D* WBuffer = nullptr;
-    HWND TargetHwnd = NULL;
-    int CurrentWidth = 0;
-    int CurrentHeight = 0;
+    ID3D11Texture2D* WBuffer       = nullptr;
+    HWND             TargetHwnd    = NULL;
+    int              CurrentWidth  = 0;
+    int              CurrentHeight = 0;
 
   public:
     WGWindowCapture(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11Context_);
@@ -258,6 +258,13 @@ class WGWindowCapture : public WGCapture
 
     void StartSession();
     void CloseSession();
+
+    using CloseCallback = std::function<void()>;
+
+    inline void SetCloseCallback(CloseCallback Callback) { OnCloseCallback = std::move(Callback); }
+
+  private:
+    CloseCallback OnCloseCallback;
 };
 
 // Optimised WGC window capture with no mutex, no copies, no states, no extra threads
@@ -267,7 +274,7 @@ class WGWindowCaptureEx : public WGCapture
 {
   public:
     static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
-    static constexpr CaptureAPI Type = CaptureAPI::WGC;
+    static constexpr CaptureAPI      Type        = CaptureAPI::WGC;
 
     using FrameCallback = std::function<void(ID3D11Texture2D*)>;
 
@@ -293,23 +300,27 @@ class WGWindowCaptureEx : public WGCapture
     void CloseSession();
 
     using ResizeCallback = std::function<void(uint32_t Width, uint32_t Height)>;
+    using CloseCallback  = std::function<void()>;
 
     inline void SetResizeCallback(ResizeCallback Callback)
     {
         OnResizeCallback = std::move(Callback);
     }
 
+    inline void SetCloseCallback(CloseCallback Callback) { OnCloseCallback = std::move(Callback); }
+
   private:
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession     Session{nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
-    winrt::event_token ClosedToken;
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem        CaptureItem{nullptr};
+    winrt::event_token                                            ClosedToken;
 
     ResizeCallback OnResizeCallback;
-    FrameCallback OnFrameArrived;
-    HWND TargetHWnd = NULL;
-    int CurrentWidth = 0;
-    int CurrentHeight = 0;
+    CloseCallback  OnCloseCallback;
+    FrameCallback  OnFrameArrived;
+    HWND           TargetHWnd    = NULL;
+    int            CurrentWidth  = 0;
+    int            CurrentHeight = 0;
 };
 
 // Same as WGWindowCaptureEx on optimizations but mainly for displaying to a Render Target View
@@ -318,26 +329,26 @@ class WGWindowCaptureRTV : public WGCapture
 {
   public:
     static constexpr FrameAquisition FrameAqMode = FrameAquisition::EventDriven;
-    static constexpr CaptureAPI Type = CaptureAPI::WGC;
+    static constexpr CaptureAPI      Type        = CaptureAPI::WGC;
 
     WGWindowCaptureRTV(ID3D11Device* D3D11DevicePtr, ID3D11DeviceContext* D3D11ContextPtr);
     ~WGWindowCaptureRTV();
 
     void CreateWindowCapSession(
-        HWND WindowHandle,
-        UINT Width,
-        UINT Height,
+        HWND                    WindowHandle,
+        UINT                    Width,
+        UINT                    Height,
         ID3D11RenderTargetView* RenderTargetView,
-        IDXGISwapChain* Swapchain,
-        const float ClearColor[4] = nullptr
+        IDXGISwapChain*         Swapchain,
+        const float             ClearColor[4] = nullptr
     );
 
     inline void CreateMonitorCapSession(
-        UINT Width,
-        UINT Height,
+        UINT                    Width,
+        UINT                    Height,
         ID3D11RenderTargetView* RenderTargetView,
-        IDXGISwapChain* Swapchain,
-        const float ClearColor[4] = nullptr
+        IDXGISwapChain*         Swapchain,
+        const float             ClearColor[4] = nullptr
     )
     {
         CreateWindowCapSession(
@@ -349,24 +360,24 @@ class WGWindowCaptureRTV : public WGCapture
     void CloseSession();
 
   private:
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession Session{nullptr};
+    winrt::Windows::Graphics::Capture::GraphicsCaptureSession     Session{nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool FramePool{nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem{nullptr};
-    winrt::event_token ClosedToken;
+    winrt::Windows::Graphics::Capture::GraphicsCaptureItem        CaptureItem{nullptr};
+    winrt::event_token                                            ClosedToken;
 
-    ID3D11Device* D3D11Device = nullptr;
-    ID3D11DeviceContext* D3D11Context = nullptr;
-    ID3D11RenderTargetView* RTV = nullptr;
-    IDXGISwapChain* SwapChain = nullptr;
-    float ClearCol[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    ID3D11Device*           D3D11Device  = nullptr;
+    ID3D11DeviceContext*    D3D11Context = nullptr;
+    ID3D11RenderTargetView* RTV          = nullptr;
+    IDXGISwapChain*         SwapChain    = nullptr;
+    float                   ClearCol[4]  = {0.0f, 0.0f, 0.0f, 1.0f};
 
-    HWND TargetHWnd = NULL;
-    int CurrentWidth = 0;
-    int CurrentHeight = 0;
+    HWND TargetHWnd    = NULL;
+    int  CurrentWidth  = 0;
+    int  CurrentHeight = 0;
 
     struct SRVCacheSlot
     {
-        IUnknown* SurfacePtr = nullptr;
+        IUnknown*                        SurfacePtr  = nullptr;
         ComPtr<ID3D11ShaderResourceView> TextureView = nullptr;
     };
     std::array<SRVCacheSlot, 3> SRVCache;

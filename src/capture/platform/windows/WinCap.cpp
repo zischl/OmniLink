@@ -136,16 +136,16 @@ void WGCapture::CreateWGCBuffer(
 )
 {
     D3D11_TEXTURE2D_DESC desc = {};
-    desc.Width = Width;
-    desc.Height = Height;
-    desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-    desc.SampleDesc.Count = 1;
-    desc.SampleDesc.Quality = 0;
-    desc.ArraySize = 1;
-    desc.MipLevels = 1;
-    desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+    desc.Width                = Width;
+    desc.Height               = Height;
+    desc.Format               = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.Usage                = D3D11_USAGE_DEFAULT;
+    desc.BindFlags            = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    desc.SampleDesc.Count     = 1;
+    desc.SampleDesc.Quality   = 0;
+    desc.ArraySize            = 1;
+    desc.MipLevels            = 1;
+    desc.MiscFlags            = D3D11_RESOURCE_MISC_SHARED;
 
     HRESULT hr = D3D11Device->CreateTexture2D(&desc, nullptr, Buffer);
     if (FAILED(hr)) {
@@ -180,7 +180,7 @@ void WGScreenCapture::CreateMonitorCapSession(ID3D11Texture2D* Buffer, UINT Widt
     GetActiveMonitorCaptureItem(CaptureItem);
 
     winrt::SizeInt32 Dimensions;
-    Dimensions.Width = Width;
+    Dimensions.Width  = Width;
     Dimensions.Height = Height;
 
     FramePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(
@@ -191,7 +191,7 @@ void WGScreenCapture::CreateMonitorCapSession(ID3D11Texture2D* Buffer, UINT Widt
         auto frame = Pool.TryGetNextFrame();
         if (frame) {
             std::lock_guard<std::mutex> lock(FrameMutex);
-            LatestFrame = std::move(frame);
+            LatestFrame       = std::move(frame);
             FrameAvailability = true;
         }
     });
@@ -228,7 +228,7 @@ bool WGScreenCapture::AcquireFrame()
         Logger::log("WGC AcquireFrame: failed to get surface texture\n");
     }
 
-    LatestFrame = nullptr;
+    LatestFrame       = nullptr;
     FrameAvailability = false;
     return copied;
 }
@@ -243,7 +243,7 @@ void WGScreenCapture::CloseSession()
 {
     {
         std::lock_guard<std::mutex> lock(FrameMutex);
-        LatestFrame = nullptr;
+        LatestFrame       = nullptr;
         FrameAvailability = false;
     }
 
@@ -278,7 +278,7 @@ void WGScreenCaptureEx::CreateMonitorCapSession(
     NullCheck(CaptureItem, "WGStreamCapture: CaptureItem creation failed\n");
 
     winrt::SizeInt32 Dims;
-    Dims.Width = static_cast<int32_t>(Width);
+    Dims.Width  = static_cast<int32_t>(Width);
     Dims.Height = static_cast<int32_t>(Height);
 
     FramePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(
@@ -336,7 +336,7 @@ WGScreenCaptureRTV::WGScreenCaptureRTV(
 {
     winrt::init_apartment(winrt::apartment_type::multi_threaded);
     SetWrappedD3D11Device(D3D11DevicePtr);
-    D3D11Device = D3D11DevicePtr;
+    D3D11Device  = D3D11DevicePtr;
     D3D11Context = D3D11ContextPtr;
 }
 
@@ -346,14 +346,14 @@ WGScreenCaptureRTV::~WGScreenCaptureRTV()
 }
 
 void WGScreenCaptureRTV::CreateMonitorCapSession(
-    UINT Width,
-    UINT Height,
+    UINT                    Width,
+    UINT                    Height,
     ID3D11RenderTargetView* RenderTargetView,
-    IDXGISwapChain* Swapchain,
-    const float ClearColor[4]
+    IDXGISwapChain*         Swapchain,
+    const float             ClearColor[4]
 )
 {
-    RTV = RenderTargetView;
+    RTV       = RenderTargetView;
     SwapChain = Swapchain;
     if (ClearColor != nullptr) {
         memcpy(ClearCol, ClearColor, sizeof(ClearCol));
@@ -365,7 +365,7 @@ void WGScreenCaptureRTV::CreateMonitorCapSession(
     NullCheck(CaptureItem, "WGScreenCaptureRTV: CaptureItem creation failed\n");
 
     winrt::SizeInt32 Dims;
-    Dims.Width = static_cast<int32_t>(Width);
+    Dims.Width  = static_cast<int32_t>(Width);
     Dims.Height = static_cast<int32_t>(Height);
 
     FramePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(
@@ -412,10 +412,10 @@ void WGScreenCaptureRTV::CreateMonitorCapSession(
             // Cache missed, create SRV and cache it
             if (TextureView == nullptr) {
                 D3D11_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
-                SrvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-                SrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-                SrvDesc.Texture2D.MostDetailedMip = 0;
-                SrvDesc.Texture2D.MipLevels = 1;
+                SrvDesc.Format                          = DXGI_FORMAT_B8G8R8A8_UNORM;
+                SrvDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2D;
+                SrvDesc.Texture2D.MostDetailedMip       = 0;
+                SrvDesc.Texture2D.MipLevels             = 1;
 
                 ComPtr<ID3D11ShaderResourceView> NewTextureView;
                 if (SUCCEEDED(D3D11Device->CreateShaderResourceView(
@@ -425,7 +425,7 @@ void WGScreenCaptureRTV::CreateMonitorCapSession(
 
                     for (auto& Slot : SRVCache) {
                         if (Slot.SurfacePtr == nullptr) {
-                            Slot.SurfacePtr = TextureID;
+                            Slot.SurfacePtr  = TextureID;
                             Slot.TextureView = std::move(NewTextureView);
                             break;
                         }
@@ -474,7 +474,7 @@ void WGScreenCaptureRTV::CloseSession()
         FramePool = nullptr;
     }
     for (auto& Slot : SRVCache) {
-        Slot.SurfacePtr = nullptr;
+        Slot.SurfacePtr  = nullptr;
         Slot.TextureView = nullptr;
     }
 }
@@ -500,7 +500,7 @@ void WGWindowCapture::CreateWindowCapSession(
     HWND WindowHandle, ID3D11Texture2D* Buffer, UINT Width, UINT Height
 )
 {
-    WBuffer = Buffer;
+    WBuffer    = Buffer;
     TargetHwnd = WindowHandle;
 
     GetWindowCaptureItem(WindowHandle, CaptureItem);
@@ -509,8 +509,8 @@ void WGWindowCapture::CreateWindowCapSession(
         return;
 
     winrt::SizeInt32 ItemSize = CaptureItem.Size();
-    CurrentWidth = (Width > 0) ? static_cast<int>(Width) : ItemSize.Width;
-    CurrentHeight = (Height > 0) ? static_cast<int>(Height) : ItemSize.Height;
+    CurrentWidth              = (Width > 0) ? static_cast<int>(Width) : ItemSize.Width;
+    CurrentHeight             = (Height > 0) ? static_cast<int>(Height) : ItemSize.Height;
 
     winrt::SizeInt32 Dimensions{CurrentWidth, CurrentHeight};
 
@@ -524,7 +524,7 @@ void WGWindowCapture::CreateWindowCapSession(
             auto ContentSize = Frame.ContentSize();
             if (ContentSize.Width > 0 && ContentSize.Height > 0) {
                 if (ContentSize.Width != CurrentWidth || ContentSize.Height != CurrentHeight) {
-                    CurrentWidth = ContentSize.Width;
+                    CurrentWidth  = ContentSize.Width;
                     CurrentHeight = ContentSize.Height;
                     Pool.Recreate(
                         D3DDevice_WGC,
@@ -534,13 +534,19 @@ void WGWindowCapture::CreateWindowCapSession(
                     );
                 }
                 std::lock_guard<std::mutex> lock(FrameMutex);
-                LatestFrame = std::move(Frame);
+                LatestFrame       = std::move(Frame);
                 FrameAvailability = true;
             }
         }
     });
 
-    ClosedToken = CaptureItem.Closed([this](auto&, auto&) { CloseSession(); });
+    ClosedToken = CaptureItem.Closed([this](auto&, auto&) {
+        auto CloseCB = std::move(OnCloseCallback);
+        CloseSession();
+        if (CloseCB) {
+            CloseCB();
+        }
+    });
 
     Session = FramePool.CreateCaptureSession(CaptureItem);
     SetCaptureBorderState(Session, false);
@@ -568,7 +574,7 @@ bool WGWindowCapture::AcquireFrame()
         Logger::log("WGWindowCapture AcquireFrame: failed to get surface texture\n");
     }
 
-    LatestFrame = nullptr;
+    LatestFrame       = nullptr;
     FrameAvailability = false;
     return copied;
 }
@@ -585,9 +591,11 @@ void WGWindowCapture::CloseSession()
 {
     {
         std::lock_guard<std::mutex> lock(FrameMutex);
-        LatestFrame = nullptr;
+        LatestFrame       = nullptr;
         FrameAvailability = false;
     }
+
+    OnCloseCallback = nullptr;
 
     if (CaptureItem && ClosedToken) {
         CaptureItem.Closed(ClosedToken);
@@ -626,7 +634,7 @@ void WGWindowCaptureEx::CreateWindowCapSession(
 )
 {
     OnFrameArrived = std::move(OnFrameCallback);
-    TargetHWnd = WindowHandle;
+    TargetHWnd     = WindowHandle;
 
     GetWindowCaptureItem(WindowHandle, CaptureItem);
     NullCheck(D3DDevice_WGC, "WGWindowCaptureEx: D3DDevice not set\n");
@@ -635,8 +643,8 @@ void WGWindowCaptureEx::CreateWindowCapSession(
         return;
 
     winrt::SizeInt32 ItemSize = CaptureItem.Size();
-    CurrentWidth = (Width > 0) ? static_cast<int>(Width) : ItemSize.Width;
-    CurrentHeight = (Height > 0) ? static_cast<int>(Height) : ItemSize.Height;
+    CurrentWidth              = (Width > 0) ? static_cast<int>(Width) : ItemSize.Width;
+    CurrentHeight             = (Height > 0) ? static_cast<int>(Height) : ItemSize.Height;
 
     winrt::SizeInt32 Dims{CurrentWidth, CurrentHeight};
 
@@ -656,13 +664,15 @@ void WGWindowCaptureEx::CreateWindowCapSession(
             return;
 
         if (contentSize.Width != CurrentWidth || contentSize.Height != CurrentHeight) {
-            CurrentWidth = contentSize.Width;
+            CurrentWidth  = contentSize.Width;
             CurrentHeight = contentSize.Height;
             Pool.Recreate(
                 D3DDevice_WGC, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 3, contentSize
             );
             if (OnResizeCallback) {
-                OnResizeCallback(static_cast<uint32_t>(CurrentWidth), static_cast<uint32_t>(CurrentHeight));
+                OnResizeCallback(
+                    static_cast<uint32_t>(CurrentWidth), static_cast<uint32_t>(CurrentHeight)
+                );
             }
         }
 
@@ -677,7 +687,13 @@ void WGWindowCaptureEx::CreateWindowCapSession(
         }
     });
 
-    ClosedToken = CaptureItem.Closed([this](auto&, auto&) { CloseSession(); });
+    ClosedToken = CaptureItem.Closed([this](auto&, auto&) {
+        auto CloseCB = std::move(OnCloseCallback);
+        CloseSession();
+        if (CloseCB) {
+            CloseCB();
+        }
+    });
 
     Session = FramePool.CreateCaptureSession(CaptureItem);
     SetCaptureBorderState(Session, false);
@@ -700,7 +716,8 @@ void WGWindowCaptureEx::StartSession()
 
 void WGWindowCaptureEx::CloseSession()
 {
-    OnFrameArrived = nullptr;
+    OnFrameArrived  = nullptr;
+    OnCloseCallback = nullptr;
 
     if (CaptureItem && ClosedToken) {
         CaptureItem.Closed(ClosedToken);
@@ -728,7 +745,7 @@ WGWindowCaptureRTV::WGWindowCaptureRTV(
     } catch (...) {
     }
     SetWrappedD3D11Device(D3D11DevicePtr);
-    D3D11Device = D3D11DevicePtr;
+    D3D11Device  = D3D11DevicePtr;
     D3D11Context = D3D11ContextPtr;
 }
 
@@ -740,21 +757,21 @@ WGWindowCaptureRTV::~WGWindowCaptureRTV()
 void WGWindowCaptureRTV::ClearSRVCache()
 {
     for (auto& Slot : SRVCache) {
-        Slot.SurfacePtr = nullptr;
+        Slot.SurfacePtr  = nullptr;
         Slot.TextureView = nullptr;
     }
 }
 
 void WGWindowCaptureRTV::CreateWindowCapSession(
-    HWND WindowHandle,
-    UINT Width,
-    UINT Height,
+    HWND                    WindowHandle,
+    UINT                    Width,
+    UINT                    Height,
     ID3D11RenderTargetView* RenderTargetView,
-    IDXGISwapChain* Swapchain,
-    const float ClearColor[4]
+    IDXGISwapChain*         Swapchain,
+    const float             ClearColor[4]
 )
 {
-    RTV = RenderTargetView;
+    RTV       = RenderTargetView;
     SwapChain = Swapchain;
     if (ClearColor != nullptr) {
         memcpy(ClearCol, ClearColor, sizeof(ClearCol));
@@ -768,8 +785,8 @@ void WGWindowCaptureRTV::CreateWindowCapSession(
         return;
 
     winrt::SizeInt32 ItemSize = CaptureItem.Size();
-    CurrentWidth = (Width > 0) ? static_cast<int>(Width) : ItemSize.Width;
-    CurrentHeight = (Height > 0) ? static_cast<int>(Height) : ItemSize.Height;
+    CurrentWidth              = (Width > 0) ? static_cast<int>(Width) : ItemSize.Width;
+    CurrentHeight             = (Height > 0) ? static_cast<int>(Height) : ItemSize.Height;
 
     winrt::SizeInt32 Dims{CurrentWidth, CurrentHeight};
 
@@ -788,7 +805,7 @@ void WGWindowCaptureRTV::CreateWindowCapSession(
             return;
 
         if (ContentSize.Width != CurrentWidth || ContentSize.Height != CurrentHeight) {
-            CurrentWidth = ContentSize.Width;
+            CurrentWidth  = ContentSize.Width;
             CurrentHeight = ContentSize.Height;
             ClearSRVCache();
             Pool.Recreate(
@@ -819,10 +836,10 @@ void WGWindowCaptureRTV::CreateWindowCapSession(
 
             if (TextureView == nullptr) {
                 D3D11_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
-                SrvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-                SrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-                SrvDesc.Texture2D.MostDetailedMip = 0;
-                SrvDesc.Texture2D.MipLevels = 1;
+                SrvDesc.Format                          = DXGI_FORMAT_B8G8R8A8_UNORM;
+                SrvDesc.ViewDimension                   = D3D11_SRV_DIMENSION_TEXTURE2D;
+                SrvDesc.Texture2D.MostDetailedMip       = 0;
+                SrvDesc.Texture2D.MipLevels             = 1;
 
                 ComPtr<ID3D11ShaderResourceView> NewTextureView;
                 if (SUCCEEDED(D3D11Device->CreateShaderResourceView(
@@ -832,7 +849,7 @@ void WGWindowCaptureRTV::CreateWindowCapSession(
 
                     for (auto& Slot : SRVCache) {
                         if (Slot.SurfacePtr == nullptr) {
-                            Slot.SurfacePtr = TextureID;
+                            Slot.SurfacePtr  = TextureID;
                             Slot.TextureView = std::move(NewTextureView);
                             break;
                         }

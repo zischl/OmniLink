@@ -21,6 +21,9 @@ OmniStreamer::StreamID OmniStreamer::AddStream(
         if (Config.OnResize) {
             WGWinCapture->SetResizeCallback(Config.OnResize);
         }
+        if (Config.OnClose) {
+            WGWinCapture->SetCloseCallback(Config.OnClose);
+        }
 
         BufferedNvencSession<CachedPoolNvencSession>* Encoder =
             new BufferedNvencSession<CachedPoolNvencSession>(

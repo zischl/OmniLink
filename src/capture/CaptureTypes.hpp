@@ -16,6 +16,7 @@ struct StreamConfig
 #if defined(_WIN32)
     HWND WindowHandle = NULL;
     std::function<void(uint32_t, uint32_t)> OnResize;
+    std::function<void()> OnClose;
 #endif
 };
 
