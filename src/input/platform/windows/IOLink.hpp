@@ -35,19 +35,6 @@ struct Point
     LONG Y;
 };
 
-// Absolute cursor positions for each screen edge
-static constexpr std::array<Point, 9> PointCache = {{
-    {32767, 32767}, // C0
-    {65535, 32767}, // L1
-    {32767, 65535}, // U1
-    {0, 32767},     // R1
-    {32767, 0},     // D1
-    {65535, 65535}, // LU1
-    {0, 65535},     // RU1
-    {0, 0},         // RD1
-    {65535, 0}      // LD1
-}};
-
 template <uint32_t MTU> class OmniNetSession;
 
 // Installs keyboard/mouse hooks that suppress local input base on InputLocked
@@ -81,24 +68,25 @@ class OmniInputLink
     ~OmniInputLink();
 
     // Mouse cursor position tracked locally for edge detection and delta math.
-    int MouseX      = 0;
-    int MouseY      = 0;
-    int VirtualPosX = 0;
-    int VirtualPosY = 0;
+    int MouseX = 0;
+    int MouseY = 0;
 
     FlowMorph<int, int, DeviceMap> ConditionManager;
 
-    void ToggleEdgeProbe(HWND Hwnd);
+    // The Edge Probe system worls alongside the FlowMorph dynamic ConditionManager.
+    // Based on registered directions and the user's display resolution monitors cursor edge hits.
+    // Calculates scaled X and Y ratio from user resolution and Cursor X Y pos..
+    // Transmits OmniEdgeCrossPacket to transfer cursor ownership and awaits return
+    void ToggleEdgeProbe();
     bool GetEdgeProbeState();
     void AddEdgeCondition(DeviceMap Index);
 
-    // High Performance Input Capture
-
     void (OmniInputLink::*InputProc)(LPARAM& LParam) = nullptr;
 
-    void ToggleInputCapture(HWND Hwnd, bool State);
+    // High Performance Input Capture
+    void ToggleInputCapture(bool State);
 
-    // Queries raw input struct size, sends initial warp packet.
+    // Just calls the actual InputProcCallback, will later update to handle WM_INPUT_DEVICE_CHANGE
     void InputProcInit(LPARAM& LParam);
 
     // Called for every raw mouse/keyboard event while captured.
@@ -112,6 +100,7 @@ class OmniInputLink
 
   private:
     InputLinkContext& IOCtx;
+    HWND              CaptureHWND;
 
     std::atomic_bool InputLinkStatus{false};
     std::atomic_bool MouseEventCapStatus{false};
@@ -128,7 +117,7 @@ class OmniInputLink
 
     std::thread ProbeThread;
 
-    void CreateEdgeProbe(HWND Hwnd);
+    void CreateEdgeProbe();
     void StopEdgeProbe();
 
     static void CALLBACK WinFocusEventProc(
@@ -143,42 +132,49 @@ class OmniInputLink
 };
 
 // Pure input synthesis that translates received network packets into local
-// SendInput / SetCursorPos calls. Fully stateless btw.
-namespace OmniSynth {
-extern std::atomic<bool> GameMode;
-
-// Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
-void ProcMouse(const OmniMousePacket& Packet);
-
-// Process an incoming OmniBoundaryPacket for proportional entry and.. return
-void ProcBoundary(const OmniBoundaryPacket& Packet);
-
-// Process an incoming OmniKeyPacket for.. keys.. obviously..
-void ProcKey(const OmniKeyPacket& Packet);
-
-// Move cursor to absolute pixel position.
-void ProcMouse(int X, int Y);
-
-// Dispatch a INPUT struct either mouse or keyboard.
-void ProcInput(INPUT& Input);
-
-// Simulate a keyboard event from a INPUT struct.
-void ProcKey(INPUT& Input);
-
-// Simulate a keyboard event from a raw KeyData.
-void ProcKey(KeyData& Input);
-
-// Move cursor by a pixel delta relative to a known base position.
-inline void MvMouse(int& CurrentX, int& CurrentY, int DX, int DY)
+// SendInput / SetCursorPos calls.
+class OmniSynth
 {
-    CurrentX += DX;
-    CurrentY += DY;
-    SetCursorPos(CurrentX, CurrentY);
-}
+  private:
+    OmniInputLink& InputLink;
 
-// Returns true only when both coordinates match.
-inline bool CheckMousePos(int TrackedX, int TrackedY, int MX, int MY)
-{
-    return MX == TrackedX && MY == TrackedY;
-}
-} // namespace OmniSynth
+  public:
+    static std::atomic<bool> GameMode;
+
+    explicit OmniSynth(OmniInputLink& InputLink) : InputLink(InputLink) {}
+
+    // Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
+    void ProcMouse(const OmniMousePacket& Packet);
+
+    // Process an incoming OmniEdgeCrossPacket for proportional entry and.. return
+    void ProcEdgeCross(const OmniEdgeCrossPacket& Packet);
+
+    // Process an incoming OmniKeyPacket for.. keys.. obviously..
+    void ProcKey(const OmniKeyPacket& Packet);
+
+    // Move cursor to absolute pixel position.
+    void ProcMouse(int X, int Y);
+
+    // Dispatch a INPUT struct either mouse or keyboard.
+    void ProcInput(INPUT& Input);
+
+    // Simulate a keyboard event from a INPUT struct.
+    void ProcKey(INPUT& Input);
+
+    // Simulate a keyboard event from a raw KeyData.
+    void ProcKey(KeyData& Input);
+
+    // Move cursor by a pixel delta relative to a known base position.
+    inline void MvMouse(int& CurrentX, int& CurrentY, int DX, int DY)
+    {
+        CurrentX += DX;
+        CurrentY += DY;
+        SetCursorPos(CurrentX, CurrentY);
+    }
+
+    // Returns true only when both coordinates match.
+    inline bool CheckMousePos(int TrackedX, int TrackedY, int MX, int MY)
+    {
+        return MX == TrackedX && MY == TrackedY;
+    }
+};

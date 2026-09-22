@@ -897,37 +897,56 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
 
 void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& FeatureData)
 {
+    if (DeviceID == DeviceMap::C0 || !InstanceRegistry.ActiveInstances.contains(DeviceID)) {
+        return;
+    }
+
+    if (FeatureData.FeatureType == FeatureTypes::ClipboardLink) {
+        UpdateFeatureState(
+            DeviceID,
+            FeatureData.FeatureType,
+            FeatureActionRoute::Inbound,
+            FeatureData.Action,
+            FeatureData.SubStreamID
+        );
+        UpdateFeatureState(
+            DeviceID,
+            FeatureData.FeatureType,
+            FeatureActionRoute::Outbound,
+            FeatureData.Action,
+            FeatureData.SubStreamID
+        );
+        return;
+    }
+
+    const FeatureActionRoute Route = FeatureActionRoute::Inbound;
+
     OmniNet::PoolConfig PoolConfig = UpdateFeatureState(
-        DeviceID,
-        FeatureData.FeatureType,
-        FeatureActionRoute::Inbound,
-        FeatureData.Action,
-        FeatureData.SubStreamID
+        DeviceID, FeatureData.FeatureType, Route, FeatureData.Action, FeatureData.SubStreamID
     );
 
     if (FeatureData.Action == FeatureAction::Deactivate && FeatureData.SubStreamID != 0) {
-        CloseSubStream(DeviceID, FeatureData.SubStreamID);
+        CloseSubStream(DeviceID, FeatureData.SubStreamID, false);
         return;
     }
 
     if (FeatureData.Action == FeatureAction::Activate && FeatureData.SubStreamID != 0) {
-        if (!InstanceRegistry.ActiveInstances.contains(DeviceID))
-            return;
-
-        auto&           Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
-        SubStreamEntry* Entry    = Instance.FindSubStream(FeatureData.SubStreamID);
+        OmniActiveInstance& Instance = InstanceRegistry.ActiveInstances.at(DeviceID);
+        SubStreamEntry*     Entry    = Instance.FindSubStream(FeatureData.SubStreamID);
 
         if (!Entry || !Entry->SubStream) {
             Logger::log(
-                "uh.. SubStreamID={:d} not found for device {:d} — "
-                "SubStream Creation Request may not have arrived yet",
+                "uh.. SubStreamID={:d} not found for device {:d}, SubStream Creation Request may "
+                "not have arrived yet",
                 FeatureData.SubStreamID,
                 static_cast<int>(DeviceID)
             );
             return;
         }
 
-        Instance.RegisterFeatureSubStream(FeatureData.FeatureType, FeatureData.SubStreamID);
+        Instance.SetSubStreamFeature(
+            FeatureData.SubStreamID, FeatureData.FeatureType, FeatureActionRoute::Inbound
+        );
 
         if (PoolConfig.Data != nullptr) {
             ConfigureSubStream(DeviceID, FeatureData.SubStreamID, PoolConfig);

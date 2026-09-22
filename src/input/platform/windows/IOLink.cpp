@@ -161,12 +161,12 @@ void CALLBACK OmniInputLink::WinFocusEventProc(
     }
 }
 
-void OmniInputLink::ToggleEdgeProbe(HWND Hwnd)
+void OmniInputLink::ToggleEdgeProbe()
 {
     if (InputLinkStatus.load()) {
         StopEdgeProbe();
     } else {
-        CreateEdgeProbe(Hwnd);
+        CreateEdgeProbe();
     }
 }
 
@@ -184,13 +184,13 @@ void OmniInputLink::StopEdgeProbe()
         ProbeThread.join();
 }
 
-void OmniInputLink::CreateEdgeProbe(HWND Hwnd)
+void OmniInputLink::CreateEdgeProbe()
 {
     InputLinkStatus.store(true);
     MouseEventCapStatus.store(true);
 
-    ProbeThread = std::thread([this, Hwnd]() {
-        HWND  Hwnd_            = Hwnd;
+    ProbeThread = std::thread([this]() {
+        HWND  Hwnd_            = CaptureHWND;
         POINT Pos              = {};
         auto* MouseEventStatus = &MouseEventCapStatus;
 
@@ -203,10 +203,10 @@ void OmniInputLink::CreateEdgeProbe(HWND Hwnd)
                 MouseX = Pos.x;
                 MouseY = Pos.y;
 
-                for (auto& [Name, Cond] : Conditions) {
+                for (auto& [DeviceID, Cond] : Conditions) {
                     if (Cond(MouseX, MouseY)) {
-                        IOCtx.ActivateEdge(Name);
-                        ActiveEdgeCondition = Name;
+                        IOCtx.ActivateEdge(DeviceID);
+                        ActiveEdgeCondition = DeviceID;
                         IOCtx.InputLocked.store(true, std::memory_order_release);
 
                         uint16_t YRatio =
@@ -222,10 +222,8 @@ void OmniInputLink::CreateEdgeProbe(HWND Hwnd)
                                   )
                                 : (1 << 15);
 
-                        VirtualPosX = Pos.x;
-                        VirtualPosY = Pos.y;
-                        MouseX      = 0;
-                        MouseY      = 0;
+                        MouseX = 0;
+                        MouseY = 0;
 
                         MouseEventStatus->store(false);
                         ToggleInputCapture(Hwnd_, true);
@@ -234,19 +232,18 @@ void OmniInputLink::CreateEdgeProbe(HWND Hwnd)
                         if (NetSession) {
                             OmniNet::OmniHeader Header;
                             Header.Target     = 0;
-                            Header.PacketType = OmniNet::PacketType::ProcBoundary;
+                            Header.PacketType = OmniNet::PacketType::ProcEdgeCross;
                             Header.Flags      = 0;
 
-                            OmniBoundaryPacket BoundaryData = {};
+                            OmniEdgeCrossPacket EntryData = {};
 
-                            BoundaryData.Action  = BoundaryAction::Enter;
-                            BoundaryData.Edge    = Name;
-                            BoundaryData.Y_Ratio = YRatio;
-                            BoundaryData.X_Ratio = XRatio;
+                            EntryData.Edge    = DeviceID;
+                            EntryData.Y_Ratio = YRatio;
+                            EntryData.X_Ratio = XRatio;
 
                             NetSession->SessionSend(
-                                reinterpret_cast<CHAR*>(&BoundaryData),
-                                sizeof(OmniBoundaryPacket),
+                                reinterpret_cast<CHAR*>(&EntryData),
+                                sizeof(OmniEdgeCrossPacket),
                                 Header
                             );
                         }
@@ -264,72 +261,7 @@ void OmniInputLink::CreateEdgeProbe(HWND Hwnd)
             MouseEventStatus->store(true);
 
             // Await until cursor returns home or breakout is triggered
-            while (MouseEventStatus->load()) {
-                if (!IOCtx.InputLocked.load(std::memory_order_acquire)) {
-                    ToggleInputCapture(Hwnd_, false);
-                    break;
-                }
-
-                bool ReturnState = false;
-                switch (ActiveEdgeCondition) {
-                case DeviceMap::L1:
-                case DeviceMap::LU1:
-                case DeviceMap::LD1:
-                    ReturnState = (MouseX > 150);
-                    break;
-                case DeviceMap::R1:
-                case DeviceMap::RU1:
-                case DeviceMap::RD1:
-                    ReturnState = (MouseX < -150);
-                    break;
-                case DeviceMap::U1:
-                    ReturnState = (MouseY > 150);
-                    break;
-                case DeviceMap::D1:
-                    ReturnState = (MouseY < -150);
-                    break;
-                default:
-                    break;
-                }
-
-                if (ReturnState) {
-                    int targetY = VirtualPosY;
-                    int targetX = 2;
-
-                    switch (ActiveEdgeCondition) {
-                    case DeviceMap::L1:
-                    case DeviceMap::LU1:
-                    case DeviceMap::LD1:
-                        targetX = 2;
-                        break;
-                    case DeviceMap::R1:
-                    case DeviceMap::RU1:
-                    case DeviceMap::RD1:
-                        targetX = static_cast<int>(IOCtx.Router.ResWidth - 2);
-                        break;
-                    case DeviceMap::U1:
-                        targetX = VirtualPosX;
-                        targetY = static_cast<int>(IOCtx.Router.ResHeight - 2);
-                        break;
-                    case DeviceMap::D1:
-                        targetX = VirtualPosX;
-                        targetY = 2;
-                        break;
-                    default:
-                        break;
-                    }
-
-                    SetCursorPos(targetX, targetY);
-
-                    IOCtx.InputLocked.store(false, std::memory_order_release);
-                    IOCtx.DeactivateEdge();
-
-                    ToggleInputCapture(Hwnd_, false);
-
-                    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-                    break;
-                }
-
+            while (IOCtx.InputLocked.load(std::memory_order_acquire)) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
 
@@ -397,7 +329,7 @@ void OmniInputLink::AddEdgeCondition(DeviceMap Index)
     }
 }
 
-void OmniInputLink::ToggleInputCapture(HWND Hwnd, bool State)
+void OmniInputLink::ToggleInputCapture(bool State)
 {
     RAWINPUTDEVICE Devices[2];
 
@@ -408,10 +340,10 @@ void OmniInputLink::ToggleInputCapture(HWND Hwnd, bool State)
     Devices[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
 
     if (State) {
-        Devices[0].hwndTarget = Hwnd;
+        Devices[0].hwndTarget = CaptureHWND;
         Devices[0].dwFlags    = RIDEV_INPUTSINK;
 
-        Devices[1].hwndTarget = Hwnd;
+        Devices[1].hwndTarget = CaptureHWND;
         Devices[1].dwFlags    = RIDEV_INPUTSINK;
 
         RegisterRawInputDevices(Devices, 2, sizeof(Devices[0]));
@@ -458,11 +390,6 @@ void OmniInputLink::InputProcCallback(LPARAM& LParam)
         if ((dX | dY | ButtonFlags) == 0)
             return;
 
-        VirtualPosX =
-            std::clamp(VirtualPosX + static_cast<int>(dX), 0, static_cast<int>(IOCtx.Router.ResWidth - 1));
-        VirtualPosY = std::clamp(
-            VirtualPosY + static_cast<int>(dY), 0, static_cast<int>(IOCtx.Router.ResHeight - 1)
-        );
         MouseX += dX;
         MouseY += dY;
 
@@ -495,72 +422,7 @@ void OmniInputLink::VoidExitCallback(LPARAM& LParam)
     (void)LParam;
 }
 
-namespace OmniSynth {
-std::atomic<bool> GameMode{false};
-
-void ProcBoundary(const OmniBoundaryPacket& Packet)
-{
-    if (Packet.Action == BoundaryAction::Enter) {
-        Device::MonitorRes Res = Device::GetMonitorResolution();
-
-        int TargetY =
-            (Res.Height > 0)
-                ? static_cast<int>((static_cast<uint64_t>(Packet.Y_Ratio) * (Res.Height - 1)) >> 16)
-                : static_cast<int>(Res.Height >> 1);
-
-        int TargetX =
-            (Res.Width > 0)
-                ? static_cast<int>((static_cast<uint64_t>(Packet.X_Ratio) * (Res.Width - 1)) >> 16)
-                : static_cast<int>(Res.Width >> 1);
-
-        DeviceMap Edge = Packet.Edge;
-        switch (Edge) {
-        case DeviceMap::L1:
-        case DeviceMap::LU1:
-        case DeviceMap::LD1:
-            TargetX = static_cast<int>(Res.Width - 2);
-            break;
-        case DeviceMap::R1:
-        case DeviceMap::RU1:
-        case DeviceMap::RD1:
-            TargetX = 2;
-            break;
-        case DeviceMap::U1:
-            TargetY = static_cast<int>(Res.Height - 2);
-            break;
-        case DeviceMap::D1:
-            TargetY = 2;
-            break;
-        default:
-            break;
-        }
-
-        SetCursorPos(TargetX, TargetY);
-    } else if (Packet.Action == BoundaryAction::Return) {
-        auto* Ctx = OmniInputFilter::GetContext();
-        if (Ctx) {
-            Ctx->DeactivateEdge();
-        }
-
-        Device::MonitorRes Res = Device::GetMonitorResolution();
-        int                TargetY =
-            (Res.Height > 0)
-                ? static_cast<int>((static_cast<uint64_t>(Packet.Y_Ratio) * (Res.Height - 1)) >> 16)
-                : static_cast<int>(Res.Height >> 1);
-
-        DeviceMap Edge    = Packet.Edge;
-        int       TargetX = 2;
-        if (Edge == DeviceMap::L1 || Edge == DeviceMap::LU1 || Edge == DeviceMap::LD1) {
-            TargetX = 2;
-        } else if (Edge == DeviceMap::R1 || Edge == DeviceMap::RU1 || Edge == DeviceMap::RD1) {
-            TargetX = static_cast<int>(Res.Width - 2);
-        }
-
-        SetCursorPos(TargetX, TargetY);
-    }
-}
-
-void ProcMouse(const OmniMousePacket& Packet)
+void OmniSynth::ProcMouse(const OmniMousePacket& Packet)
 {
     if (Packet.Flags & OMNI_MOUSE_ABSOLUTE) {
         INPUT MouseInput        = {0};
@@ -603,12 +465,64 @@ void ProcMouse(const OmniMousePacket& Packet)
     }
 }
 
-void ProcMouse(int X, int Y)
+void OmniSynth::ProcMouse(int X, int Y)
 {
     SetCursorPos(X, Y);
 }
 
-void ProcInput(INPUT& Input)
+void OmniSynth::ProcEdgeCross(const OmniEdgeCrossPacket& Packet)
+{
+    InputLink.ToggleInputCapture(false);
+    Device::MonitorRes Res = Device::GetMonitorResolution();
+
+    int TargetY =
+        (Res.Height > 0)
+            ? static_cast<int>((static_cast<uint64_t>(Packet.Y_Ratio) * (Res.Height - 1)) >> 16)
+            : static_cast<int>(Res.Height >> 1);
+
+    int TargetX =
+        (Res.Width > 0)
+            ? static_cast<int>((static_cast<uint64_t>(Packet.X_Ratio) * (Res.Width - 1)) >> 16)
+            : static_cast<int>(Res.Width >> 1);
+
+    DeviceMap Edge = Packet.Edge;
+    switch (Edge) {
+    case DeviceMap::L1:
+    case DeviceMap::LU1:
+    case DeviceMap::LD1:
+        TargetX = static_cast<int>(Res.Width - 2);
+        break;
+    case DeviceMap::R1:
+    case DeviceMap::RU1:
+    case DeviceMap::RD1:
+        TargetX = 2;
+        break;
+    case DeviceMap::U1:
+        TargetY = static_cast<int>(Res.Height - 2);
+        break;
+    case DeviceMap::D1:
+        TargetY = 2;
+        break;
+    default:
+        break;
+    }
+
+    SetCursorPos(TargetX, TargetY);
+}
+
+void OmniSynth::ProcKey(const OmniKeyPacket& Packet)
+{
+    INPUT KB          = {};
+    KB.type           = INPUT_KEYBOARD;
+    KB.ki.wVk         = Packet.VkCode;
+    KB.ki.wScan       = Packet.ScanCode;
+    KB.ki.dwFlags     = Packet.Flags;
+    KB.ki.dwExtraInfo = OMNI_INPUT_COOKIE;
+
+    SendInput(1, &KB, sizeof(INPUT));
+}
+
+void OmniSynth::ProcInput(INPUT& Input)
 {
     if (Input.type == INPUT_MOUSE) {
         if (Input.mi.dwFlags & MOUSEEVENTF_ABSOLUTE) {
@@ -634,24 +548,12 @@ void ProcInput(INPUT& Input)
     }
 }
 
-void ProcKey(const OmniKeyPacket& Packet)
-{
-    INPUT KB          = {};
-    KB.type           = INPUT_KEYBOARD;
-    KB.ki.wVk         = Packet.VkCode;
-    KB.ki.wScan       = Packet.ScanCode;
-    KB.ki.dwFlags     = Packet.Flags;
-    KB.ki.dwExtraInfo = OMNI_INPUT_COOKIE;
-
-    SendInput(1, &KB, sizeof(INPUT));
-}
-
-void ProcKey(INPUT& Input)
+void OmniSynth::ProcKey(INPUT& Input)
 {
     SendInput(1, &Input, sizeof(INPUT));
 }
 
-void ProcKey(KeyData& Input)
+void OmniSynth::ProcKey(KeyData& Input)
 {
     INPUT KB      = {};
     KB.type       = INPUT_KEYBOARD;
@@ -666,4 +568,3 @@ void ProcKey(KeyData& Input)
 
     SendInput(1, &KB, sizeof(KB));
 }
-} // namespace OmniSynth

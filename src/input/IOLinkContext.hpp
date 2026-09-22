@@ -32,16 +32,14 @@ struct alignas(16) OmniMousePacket
     uint16_t Reserved; // Padding to 16 bytes
 };
 
-enum class BoundaryAction : uint8_t { Enter = 0, Return = 1 };
-
-struct alignas(16) OmniBoundaryPacket
+struct alignas(16) OmniEdgeCrossPacket
 {
-    BoundaryAction Action;    // Enum.. right above this..
-    DeviceMap      Edge;      // DeviceMap edge
-    uint16_t       Y_Ratio;   // Normalized Y ratio (0..65535)
-    uint16_t       X_Ratio;   // Normalized X ratio (0..65535)
-    uint16_t       Reserved;  // Padding
-    uint64_t       Reserved2; // Padding to 16 bytes
+    DeviceMap Edge;      // DeviceMap edge
+    uint8_t   Reserved0; // No longer used, just padding now
+    uint16_t  Y_Ratio;   // Normalized Y ratio (0..65535)
+    uint16_t  X_Ratio;   // Normalized X ratio (0..65535)
+    uint16_t  Reserved;  // Padding
+    uint64_t  Reserved2; // Padding to 16 bytes
 };
 
 struct alignas(16) OmniKeyPacket
@@ -55,9 +53,9 @@ struct alignas(16) OmniKeyPacket
 
 #pragma pack(pop)
 
-static_assert(sizeof(OmniMousePacket) == 16, "OmniMousePacket must be exactly 16 bytes");
-static_assert(sizeof(OmniBoundaryPacket) == 16, "OmniBoundaryPacket must be exactly 16 bytes");
-static_assert(sizeof(OmniKeyPacket) == 16, "OmniKeyPacket must be exactly 16 bytes");
+static_assert(sizeof(OmniMousePacket) == 16, "SIMD optimizations...");
+static_assert(sizeof(OmniEdgeCrossPacket) == 16, "SIMD optimizations...");
+static_assert(sizeof(OmniKeyPacket) == 16, "SIMD optimizations...");
 
 template <uint32_t MTU> class OmniNetSession;
 
