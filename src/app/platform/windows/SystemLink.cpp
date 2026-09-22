@@ -610,7 +610,7 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
 
 void OmniSystemLink::ToggleEdgeProbe()
 {
-    InputLink.ToggleEdgeProbe(WindowID);
+    InputLink.ToggleEdgeProbe();
 }
 
 void OmniSystemLink::BindIOLinkSession(DeviceMap DeviceID)
@@ -620,7 +620,7 @@ void OmniSystemLink::BindIOLinkSession(DeviceMap DeviceID)
         OmniRouter.RegisterSession(DeviceID, instance.InstanceSession.get());
         InputLink.AddEdgeCondition(DeviceID);
         if (!InputLink.GetEdgeProbeState())
-            InputLink.ToggleEdgeProbe(WindowID);
+            InputLink.ToggleEdgeProbe();
 
         ToggleInputFilter();
     }
@@ -635,7 +635,7 @@ void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
     InputLink.ConditionManager.Remove(DeviceID);
 
     if (InputLink.ConditionManager.Empty() && InputLink.GetEdgeProbeState()) {
-        InputLink.ToggleEdgeProbe(WindowID);
+        InputLink.ToggleEdgeProbe();
     }
 
     ToggleInputFilter();

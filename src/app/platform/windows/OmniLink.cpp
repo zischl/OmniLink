@@ -1,6 +1,7 @@
 #include "ClipBoardLink.h"
 #include "ClipboardTypes.hpp"
 #include "D3D11Renderer.hpp"
+#include "IOLinkContext.hpp"
 #include "NetVariance.hpp"
 #include "OmniDiscovery.hpp"
 #include "OmniEnums.hpp"
@@ -82,15 +83,6 @@ static void HandleKey(CHAR* Buffer, uint32_t BufferSize)
     OmniSynth::ProcKey(*Packet);
 }
 
-static void HandleBoundary(CHAR* Buffer, uint32_t BufferSize)
-{
-    if (!Buffer || BufferSize < sizeof(OmniBoundaryPacket))
-        return;
-
-    const auto* Packet = reinterpret_cast<const OmniBoundaryPacket*>(Buffer);
-    OmniSynth::ProcBoundary(*Packet);
-}
-
 static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
 {
     if (!Buffer || BufferSize <= OmniHeaderSize)
@@ -140,8 +132,15 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
         HandleKey(Buffer, BufferSize);
         break;
     }
-    case OmniNet::PacketType::ProcBoundary: {
-        HandleBoundary(Buffer, BufferSize);
+    case OmniNet::PacketType::ProcEdgeCross: {
+        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
+
+        if (!Buffer || BufferSize < sizeof(OmniEdgeCrossPacket))
+            return;
+
+        const auto* Packet = reinterpret_cast<const OmniEdgeCrossPacket*>(Buffer);
+        SysLink->InputSynth.ProcEdgeCross(*Packet);
+
         break;
     }
     case OmniNet::PacketType::ProcWinDrag: {

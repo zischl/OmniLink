@@ -57,6 +57,7 @@ struct OmniSystemLink
     InputLinkContext  InputLinkCtx{OmniRouter};
     OmniInputLink     InputLink{InputLinkCtx};
     OmniInputFilter   InputFilter{InputLinkCtx};
+    OmniSynth         InputSynth{InputLink};
     OmniClipboardLink ClipboardLink;
     OmniAudioLink     AudioLink;
 

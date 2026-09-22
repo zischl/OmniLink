@@ -422,49 +422,6 @@ void OmniInputLink::VoidExitCallback(LPARAM& LParam)
     (void)LParam;
 }
 
-void OmniSynth::ProcMouse(const OmniMousePacket& Packet)
-{
-    if (Packet.Flags & OMNI_MOUSE_ABSOLUTE) {
-        INPUT MouseInput        = {0};
-        MouseInput.type         = INPUT_MOUSE;
-        MouseInput.mi.dx        = Packet.dX;
-        MouseInput.mi.dy        = Packet.dY;
-        MouseInput.mi.mouseData = Packet.Wheel;
-        MouseInput.mi.dwFlags =
-            MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | Packet.Buttons;
-        MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
-        SendInput(1, &MouseInput, sizeof(INPUT));
-        return;
-    }
-
-    if (GameMode.load(std::memory_order_relaxed)) {
-        INPUT MouseInput          = {0};
-        MouseInput.type           = INPUT_MOUSE;
-        MouseInput.mi.dx          = Packet.dX;
-        MouseInput.mi.dy          = Packet.dY;
-        MouseInput.mi.mouseData   = Packet.Wheel;
-        MouseInput.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | Packet.Buttons;
-        MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
-        SendInput(1, &MouseInput, sizeof(INPUT));
-        return;
-    }
-
-    if (Packet.dX | Packet.dY) {
-        POINT pt = {};
-        GetCursorPos(&pt);
-        SetCursorPos(pt.x + Packet.dX, pt.y + Packet.dY);
-    }
-
-    if (Packet.Buttons | Packet.Wheel) {
-        INPUT BtnInput          = {0};
-        BtnInput.type           = INPUT_MOUSE;
-        BtnInput.mi.mouseData   = Packet.Wheel;
-        BtnInput.mi.dwFlags     = Packet.Buttons;
-        BtnInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
-        SendInput(1, &BtnInput, sizeof(INPUT));
-    }
-}
-
 void OmniSynth::ProcMouse(int X, int Y)
 {
     SetCursorPos(X, Y);
@@ -508,6 +465,49 @@ void OmniSynth::ProcEdgeCross(const OmniEdgeCrossPacket& Packet)
     }
 
     SetCursorPos(TargetX, TargetY);
+}
+
+void OmniSynth::ProcMouse(const OmniMousePacket& Packet)
+{
+    if (Packet.Flags & OMNI_MOUSE_ABSOLUTE) {
+        INPUT MouseInput        = {0};
+        MouseInput.type         = INPUT_MOUSE;
+        MouseInput.mi.dx        = Packet.dX;
+        MouseInput.mi.dy        = Packet.dY;
+        MouseInput.mi.mouseData = Packet.Wheel;
+        MouseInput.mi.dwFlags =
+            MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | Packet.Buttons;
+        MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
+        SendInput(1, &MouseInput, sizeof(INPUT));
+        return;
+    }
+
+    if (GameMode.load(std::memory_order_relaxed)) {
+        INPUT MouseInput          = {0};
+        MouseInput.type           = INPUT_MOUSE;
+        MouseInput.mi.dx          = Packet.dX;
+        MouseInput.mi.dy          = Packet.dY;
+        MouseInput.mi.mouseData   = Packet.Wheel;
+        MouseInput.mi.dwFlags     = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | Packet.Buttons;
+        MouseInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
+        SendInput(1, &MouseInput, sizeof(INPUT));
+        return;
+    }
+
+    if (Packet.dX | Packet.dY) {
+        POINT pt = {};
+        GetCursorPos(&pt);
+        SetCursorPos(pt.x + Packet.dX, pt.y + Packet.dY);
+    }
+
+    if (Packet.Buttons | Packet.Wheel) {
+        INPUT BtnInput          = {0};
+        BtnInput.type           = INPUT_MOUSE;
+        BtnInput.mi.mouseData   = Packet.Wheel;
+        BtnInput.mi.dwFlags     = Packet.Buttons;
+        BtnInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
+        SendInput(1, &BtnInput, sizeof(INPUT));
+    }
 }
 
 void OmniSynth::ProcKey(const OmniKeyPacket& Packet)

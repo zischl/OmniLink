@@ -139,33 +139,33 @@ class OmniSynth
     OmniInputLink& InputLink;
 
   public:
-    static std::atomic<bool> GameMode;
+    inline static std::atomic<bool> GameMode;
 
-    explicit OmniSynth(OmniInputLink& InputLink) : InputLink(InputLink) {}
-
-    // Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
-    void ProcMouse(const OmniMousePacket& Packet);
+    explicit OmniSynth(OmniInputLink& InputLink) : InputLink(InputLink) { GameMode.store(false); }
 
     // Process an incoming OmniEdgeCrossPacket for proportional entry and.. return
     void ProcEdgeCross(const OmniEdgeCrossPacket& Packet);
 
+    // Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
+    static void ProcMouse(const OmniMousePacket& Packet);
+
     // Process an incoming OmniKeyPacket for.. keys.. obviously..
-    void ProcKey(const OmniKeyPacket& Packet);
+    static void ProcKey(const OmniKeyPacket& Packet);
 
     // Move cursor to absolute pixel position.
-    void ProcMouse(int X, int Y);
+    static void ProcMouse(int X, int Y);
 
     // Dispatch a INPUT struct either mouse or keyboard.
-    void ProcInput(INPUT& Input);
+    static void ProcInput(INPUT& Input);
 
     // Simulate a keyboard event from a INPUT struct.
-    void ProcKey(INPUT& Input);
+    static void ProcKey(INPUT& Input);
 
     // Simulate a keyboard event from a raw KeyData.
-    void ProcKey(KeyData& Input);
+    static void ProcKey(KeyData& Input);
 
     // Move cursor by a pixel delta relative to a known base position.
-    inline void MvMouse(int& CurrentX, int& CurrentY, int DX, int DY)
+    static inline void MvMouse(int& CurrentX, int& CurrentY, int DX, int DY)
     {
         CurrentX += DX;
         CurrentY += DY;
@@ -173,7 +173,7 @@ class OmniSynth
     }
 
     // Returns true only when both coordinates match.
-    inline bool CheckMousePos(int TrackedX, int TrackedY, int MX, int MY)
+    static inline bool CheckMousePos(int TrackedX, int TrackedY, int MX, int MY)
     {
         return MX == TrackedX && MY == TrackedY;
     }
