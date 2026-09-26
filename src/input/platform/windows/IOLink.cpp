@@ -1,6 +1,13 @@
 #include "IOLink.hpp"
+#include "IOLinkContext.hpp"
+#include "OmniEnums.hpp"
 #include "SessionHandler.hpp"
 #include "system_probe_impl.hpp"
+
+#include <atomic>
+#include <cstdint>
+#include <windef.h>
+#include <winuser.h>
 
 InputLinkContext* OmniInputFilter::IOContext = nullptr;
 
@@ -46,11 +53,13 @@ LRESULT OmniInputFilter::KeyboardProc(int NCode, WPARAM WParam, LPARAM LParam)
 
             if ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_MENU) & 0x8000) &&
                 (KeyData->vkCode == '1' || KeyData->vkCode == VK_NUMPAD1)) {
-                IOContext->DeactivateEdge();
+                IOContext->DeactivateRemoteEdge();
                 return 1;
             }
 
-            auto* NetSession = IOContext->ActiveNetSession.load(std::memory_order_acquire);
+            auto* NetSession = IOContext->Router.GetSession(
+                IOContext->ActiveRemoteEdge.load(std::memory_order_acquire)
+            );
             if (NetSession) {
                 OmniNet::OmniHeader Header;
                 Header.Target     = 0;
@@ -161,6 +170,19 @@ void CALLBACK OmniInputLink::WinFocusEventProc(
     }
 }
 
+uint8_t OmniInputLink::ComputeRelativeSpartialGrid(DeviceMap DeviceID, uint8_t EdgeMask)
+{
+    uint8_t RelativeEdgeMask = 0;
+    while (EdgeMask) {
+        DeviceMap RelativeID =
+            ComputeRelativeSpartialID(DeviceID, static_cast<DeviceMap>(std::countr_zero(EdgeMask)));
+        RelativeEdgeMask |= (1U << RelativeID);
+        EdgeMask &= static_cast<uint8_t>(EdgeMask - 1);
+    }
+
+    return RelativeEdgeMask;
+}
+
 void OmniInputLink::ToggleEdgeProbe()
 {
     if (InputLinkStatus.load()) {
@@ -173,6 +195,74 @@ void OmniInputLink::ToggleEdgeProbe()
 bool OmniInputLink::GetEdgeProbeState()
 {
     return InputLinkStatus.load();
+}
+
+void OmniInputLink::AddRelayMask(DeviceMap DeviceID)
+{
+    ActiveEdgeRelayMask.fetch_or(
+        static_cast<uint8_t>(1U << (static_cast<unsigned>(DeviceID) - 1U)),
+        std::memory_order_relaxed
+    );
+}
+
+void OmniInputLink::RemoveRelayMask(DeviceMap DeviceID)
+{
+    ActiveEdgeRelayMask.fetch_and(
+        static_cast<uint8_t>(~(1U << (static_cast<unsigned>(DeviceID) - 1U))),
+        std::memory_order_relaxed
+    );
+}
+
+void OmniInputLink::ResetEdgeRelayMask()
+{
+    uint8_t ActiveMask = ActiveEdgeRelayMask.load(std::memory_order_release);
+
+    while (ActiveMask) {
+        auto DeviceID = static_cast<DeviceMap>(std::countr_zero(ActiveMask) + 1);
+        RemoveEdgeCondition(DeviceID);
+        ActiveMask &= static_cast<uint8_t>(ActiveMask - 1);
+    }
+
+    ActiveEdgeRelayMask.store(0, std::memory_order_relaxed);
+}
+
+void OmniInputLink::SetEdgeRelayMask(DeviceMap RemoteID, uint8_t EdgeMask)
+{
+    uint8_t ActiveMask = ActiveEdgeRelayMask.load(std::memory_order_release);
+
+    while (ActiveMask) {
+        auto DeviceID = static_cast<DeviceMap>(std::countr_zero(ActiveMask) + 1);
+        RemoveEdgeCondition(DeviceID);
+
+        ActiveMask &= static_cast<uint8_t>(ActiveMask - 1);
+    }
+
+    ActiveEdgeRelayMask.store(EdgeMask, std::memory_order_relaxed);
+
+    while (EdgeMask) {
+        DeviceMap DeviceID = static_cast<DeviceMap>(std::countr_zero(EdgeMask) + 1);
+        DeviceMap RelativeID =
+            ComputeRelativeSpartialID(RemoteID, static_cast<DeviceMap>(DeviceID));
+
+        AddEdgeCondition(DeviceID);
+        EdgeMask &= static_cast<uint8_t>(EdgeMask - 1);
+    }
+}
+
+bool OmniInputLink::GetEdgeRelayState(DeviceMap DeviceID)
+{
+    return ActiveEdgeRelayMask & (1U << static_cast<uint8_t>(DeviceID - 1));
+}
+
+uint8_t OmniInputLink::GetEdgeRelayMask(DeviceMap TargetID)
+{
+    uint8_t EdgeMask = 0;
+
+    for (auto& [DeviceID, Cond] : Conditions) {
+        EdgeMask |= 1 << (static_cast<uint8_t>(DeviceID) - 1);
+    }
+
+    return EdgeMask & ~(1U << (static_cast<uint8_t>(TargetID) - 1));
 }
 
 void OmniInputLink::StopEdgeProbe()
@@ -197,6 +287,8 @@ void OmniInputLink::CreateEdgeProbe()
         std::cout << "Edge Probe Thread Running\n";
 
         while (true) {
+            SetCaptureHIDMode(HIDMON);
+
             // Awaiting edge hit
             while (MouseEventStatus->load()) {
                 GetCursorPos(&Pos);
@@ -205,9 +297,6 @@ void OmniInputLink::CreateEdgeProbe()
 
                 for (auto& [DeviceID, Cond] : Conditions) {
                     if (Cond(MouseX, MouseY)) {
-                        IOCtx.ActivateEdge(DeviceID);
-                        ActiveEdgeCondition = DeviceID;
-                        IOCtx.InputLocked.store(true, std::memory_order_release);
 
                         uint16_t YRatio =
                             (IOCtx.Router.ResHeight > 0)
@@ -226,9 +315,10 @@ void OmniInputLink::CreateEdgeProbe()
                         MouseY = 0;
 
                         MouseEventStatus->store(false);
-                        ToggleInputCapture(Hwnd_, true);
 
-                        auto* NetSession = IOCtx.ActiveNetSession.load(std::memory_order_acquire);
+                        bool  RemoteActive = CursorOwner.load(std::memory_order_acquire) != C0;
+                        auto* NetSession   = IOCtx.Router.GetSession(DeviceID);
+
                         if (NetSession) {
                             OmniNet::OmniHeader Header;
                             Header.Target     = 0;
@@ -237,20 +327,36 @@ void OmniInputLink::CreateEdgeProbe()
 
                             OmniEdgeCrossPacket EntryData = {};
 
-                            EntryData.Edge    = DeviceID;
-                            EntryData.Y_Ratio = YRatio;
-                            EntryData.X_Ratio = XRatio;
+                            EntryData.Edge          = DeviceID;
+                            EntryData.EdgeRelayMask = RemoteActive ? GetEdgeRelayMask(DeviceID) : 0;
+                            EntryData.Y_Ratio       = YRatio;
+                            EntryData.X_Ratio       = XRatio;
 
                             NetSession->SessionSend(
                                 reinterpret_cast<CHAR*>(&EntryData),
                                 sizeof(OmniEdgeCrossPacket),
                                 Header
                             );
+
+                            if (!RemoteActive) {
+                                IOCtx.ActivateRemoteEdge(DeviceID);
+                                SetCaptureHIDMode(ModeHID::CAPSEND);
+                            } else {
+                                SetCursorPos(
+                                    Pos.x > 10 ? Pos.x - 5 : Pos.x + 5,
+                                    Pos.y > 10 ? Pos.y - 5 : Pos.y + 5
+                                );
+                                CursorOwner.store(DeviceMap::C0, std::memory_order_release);
+                                ResetEdgeRelayMask();
+                            }
+
                         }
 
                         break;
                     }
                 }
+
+                InputStateHID.store(false, std::memory_order_release);
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
@@ -265,8 +371,11 @@ void OmniInputLink::CreateEdgeProbe()
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
 
-            if (!InputLinkStatus.load())
+            SetCaptureHIDMode(ModeHID::DEAD);
+
+            if (!InputLinkStatus.load()) {
                 break;
+            }
         }
     });
 }
@@ -329,36 +438,81 @@ void OmniInputLink::AddEdgeCondition(DeviceMap Index)
     }
 }
 
-void OmniInputLink::ToggleInputCapture(bool State)
+void OmniInputLink::RemoveEdgeCondition(DeviceMap DeviceID)
 {
-    RAWINPUTDEVICE Devices[2];
+    ConditionManager.Remove(DeviceID);
+}
 
-    Devices[0].usUsage     = HID_USAGE_GENERIC_MOUSE;
-    Devices[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+void OmniInputLink::SetCaptureHIDMode(ModeHID TargetMode)
+{
+    ModeHID PrevMode = CaptureStateHID.exchange(TargetMode, std::memory_order_acq_rel);
+    if (PrevMode == TargetMode)
+        return;
 
-    Devices[1].usUsage     = HID_USAGE_GENERIC_KEYBOARD;
-    Devices[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+    RAWINPUTDEVICE Devices[2]  = {};
+    UINT           DeviceCount = 0;
 
-    if (State) {
-        Devices[0].hwndTarget = CaptureHWND;
-        Devices[0].dwFlags    = RIDEV_INPUTSINK;
+    switch (TargetMode) {
+    case ModeHID::HIDMON:
+        // Monitor mouse and If coming directly from CAPSEND, unregister keyboard
+        Devices[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+        Devices[0].usUsage     = HID_USAGE_GENERIC_MOUSE;
+        Devices[0].dwFlags     = RIDEV_INPUTSINK;
+        Devices[0].hwndTarget  = CaptureHWND;
 
-        Devices[1].hwndTarget = CaptureHWND;
-        Devices[1].dwFlags    = RIDEV_INPUTSINK;
+        if (PrevMode == ModeHID::CAPSEND) {
+            Devices[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+            Devices[1].usUsage     = HID_USAGE_GENERIC_KEYBOARD;
+            Devices[1].dwFlags     = RIDEV_REMOVE;
+            Devices[1].hwndTarget  = NULL;
+            DeviceCount            = 2;
+        } else {
+            DeviceCount = 1;
+        }
 
-        RegisterRawInputDevices(Devices, 2, sizeof(Devices[0]));
+        InputProc = &OmniInputLink::InputProcCallbackHID;
+        RegisterRawInputDevices(Devices, DeviceCount, sizeof(RAWINPUTDEVICE));
+        break;
+
+    case ModeHID::CAPSEND:
+        // Capture both mouse and keyboard
+        Devices[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+        Devices[0].usUsage     = HID_USAGE_GENERIC_MOUSE;
+        Devices[0].dwFlags     = RIDEV_INPUTSINK;
+        Devices[0].hwndTarget  = CaptureHWND;
+
+        Devices[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+        Devices[1].usUsage     = HID_USAGE_GENERIC_KEYBOARD;
+        Devices[1].dwFlags     = RIDEV_INPUTSINK;
+        Devices[1].hwndTarget  = CaptureHWND;
 
         InputProc = &OmniInputLink::InputProcCallback;
-    } else {
+        RegisterRawInputDevices(Devices, 2, sizeof(RAWINPUTDEVICE));
+        break;
+
+    case ModeHID::DEAD:
+    default:
         InputProc = &OmniInputLink::VoidExitCallback;
 
-        Devices[0].hwndTarget = NULL;
-        Devices[0].dwFlags    = RIDEV_REMOVE;
+        // Always unregister mouse
+        Devices[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+        Devices[0].usUsage     = HID_USAGE_GENERIC_MOUSE;
+        Devices[0].dwFlags     = RIDEV_REMOVE;
+        Devices[0].hwndTarget  = NULL;
 
-        Devices[1].hwndTarget = NULL;
-        Devices[1].dwFlags    = RIDEV_REMOVE;
+        // Unregister keyboard only if active before
+        if (PrevMode == ModeHID::CAPSEND) {
+            Devices[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+            Devices[1].usUsage     = HID_USAGE_GENERIC_KEYBOARD;
+            Devices[1].dwFlags     = RIDEV_REMOVE;
+            Devices[1].hwndTarget  = NULL;
+            DeviceCount            = 2;
+        } else {
+            DeviceCount = 1;
+        }
 
-        RegisterRawInputDevices(Devices, 2, sizeof(Devices[0]));
+        RegisterRawInputDevices(Devices, DeviceCount, sizeof(RAWINPUTDEVICE));
+        break;
     }
 }
 
@@ -378,7 +532,8 @@ void OmniInputLink::InputProcCallback(LPARAM& LParam)
 
     RAWINPUT* Input = reinterpret_cast<RAWINPUT*>(RawBuffer);
 
-    auto* NetSession = IOCtx.ActiveNetSession.load(std::memory_order_acquire);
+    auto* NetSession =
+        IOCtx.Router.GetSession(IOCtx.ActiveRemoteEdge.load(std::memory_order_acquire));
     if (!NetSession)
         return;
 
@@ -417,6 +572,11 @@ void OmniInputLink::InputProcCallback(LPARAM& LParam)
     }
 }
 
+void OmniInputLink::InputProcCallbackHID(LPARAM& LParam)
+{
+    InputStateHID.store(true, std::memory_order_release);
+}
+
 void OmniInputLink::VoidExitCallback(LPARAM& LParam)
 {
     (void)LParam;
@@ -427,9 +587,55 @@ void OmniSynth::ProcMouse(int X, int Y)
     SetCursorPos(X, Y);
 }
 
-void OmniSynth::ProcEdgeCross(const OmniEdgeCrossPacket& Packet)
+void OmniSynth::ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Packet)
 {
-    InputLink.ToggleInputCapture(false);
+    DeviceMap ActiveLinkID = InputLink.CursorOwner.load(std::memory_order_acquire);
+    if (ActiveLinkID != DeviceMap::C0) {
+        auto* NetSession = IOContext.Router.GetSession(ActiveLinkID);
+        if (NetSession) {
+            OmniNet::OmniHeader Header;
+            Header.Target     = 0;
+            Header.PacketType = OmniNet::PacketType::ProcEdgeCross;
+            Header.Flags      = 0;
+
+            POINT CursorPos{};
+            GetCursorPos(&CursorPos);
+
+            uint16_t YRatio =
+                (IOContext.Router.ResHeight > 0)
+                    ? static_cast<uint16_t>(
+                          (static_cast<uint64_t>(CursorPos.y) << 16) / IOContext.Router.ResHeight
+                      )
+                    : (1 << 15);
+            uint16_t XRatio =
+                (IOContext.Router.ResWidth > 0)
+                    ? static_cast<uint16_t>(
+                          (static_cast<uint64_t>(CursorPos.x) << 16) / IOContext.Router.ResWidth
+                      )
+                    : (1 << 15);
+
+            OmniEdgeCrossPacket EntryData = {};
+
+            EntryData.Edge    = ActiveLinkID;
+            EntryData.X_Ratio = XRatio;
+            EntryData.Y_Ratio = YRatio;
+
+            NetSession->SessionSend(
+                reinterpret_cast<CHAR*>(&EntryData), sizeof(OmniEdgeCrossPacket), Header
+            );
+        }
+    }
+
+    if (!IOContext.InputLocked.load(std::memory_order_acquire)) {
+        InputLink.SetEdgeRelayMask(DeviceID, Packet.EdgeRelayMask);
+        InputLink.CursorOwner.store(DeviceID, std::memory_order_release);
+    } else {
+        InputLink.CursorOwner.store(DeviceMap::C0, std::memory_order_release);
+    }
+
+    InputLink.SetCaptureHIDMode(ModeHID::DEAD);
+    IOContext.DeactivateRemoteEdge();
+
     Device::MonitorRes Res = Device::GetMonitorResolution();
 
     int TargetY =

@@ -24,6 +24,36 @@ template <uint32_t MTU> class OmniNetSession;
 class OmniNetSubStream;
 class OmniTCPStream;
 
+alignas(64) constexpr std::array<std::array<DeviceMap, 8>, 8> RelativeDeviceMapLookup = {
+    {{C0, RU1, END, RD1, U1, END, END, D1}, // L1
+     {LD1, C0, RD1, END, L1, R1, END, END}, // U1
+     {END, LU1, C0, LD1, END, U1, D1, END}, // R1
+     {LU1, END, RU1, C0, END, END, R1, L1}, // D1
+     {D1, R1, END, END, C0, END, END, END}, // LU1
+     {END, L1, D1, END, END, C0, END, END}, // RU1
+     {END, END, U1, L1, END, END, C0, END}, // RD1
+     {U1, END, END, R1, END, END, END, C0}} // LD1
+};
+
+// In a 3x3 grid this function lets one slot to see how another slot sees the grid
+// Note: TargetID being C0 is to check local instance position from another slot, meaning reverse.
+// Meaning... for Instance A, Instance B is L1 and to B ? A is R1 and so on
+constexpr DeviceMap ComputeRelativeSpartialID(DeviceMap DeviceID, DeviceMap TargetID)
+{
+    if (DeviceID >= END || TargetID >= END)
+        return END;
+
+    if (DeviceID == C0)
+        return TargetID;
+
+    if (TargetID == C0) {
+        constexpr DeviceMap ReverseLookups[] = {C0, R1, D1, L1, U1, RD1, LD1, LU1, RU1};
+        return ReverseLookups[DeviceID];
+    }
+
+    return RelativeDeviceMapLookup[DeviceID - 1][TargetID - 1];
+}
+
 // Base OmniInstance Struct for holding Instance Data used in InstanceRegistry for mangement,
 // Includes Handshake data for instance wise action protection.
 // Includes Resolution data for scaling and mirroring purposes.

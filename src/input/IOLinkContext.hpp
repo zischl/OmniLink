@@ -32,14 +32,28 @@ struct alignas(16) OmniMousePacket
     uint16_t Reserved; // Padding to 16 bytes
 };
 
+// OmniEdgeCrossPacket is to enter another instance and transfer ownership of the cursor.
+// EdgeRelayMask is to let the new cursor owner know what other instances are in which direction.
+// This lets the InputLink work as a mesh even if not every device is interconnected.
+// X, Y.. think of it as a percentage of monitor position compared to monitor resolution. bye !
 struct alignas(16) OmniEdgeCrossPacket
 {
-    DeviceMap Edge;      // DeviceMap edge
-    uint8_t   Reserved0; // No longer used, just padding now
+    DeviceMap Edge;          // DeviceMap edge
+    uint8_t   EdgeRelayMask; // IO Active Device Grid based nearby Instances
+    uint16_t  Y_Ratio;       // Normalized Y ratio (0..65535)
+    uint16_t  X_Ratio;       // Normalized X ratio (0..65535)
+    uint16_t  Reserved;      // Padding
+    uint64_t  Reserved2;     // Padding to 16 bytes
+};
+
+struct alignas(16) OmniEdgeRelayPacket
+{
+    DeviceMap RelayEdge; // DeviceMap edge
+    uint8_t   Reserved;  // Padding..
     uint16_t  Y_Ratio;   // Normalized Y ratio (0..65535)
     uint16_t  X_Ratio;   // Normalized X ratio (0..65535)
-    uint16_t  Reserved;  // Padding
-    uint64_t  Reserved2; // Padding to 16 bytes
+    uint16_t  Reserved2; // Padding
+    uint64_t  Reserved3; // Padding to 16 bytes
 };
 
 struct alignas(16) OmniKeyPacket
@@ -57,38 +71,32 @@ static_assert(sizeof(OmniMousePacket) == 16, "SIMD optimizations...");
 static_assert(sizeof(OmniEdgeCrossPacket) == 16, "SIMD optimizations...");
 static_assert(sizeof(OmniKeyPacket) == 16, "SIMD optimizations...");
 
-template <uint32_t MTU> class OmniNetSession;
-
 // Shared input state between OmniInputLink and OmniInputFilter.
 struct InputLinkContext
 {
     OmniRouter& Router;
 
-    std::atomic<OmniNetSession<OmniMTU>*> ActiveNetSession{nullptr};
-
-    DeviceMap ActiveEdge{DeviceMap::C0};
+    std::atomic<DeviceMap> ActiveRemoteEdge{DeviceMap::C0};
 
     std::atomic<bool> InputLocked{false};
 
     explicit InputLinkContext(OmniRouter& Router_) : Router(Router_) {}
 
-    void ActivateEdge(DeviceMap DeviceID)
+    void ActivateRemoteEdge(DeviceMap DeviceID)
     {
-        ActiveNetSession.store(Router.GetSession(DeviceID), std::memory_order_release);
-        ActiveEdge = DeviceID;
+        InputLocked.store(true, std::memory_order_release);
+        ActiveRemoteEdge.store(DeviceID, std::memory_order_release);
     }
 
-    void DeactivateEdge()
+    void DeactivateRemoteEdge()
     {
-        ActiveNetSession.store(nullptr, std::memory_order_release);
         InputLocked.store(false, std::memory_order_release);
-        ActiveEdge = DeviceMap::C0;
+        ActiveRemoteEdge.store(DeviceMap::C0, std::memory_order_release);
     }
 
-    void Reset()
+    void ResetEdge()
     {
-        ActiveNetSession.store(nullptr, std::memory_order_release);
         InputLocked.store(false, std::memory_order_release);
-        ActiveEdge = DeviceMap::C0;
+        ActiveRemoteEdge = DeviceMap::C0;
     }
 };

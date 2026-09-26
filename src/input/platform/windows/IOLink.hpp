@@ -2,6 +2,8 @@
 
 #include "Helper.hpp"
 #include "IOLinkContext.hpp"
+#include "OmniEnums.hpp"
+#include "OmniInstances.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -11,9 +13,12 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
+#include <cstdint>
 #include <hidusage.h>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 struct MouseXY
 {
@@ -34,6 +39,8 @@ struct Point
     LONG X;
     LONG Y;
 };
+
+enum ModeHID : uint8_t { DEAD, HIDMON, CAPSEND };
 
 template <uint32_t MTU> class OmniNetSession;
 
@@ -67,11 +74,23 @@ class OmniInputLink
     explicit OmniInputLink(InputLinkContext& Ctx);
     ~OmniInputLink();
 
+    inline void SetupInputLink(HWND CaptureWndHandle)
+    {
+        if (!CaptureHWND)
+            CaptureHWND = CaptureWndHandle;
+    }
+
     // Mouse cursor position tracked locally for edge detection and delta math.
     int MouseX = 0;
     int MouseY = 0;
 
     FlowMorph<int, int, DeviceMap> ConditionManager;
+
+    std::atomic<DeviceMap> CursorOwner{DeviceMap::C0};
+    std::atomic<uint8_t>   ActiveEdgeRelayMask{0};
+    std::atomic<bool>      InputStateHID{false};
+
+    uint8_t ComputeRelativeSpartialGrid(DeviceMap DeviceID, uint8_t EdgeMask);
 
     // The Edge Probe system worls alongside the FlowMorph dynamic ConditionManager.
     // Based on registered directions and the user's display resolution monitors cursor edge hits.
@@ -79,18 +98,41 @@ class OmniInputLink
     // Transmits OmniEdgeCrossPacket to transfer cursor ownership and awaits return
     void ToggleEdgeProbe();
     bool GetEdgeProbeState();
+
+    // Adds/removes an item to the ActiveEdgeRelayMask, Do Not Give This Guy C0 or END.
+    // Used DeviceID minus one due to the EdgeRelays can never be C0 or END.
+    void AddRelayMask(DeviceMap DeviceID);
+    void RemoveRelayMask(DeviceMap DeviceID);
+
+    void ResetEdgeRelayMask();
+    void SetEdgeRelayMask(DeviceMap RemoteID, uint8_t EdgeMask);
+    bool GetEdgeRelayState(DeviceMap DeviceID);
+
+    // Returns the EdgeMask using the active conditions without the target DeviceID.
+    // Relaying about the current instance is redundant so..
+    // Again.. Do Not Give This Guy C0 or END.
+    // TargetID minus one due to the EdgeRelays can never be C0 or END.
+    uint8_t GetEdgeRelayMask(DeviceMap TargetID);
+
     void AddEdgeCondition(DeviceMap Index);
+    void RemoveEdgeCondition(DeviceMap Index);
 
     void (OmniInputLink::*InputProc)(LPARAM& LParam) = nullptr;
 
-    // High Performance Input Capture
-    void ToggleInputCapture(bool State);
+    // High Performance Raw Input Capture
+    // Mode CAPSEND Captures and transmits over the network.
+    // Mode HIDMON for Raw input differentiation from simulated inputs
+    void SetCaptureHIDMode(ModeHID TargetMode);
 
-    // Just calls the actual InputProcCallback, will later update to handle WM_INPUT_DEVICE_CHANGE
+    // Just calls the actual InputProcCallback, will later update to handle
+    // WM_INPUT_DEVICE_CHANGE
     void InputProcInit(LPARAM& LParam);
 
     // Called for every raw mouse/keyboard event while captured.
     void InputProcCallback(LPARAM& LParam);
+
+    // CallbackHID to simply differentiate real input from SendInput/SetCursor Pos
+    void InputProcCallbackHID(LPARAM& LParam);
 
     // Drain callback used during the teardown window.
     void VoidExitCallback(LPARAM& LParam);
@@ -102,10 +144,9 @@ class OmniInputLink
     InputLinkContext& IOCtx;
     HWND              CaptureHWND;
 
-    std::atomic_bool InputLinkStatus{false};
-    std::atomic_bool MouseEventCapStatus{false};
-
-    DeviceMap ActiveEdgeCondition{DeviceMap::C0};
+    std::atomic<bool>    InputLinkStatus{false};
+    std::atomic<bool>    MouseEventCapStatus{false};
+    std::atomic<ModeHID> CaptureStateHID{ModeHID::DEAD};
 
     std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
         ConditionManager.conditions;
@@ -136,15 +177,20 @@ class OmniInputLink
 class OmniSynth
 {
   private:
-    OmniInputLink& InputLink;
+    OmniInputLink&    InputLink;
+    InputLinkContext& IOContext;
 
   public:
     inline static std::atomic<bool> GameMode;
 
-    explicit OmniSynth(OmniInputLink& InputLink) : InputLink(InputLink) { GameMode.store(false); }
+    explicit OmniSynth(OmniInputLink& InputLink, InputLinkContext& IOContext)
+        : InputLink(InputLink), IOContext(IOContext)
+    {
+        GameMode.store(false);
+    }
 
     // Process an incoming OmniEdgeCrossPacket for proportional entry and.. return
-    void ProcEdgeCross(const OmniEdgeCrossPacket& Packet);
+    void ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Packet);
 
     // Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
     static void ProcMouse(const OmniMousePacket& Packet);
