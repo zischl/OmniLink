@@ -192,7 +192,12 @@ class OmniSynth
     // Process an incoming OmniEdgeCrossPacket for proportional entry and.. return
     void ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Packet);
 
+    // Process an incoming OmniEdgeRelayPacket to relay edge cross on a remote device.
+    // Basically if A is connected to B and C, and the A's cursor is on B and crosses edge to C.
+    // In which case A is notified via this packet and.. handled here.
     void ProcEdgeRelayCross(DeviceMap DeviceID, const OmniEdgeRelayPacket& Packet);
+
+    void ProcEdgeRecall(DeviceMap DeviceID);
 
     // Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
     static void ProcMouse(const OmniMousePacket& Packet);

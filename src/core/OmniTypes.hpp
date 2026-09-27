@@ -16,6 +16,7 @@ enum PacketType : uint8_t {
     ProcMouse,
     ProcEdgeCross,
     ProcEdgeCrossRelay,
+    ProcEdgeRecall,
     ProcKey,
     ProcClipboard,
     ProcWinDrag,

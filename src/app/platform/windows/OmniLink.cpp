@@ -154,6 +154,14 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
 
         break;
     }
+    case OmniNet::PacketType::ProcEdgeRecall: {
+        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
+
+        SysLink->InputSynth.ProcEdgeRecall(DeviceID);
+
+        break;
+    }
+
     case OmniNet::PacketType::ProcWinDrag: {
         OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
 

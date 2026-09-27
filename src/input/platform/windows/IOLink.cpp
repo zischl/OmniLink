@@ -2,7 +2,10 @@
 #include "IOLinkContext.hpp"
 #include "OmniEnums.hpp"
 #include "OmniInstances.h"
+#include "OmniRouterContext.hpp"
+#include "OmniTypes.hpp"
 #include "SessionHandler.hpp"
+#include "SessionTypes.hpp"
 #include "system_probe_impl.hpp"
 
 #include <atomic>
@@ -656,15 +659,29 @@ void OmniSynth::ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Pac
         }
     }
 
-    if (!IOContext.InputLocked.load(std::memory_order_acquire)) {
+    DeviceMap ActiveRemoteEdge = IOContext.ActiveRemoteEdge.load(std::memory_order_acquire);
+    if (DeviceMap::C0 == ActiveRemoteEdge) { // Cursor home
         InputLink.SetEdgeRelayMask(DeviceID, Packet.EdgeRelayMask);
         InputLink.CursorOwner.store(DeviceID, std::memory_order_release);
-    } else {
+    } else if (DeviceID == ActiveRemoteEdge) { // Cursor returned..
         InputLink.CursorOwner.store(DeviceMap::C0, std::memory_order_release);
-    }
 
-    InputLink.SetCaptureHIDMode(ModeHID::DEAD);
-    IOContext.DeactivateRemoteEdge();
+        InputLink.SetCaptureHIDMode(ModeHID::DEAD);
+        IOContext.DeactivateRemoteEdge();
+
+    } else { // Cursor went out but new guests on the door
+        auto* NetSession = IOContext.Router.GetSession(ActiveRemoteEdge);
+        if (NetSession) {
+            OmniNet::OmniHeader Header{OmniNet::PacketType::ProcEdgeRecall, 0, 0};
+            NetSession->SessionSend(0, 0, Header);
+        }
+
+        InputLink.SetEdgeRelayMask(DeviceID, Packet.EdgeRelayMask);
+        InputLink.CursorOwner.store(DeviceID, std::memory_order_release);
+
+        InputLink.SetCaptureHIDMode(ModeHID::DEAD);
+        IOContext.DeactivateRemoteEdge();
+    }
 
     Device::MonitorRes Res = Device::GetMonitorResolution();
 
@@ -733,6 +750,12 @@ void OmniSynth::ProcEdgeRelayCross(DeviceMap DeviceID, const OmniEdgeRelayPacket
         IOContext.DeactivateRemoteEdge();
         InputLink.SetCaptureHIDMode(ModeHID::DEAD);
     }
+}
+
+void OmniSynth::ProcEdgeRecall(DeviceMap DeviceID)
+{
+    InputLink.CursorOwner.store(DeviceMap::C0, std::memory_order_release);
+    InputLink.ResetEdgeRelayMask();
 }
 
 void OmniSynth::ProcMouse(const OmniMousePacket& Packet)
