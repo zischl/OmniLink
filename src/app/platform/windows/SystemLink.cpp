@@ -629,8 +629,8 @@ void OmniSystemLink::BindIOLinkSession(DeviceMap DeviceID)
 void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
 {
     OmniRouter.UnregisterSession(DeviceID);
-    if (InputLinkCtx.ActiveEdge == DeviceID) {
-        InputLinkCtx.DeactivateEdge();
+    if (InputLinkCtx.ActiveRemoteEdge == DeviceID) {
+        InputLinkCtx.DeactivateRemoteEdge();
     }
     InputLink.ConditionManager.Remove(DeviceID);
 
@@ -783,6 +783,8 @@ OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
     (void)Context;
     if (Route == FeatureActionRoute::Outbound) {
         if (Action == FeatureAction::Activate) {
+
+            InputLink.SetupInputLink(WindowID);
             BindIOLinkSession(DeviceID);
 
             Logger::log("InputLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));

@@ -1,6 +1,7 @@
 #include "IOLink.hpp"
 #include "IOLinkContext.hpp"
 #include "OmniEnums.hpp"
+#include "OmniInstances.h"
 #include "SessionHandler.hpp"
 #include "system_probe_impl.hpp"
 
@@ -228,23 +229,20 @@ void OmniInputLink::ResetEdgeRelayMask()
 
 void OmniInputLink::SetEdgeRelayMask(DeviceMap RemoteID, uint8_t EdgeMask)
 {
-    uint8_t ActiveMask = ActiveEdgeRelayMask.load(std::memory_order_release);
+    ResetEdgeRelayMask();
 
-    while (ActiveMask) {
-        auto DeviceID = static_cast<DeviceMap>(std::countr_zero(ActiveMask) + 1);
-        RemoveEdgeCondition(DeviceID);
-
-        ActiveMask &= static_cast<uint8_t>(ActiveMask - 1);
-    }
-
-    ActiveEdgeRelayMask.store(EdgeMask, std::memory_order_relaxed);
+    DeviceMap ReverseID = ComputeRelativeSpartialID(RemoteID, DeviceMap::C0);
 
     while (EdgeMask) {
         DeviceMap DeviceID = static_cast<DeviceMap>(std::countr_zero(EdgeMask) + 1);
         DeviceMap RelativeID =
-            ComputeRelativeSpartialID(RemoteID, static_cast<DeviceMap>(DeviceID));
+            ComputeRelativeSpartialID(ReverseID, static_cast<DeviceMap>(DeviceID));
 
-        AddEdgeCondition(DeviceID);
+        if (RelativeID != DeviceMap::END && RelativeID != DeviceMap::C0) {
+            AddRelayMask(RelativeID);
+            AddEdgeCondition(RelativeID);
+        }
+
         EdgeMask &= static_cast<uint8_t>(EdgeMask - 1);
     }
 }
@@ -327,10 +325,11 @@ void OmniInputLink::CreateEdgeProbe()
 
                             OmniEdgeCrossPacket EntryData = {};
 
-                            EntryData.Edge          = DeviceID;
-                            EntryData.EdgeRelayMask = RemoteActive ? GetEdgeRelayMask(DeviceID) : 0;
-                            EntryData.Y_Ratio       = YRatio;
-                            EntryData.X_Ratio       = XRatio;
+                            EntryData.Edge = DeviceID;
+                            EntryData.EdgeRelayMask =
+                                !RemoteActive ? GetEdgeRelayMask(DeviceID) : 0;
+                            EntryData.Y_Ratio = YRatio;
+                            EntryData.X_Ratio = XRatio;
 
                             NetSession->SessionSend(
                                 reinterpret_cast<CHAR*>(&EntryData),
@@ -350,6 +349,37 @@ void OmniInputLink::CreateEdgeProbe()
                                 ResetEdgeRelayMask();
                             }
 
+                        } else if (GetEdgeRelayState(DeviceID)) {
+
+                            OmniNet::OmniHeader Header;
+                            Header.Target     = 0;
+                            Header.PacketType = OmniNet::PacketType::ProcEdgeCrossRelay;
+                            Header.Flags      = 0;
+
+                            OmniEdgeRelayPacket RelayData = {};
+
+                            RelayData.RelayEdge = DeviceID;
+                            RelayData.X_Ratio   = XRatio;
+                            RelayData.Y_Ratio   = YRatio;
+
+                            auto* NetSession = IOCtx.Router.GetSession(
+                                CursorOwner.load(std::memory_order_acquire)
+                            );
+
+                            if (NetSession) {
+                                NetSession->SessionSend(
+                                    reinterpret_cast<CHAR*>(&RelayData),
+                                    sizeof(OmniEdgeRelayPacket),
+                                    Header
+                                );
+                            }
+
+                            SetCursorPos(
+                                Pos.x > 10 ? Pos.x - 5 : Pos.x + 5,
+                                Pos.y > 10 ? Pos.y - 5 : Pos.y + 5
+                            );
+                            CursorOwner.store(DeviceMap::C0, std::memory_order_release);
+                            ResetEdgeRelayMask();
                         }
 
                         break;
@@ -671,6 +701,38 @@ void OmniSynth::ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Pac
     }
 
     SetCursorPos(TargetX, TargetY);
+}
+
+void OmniSynth::ProcEdgeRelayCross(DeviceMap DeviceID, const OmniEdgeRelayPacket& Packet)
+{
+
+    DeviceMap ReverseID = ComputeRelativeSpartialID(DeviceID, DeviceMap::C0);
+    DeviceMap TargetID  = ComputeRelativeSpartialID(ReverseID, Packet.RelayEdge);
+
+    auto* NetSession = IOContext.Router.GetSession(TargetID);
+    if (NetSession) {
+
+        OmniNet::OmniHeader Header;
+        Header.Target     = 0;
+        Header.PacketType = OmniNet::PacketType::ProcEdgeCross;
+        Header.Flags      = 0;
+
+        OmniEdgeCrossPacket EntryData = {};
+
+        EntryData.Edge          = Packet.RelayEdge;
+        EntryData.EdgeRelayMask = InputLink.GetEdgeRelayMask(TargetID);
+        EntryData.X_Ratio       = Packet.X_Ratio;
+        EntryData.Y_Ratio       = Packet.Y_Ratio;
+
+        NetSession->SessionSend(
+            reinterpret_cast<CHAR*>(&EntryData), sizeof(OmniEdgeCrossPacket), Header
+        );
+
+        IOContext.ActivateRemoteEdge(TargetID);
+    } else {
+        IOContext.DeactivateRemoteEdge();
+        InputLink.SetCaptureHIDMode(ModeHID::DEAD);
+    }
 }
 
 void OmniSynth::ProcMouse(const OmniMousePacket& Packet)

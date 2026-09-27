@@ -5,9 +5,11 @@
 #include "OmniLogger.hpp"
 #include "OmniPackets.hpp"
 #include "OmniTypes.hpp"
+#include "SessionHandler.hpp"
 #include "SystemLink.hpp"
 #include "UIEvents.hpp"
 #include <vector>
+#include <winnt.h>
 
 DeviceMap OmniCore::ActiveIOProcTarget   = DeviceMap::C0;
 DeviceMap OmniCore::SelectedTargetDevice = DeviceMap::C0;

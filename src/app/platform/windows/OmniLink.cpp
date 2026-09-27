@@ -139,7 +139,18 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
             return;
 
         const auto* Packet = reinterpret_cast<const OmniEdgeCrossPacket*>(Buffer);
-        SysLink->InputSynth.ProcEdgeCross(*Packet);
+        SysLink->InputSynth.ProcEdgeCross(DeviceID, *Packet);
+
+        break;
+    }
+    case OmniNet::PacketType::ProcEdgeCrossRelay: {
+        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
+
+        if (!Buffer || BufferSize < sizeof(OmniEdgeRelayPacket))
+            return;
+
+        const auto* Packet = reinterpret_cast<const OmniEdgeRelayPacket*>(Buffer);
+        SysLink->InputSynth.ProcEdgeRelayCross(DeviceID, *Packet);
 
         break;
     }

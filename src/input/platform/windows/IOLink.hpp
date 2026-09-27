@@ -192,6 +192,8 @@ class OmniSynth
     // Process an incoming OmniEdgeCrossPacket for proportional entry and.. return
     void ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Packet);
 
+    void ProcEdgeRelayCross(DeviceMap DeviceID, const OmniEdgeRelayPacket& Packet);
+
     // Process a OmniMousePacket for hybrid SetCursorPos + SendInput behaviour
     static void ProcMouse(const OmniMousePacket& Packet);
 
