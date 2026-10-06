@@ -123,6 +123,8 @@ OmniInputLink::OmniInputLink(InputLinkContext& Ctx) : IOCtx(Ctx)
     Device::MonitorRes MonRes = Device::GetMonitorResolution();
     IOCtx.Router.SetResolution(MonRes.Width, MonRes.Height);
 
+    ConditionManager.SyncConditions(2);
+
     FocusEventListener(true);
 }
 
@@ -257,11 +259,7 @@ bool OmniInputLink::GetEdgeRelayState(DeviceMap DeviceID)
 
 uint8_t OmniInputLink::GetEdgeRelayMask(DeviceMap TargetID)
 {
-    uint8_t EdgeMask = 0;
-
-    for (auto& [DeviceID, Cond] : Conditions) {
-        EdgeMask |= 1 << (static_cast<uint8_t>(DeviceID) - 1);
-    }
+    uint8_t EdgeMask = ConditionManager.GetActiveMask();
 
     return EdgeMask & ~(1U << (static_cast<uint8_t>(TargetID) - 1));
 }
@@ -296,87 +294,52 @@ void OmniInputLink::CreateEdgeProbe()
                 MouseX = Pos.x;
                 MouseY = Pos.y;
 
-                for (auto& [DeviceID, Cond] : Conditions) {
-                    if (Cond(MouseX, MouseY)) {
+                DeviceMap DeviceID = ConditionManager.Evaluate(MouseX, MouseY);
 
-                        uint16_t YRatio =
-                            (IOCtx.Router.ResHeight > 0)
-                                ? static_cast<uint16_t>(
-                                      (static_cast<uint64_t>(Pos.y) << 16) / IOCtx.Router.ResHeight
-                                  )
-                                : (1 << 15);
-                        uint16_t XRatio =
-                            (IOCtx.Router.ResWidth > 0)
-                                ? static_cast<uint16_t>(
-                                      (static_cast<uint64_t>(Pos.x) << 16) / IOCtx.Router.ResWidth
-                                  )
-                                : (1 << 15);
+                if (DeviceID != DeviceMap::C0) {
 
-                        MouseX = 0;
-                        MouseY = 0;
+                    uint16_t YRatio =
+                        (IOCtx.Router.ResHeight > 0)
+                            ? static_cast<uint16_t>(
+                                  (static_cast<uint64_t>(Pos.y) << 16) / IOCtx.Router.ResHeight
+                              )
+                            : (1 << 15);
+                    uint16_t XRatio =
+                        (IOCtx.Router.ResWidth > 0)
+                            ? static_cast<uint16_t>(
+                                  (static_cast<uint64_t>(Pos.x) << 16) / IOCtx.Router.ResWidth
+                              )
+                            : (1 << 15);
 
-                        MouseEventStatus->store(false);
+                    MouseX = 0;
+                    MouseY = 0;
 
-                        bool  RemoteActive = CursorOwner.load(std::memory_order_acquire) != C0;
-                        auto* NetSession   = IOCtx.Router.GetSession(DeviceID);
+                    MouseEventStatus->store(false);
 
-                        if (NetSession) {
-                            OmniNet::OmniHeader Header;
-                            Header.Target     = 0;
-                            Header.PacketType = OmniNet::PacketType::ProcEdgeCross;
-                            Header.Flags      = 0;
+                    bool  RemoteActive = CursorOwner.load(std::memory_order_acquire) != C0;
+                    auto* NetSession   = IOCtx.Router.GetSession(DeviceID);
 
-                            OmniEdgeCrossPacket EntryData = {};
+                    if (NetSession) {
+                        OmniNet::OmniHeader Header;
+                        Header.Target     = 0;
+                        Header.PacketType = OmniNet::PacketType::ProcEdgeCross;
+                        Header.Flags      = 0;
 
-                            EntryData.Edge = DeviceID;
-                            EntryData.EdgeRelayMask =
-                                !RemoteActive ? GetEdgeRelayMask(DeviceID) : 0;
-                            EntryData.Y_Ratio = YRatio;
-                            EntryData.X_Ratio = XRatio;
+                        OmniEdgeCrossPacket EntryData = {};
 
-                            NetSession->SessionSend(
-                                reinterpret_cast<CHAR*>(&EntryData),
-                                sizeof(OmniEdgeCrossPacket),
-                                Header
-                            );
+                        EntryData.Edge          = DeviceID;
+                        EntryData.EdgeRelayMask = !RemoteActive ? GetEdgeRelayMask(DeviceID) : 0;
+                        EntryData.Y_Ratio       = YRatio;
+                        EntryData.X_Ratio       = XRatio;
 
-                            if (!RemoteActive) {
-                                IOCtx.ActivateRemoteEdge(DeviceID);
-                                SetCaptureHIDMode(ModeHID::CAPSEND);
-                            } else {
-                                SetCursorPos(
-                                    Pos.x > 10 ? Pos.x - 5 : Pos.x + 5,
-                                    Pos.y > 10 ? Pos.y - 5 : Pos.y + 5
-                                );
-                                CursorOwner.store(DeviceMap::C0, std::memory_order_release);
-                                ResetEdgeRelayMask();
-                            }
+                        NetSession->SessionSend(
+                            reinterpret_cast<CHAR*>(&EntryData), sizeof(OmniEdgeCrossPacket), Header
+                        );
 
-                        } else if (GetEdgeRelayState(DeviceID)) {
-
-                            OmniNet::OmniHeader Header;
-                            Header.Target     = 0;
-                            Header.PacketType = OmniNet::PacketType::ProcEdgeCrossRelay;
-                            Header.Flags      = 0;
-
-                            OmniEdgeRelayPacket RelayData = {};
-
-                            RelayData.RelayEdge = DeviceID;
-                            RelayData.X_Ratio   = XRatio;
-                            RelayData.Y_Ratio   = YRatio;
-
-                            auto* NetSession = IOCtx.Router.GetSession(
-                                CursorOwner.load(std::memory_order_acquire)
-                            );
-
-                            if (NetSession) {
-                                NetSession->SessionSend(
-                                    reinterpret_cast<CHAR*>(&RelayData),
-                                    sizeof(OmniEdgeRelayPacket),
-                                    Header
-                                );
-                            }
-
+                        if (!RemoteActive) {
+                            IOCtx.ActivateRemoteEdge(DeviceID);
+                            SetCaptureHIDMode(ModeHID::CAPSEND);
+                        } else {
                             SetCursorPos(
                                 Pos.x > 10 ? Pos.x - 5 : Pos.x + 5,
                                 Pos.y > 10 ? Pos.y - 5 : Pos.y + 5
@@ -385,8 +348,38 @@ void OmniInputLink::CreateEdgeProbe()
                             ResetEdgeRelayMask();
                         }
 
-                        break;
+                    } else if (GetEdgeRelayState(DeviceID)) {
+
+                        OmniNet::OmniHeader Header;
+                        Header.Target     = 0;
+                        Header.PacketType = OmniNet::PacketType::ProcEdgeCrossRelay;
+                        Header.Flags      = 0;
+
+                        OmniEdgeRelayPacket RelayData = {};
+
+                        RelayData.RelayEdge = DeviceID;
+                        RelayData.X_Ratio   = XRatio;
+                        RelayData.Y_Ratio   = YRatio;
+
+                        auto* NetSession =
+                            IOCtx.Router.GetSession(CursorOwner.load(std::memory_order_acquire));
+
+                        if (NetSession) {
+                            NetSession->SessionSend(
+                                reinterpret_cast<CHAR*>(&RelayData),
+                                sizeof(OmniEdgeRelayPacket),
+                                Header
+                            );
+                        }
+
+                        SetCursorPos(
+                            Pos.x > 10 ? Pos.x - 5 : Pos.x + 5, Pos.y > 10 ? Pos.y - 5 : Pos.y + 5
+                        );
+                        CursorOwner.store(DeviceMap::C0, std::memory_order_release);
+                        ResetEdgeRelayMask();
                     }
+
+                    break;
                 }
 
                 InputStateHID.store(false, std::memory_order_release);
@@ -415,65 +408,12 @@ void OmniInputLink::CreateEdgeProbe()
 
 void OmniInputLink::AddEdgeCondition(DeviceMap Index)
 {
-    const uint32_t W = IOCtx.Router.ResWidth;
-    const uint32_t H = IOCtx.Router.ResHeight;
-
-    switch (Index) {
-    case DeviceMap::L1:
-        ConditionManager.Add(Index, [W, H](int X, int Y) {
-            return X <= 0 && (Y > 0 && Y < static_cast<int>(H));
-        });
-        break;
-
-    case DeviceMap::R1:
-        ConditionManager.Add(Index, [W, H](int X, int Y) {
-            return X >= static_cast<int>(W) && (Y > 0 && Y < static_cast<int>(H));
-        });
-        break;
-
-    case DeviceMap::U1:
-        ConditionManager.Add(Index, [W, H](int X, int Y) {
-            return Y <= 0 && (X > 0 && X < static_cast<int>(W));
-        });
-        break;
-
-    case DeviceMap::D1:
-        ConditionManager.Add(Index, [W, H](int X, int Y) {
-            return Y >= static_cast<int>(H) && (X > 0 && X < static_cast<int>(W));
-        });
-        break;
-
-    case DeviceMap::LU1:
-        ConditionManager.Add(Index, [](int X, int Y) { return X <= 0 && Y <= 0; });
-        break;
-
-    case DeviceMap::RU1:
-        ConditionManager.Add(Index, [W](int X, int Y) {
-            return X >= static_cast<int>(W) && Y <= 0;
-        });
-        break;
-
-    case DeviceMap::LD1:
-        ConditionManager.Add(Index, [H](int X, int Y) {
-            return X <= 0 && Y >= static_cast<int>(H);
-        });
-        break;
-
-    case DeviceMap::RD1:
-        ConditionManager.Add(Index, [W, H](int X, int Y) {
-            return X >= static_cast<int>(W) && Y >= static_cast<int>(H);
-        });
-        break;
-
-    case DeviceMap::C0:
-    case DeviceMap::END:
-        break;
-    }
+    ConditionManager.AddEdgeCondition(static_cast<DeviceMap>(Index));
 }
 
 void OmniInputLink::RemoveEdgeCondition(DeviceMap DeviceID)
 {
-    ConditionManager.Remove(DeviceID);
+    ConditionManager.RemoveEdgeCondition(DeviceID);
 }
 
 void OmniInputLink::SetCaptureHIDMode(ModeHID TargetMode)

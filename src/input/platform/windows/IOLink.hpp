@@ -4,6 +4,7 @@
 #include "IOLinkContext.hpp"
 #include "OmniEnums.hpp"
 #include "OmniInstances.h"
+#include "SpatialRouter.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -84,7 +85,7 @@ class OmniInputLink
     int MouseX = 0;
     int MouseY = 0;
 
-    FlowMorph<int, int, DeviceMap> ConditionManager;
+    SpatialEdgeRouter ConditionManager;
 
     std::atomic<DeviceMap> CursorOwner{DeviceMap::C0};
     std::atomic<uint8_t>   ActiveEdgeRelayMask{0};
@@ -92,9 +93,9 @@ class OmniInputLink
 
     uint8_t ComputeRelativeSpartialGrid(DeviceMap DeviceID, uint8_t EdgeMask);
 
-    // The Edge Probe system worls alongside the FlowMorph dynamic ConditionManager.
-    // Based on registered directions and the user's display resolution monitors cursor edge hits.
-    // Calculates scaled X and Y ratio from user resolution and Cursor X Y pos..
+    // The Edge Probe system worls alongside the SpatialEdgeRouter with support for multiple
+    // monitors. Based on registered directions and the user's display resolution monitors cursor
+    // edge hits. Calculates scaled X and Y ratio from user resolution and Cursor X Y pos..
     // Transmits OmniEdgeCrossPacket to transfer cursor ownership and awaits return
     void ToggleEdgeProbe();
     bool GetEdgeProbeState();
@@ -147,11 +148,6 @@ class OmniInputLink
     std::atomic<bool>    InputLinkStatus{false};
     std::atomic<bool>    MouseEventCapStatus{false};
     std::atomic<ModeHID> CaptureStateHID{ModeHID::DEAD};
-
-    std::unordered_map<DeviceMap, std::function<bool(int, int)>>& Conditions =
-        ConditionManager.conditions;
-
-    std::mutex ConditionMutex;
 
     HWINEVENTHOOK WinFocusHook = NULL;
     UINT          RawInputSize;

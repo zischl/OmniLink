@@ -458,6 +458,11 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         Omni = static_cast<OmniLink*>(reinterpret_cast<CREATESTRUCT*>(lParam)->lpCreateParams);
         SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(Omni));
         break;
+    case WM_DISPLAYCHANGE:
+        if (Omni) {
+            Omni->SystemLink.InputLink.ConditionManager.SyncConditions(2);
+        }
+        break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }

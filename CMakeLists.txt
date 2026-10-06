@@ -132,6 +132,7 @@ if(WIN32)
       src/render/platform/windows/D3D11Renderer.cpp
       src/render/platform/windows/D3D11RendererCore.cpp
       src/input/platform/windows/IOLink.cpp
+      src/input/platform/windows/SpatialRouter.cpp
       src/window/platform/windows/WinForge.cpp
       src/window/platform/windows/WindowDragCap.cpp
       src/app/platform/windows/SystemLink.cpp
