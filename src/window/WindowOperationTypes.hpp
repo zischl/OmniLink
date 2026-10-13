@@ -37,3 +37,33 @@ struct alignas(8) OmniWinResizePacket
 #pragma pack(pop)
 
 static_assert(sizeof(OmniWinResizePacket) == 8, "shit must be exactly 8 bytes");
+
+#pragma pack(push, 1)
+
+struct alignas(16) OmniWinMousePacket
+{
+    uint64_t SubStreamID; // Stream window identifier
+    uint16_t NormalizedX; // Normalized client X, do I even need to comment..
+    uint16_t NormalizedY; // ^^^ but for Y
+    uint16_t Buttons;     // Button flags
+    int16_t  Wheel;       // Scroll delta
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(OmniWinMousePacket) == 16, "OmniWinMousePacket must be exactly 16 bytes");
+
+#pragma pack(push, 1)
+
+struct alignas(16) OmniWinKeyPacket
+{
+    uint64_t SubStreamID; // Stream window identifier
+    uint16_t VkCode;      // Virtual Key Code
+    uint16_t ScanCode;    // Hardware Scan Code
+    uint16_t Flags;       // Key press event flags
+    uint16_t Reserved;    // Just padding
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(OmniWinKeyPacket) == 16, "OmniWinKeyPacket must be exactly 16 bytes");

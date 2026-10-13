@@ -303,14 +303,19 @@ OmniNet::PoolConfig OmniSystemLink::SetupStreamRenderWindow(
         EventHandler.OnMouseInput = [](void* Ctx, const OmniMousePacket& Packet) {
             auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
             if (StreamContext && StreamContext->Session) {
+                OmniWinMousePacket WinPacket{};
+                WinPacket.SubStreamID = static_cast<uint64_t>(StreamContext->WindowKey);
+                WinPacket.NormalizedX = static_cast<uint16_t>(Packet.dX);
+                WinPacket.NormalizedY = static_cast<uint16_t>(Packet.dY);
+                WinPacket.Buttons     = Packet.Buttons;
+                WinPacket.Wheel       = Packet.Wheel;
+
                 OmniNet::OmniHeader Header;
                 Header.Target     = 0;
-                Header.PacketType = OmniNet::PacketType::ProcMouse;
+                Header.PacketType = OmniNet::PacketType::ProcWinMouse;
                 Header.Flags      = 0;
                 StreamContext->Session->SessionSend(
-                    reinterpret_cast<CHAR*>(const_cast<OmniMousePacket*>(&Packet)),
-                    sizeof(OmniMousePacket),
-                    Header
+                    reinterpret_cast<CHAR*>(&WinPacket), sizeof(OmniWinMousePacket), Header
                 );
             }
         };
@@ -318,14 +323,19 @@ OmniNet::PoolConfig OmniSystemLink::SetupStreamRenderWindow(
         EventHandler.OnKeyInput = [](void* Ctx, const OmniKeyPacket& Packet) {
             auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
             if (StreamContext && StreamContext->Session) {
+                OmniWinKeyPacket WinPacket{};
+                WinPacket.SubStreamID = static_cast<uint64_t>(StreamContext->WindowKey);
+                WinPacket.VkCode      = Packet.VkCode;
+                WinPacket.ScanCode    = Packet.ScanCode;
+                WinPacket.Flags       = Packet.Flags;
+                WinPacket.Reserved    = 0;
+
                 OmniNet::OmniHeader Header;
                 Header.Target     = 0;
-                Header.PacketType = OmniNet::PacketType::ProcKey;
+                Header.PacketType = OmniNet::PacketType::ProcWinKey;
                 Header.Flags      = 0;
                 StreamContext->Session->SessionSend(
-                    reinterpret_cast<CHAR*>(const_cast<OmniKeyPacket*>(&Packet)),
-                    sizeof(OmniKeyPacket),
-                    Header
+                    reinterpret_cast<CHAR*>(&WinPacket), sizeof(OmniWinKeyPacket), Header
                 );
             }
         };
@@ -632,9 +642,9 @@ void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
     if (InputLinkCtx.ActiveRemoteEdge == DeviceID) {
         InputLinkCtx.DeactivateRemoteEdge();
     }
-    InputLink.ConditionManager.Remove(DeviceID);
+    InputLink.ConditionManager.RemoveEdgeCondition(DeviceID);
 
-    if (InputLink.ConditionManager.Empty() && InputLink.GetEdgeProbeState()) {
+    if (InputLink.ConditionManager.GetActiveMask() == 0 && InputLink.GetEdgeProbeState()) {
         InputLink.ToggleEdgeProbe();
     }
 
