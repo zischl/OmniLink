@@ -865,7 +865,7 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
                 static_cast<int>(DeviceID)
             );
         }
-    } else if (FeatureIndex == FeatureTypes::ClipboardLink) {
+    } else if (FeatureIndex == FeatureTypes::ClipboardLink || FeatureIndex == FeatureTypes::InputLink) {
         FeatureToggleData ToggleData{FeatureIndex, TargetAction};
 
         OmniNetCommand ToggleCmd{
@@ -903,7 +903,7 @@ void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& 
         return;
     }
 
-    if (FeatureData.FeatureType == FeatureTypes::ClipboardLink) {
+    if (FeatureData.FeatureType == FeatureTypes::ClipboardLink || FeatureData.FeatureType == FeatureTypes::InputLink) {
         UpdateFeatureState(
             DeviceID,
             FeatureData.FeatureType,

@@ -790,24 +790,19 @@ OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
 )
 {
     (void)SubStreamID;
+    (void)Route;
     (void)Context;
-    if (Route == FeatureActionRoute::Outbound) {
-        if (Action == FeatureAction::Activate) {
-
+    if (Action == FeatureAction::Activate) {
+        if (!InputLink.ConditionManager.GetState(DeviceID)) {
             InputLink.SetupInputLink(WindowID);
             BindIOLinkSession(DeviceID);
-
             Logger::log("InputLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
-        } else {
+        }
+    } else {
+        if (InputLink.ConditionManager.GetState(DeviceID)) {
             UnbindIOLinkSession(DeviceID);
             Logger::log("InputLink disabled for DeviceID {:d}", static_cast<int>(DeviceID));
         }
-    } else {
-        Logger::log(
-            "InputLink {:s} (Inbound) for DeviceID {:d}",
-            Action == FeatureAction::Activate ? "enabled" : "disabled",
-            static_cast<int>(DeviceID)
-        );
     }
     return OmniNet::PoolConfig{};
 }
