@@ -552,7 +552,7 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         break;
     case WM_DISPLAYCHANGE:
         if (Omni) {
-            Omni->SystemLink.InputLink.ConditionManager.SyncConditions(2);
+            Omni->SystemLink.InputLink.ConditionManager.SyncConditions();
         }
         break;
     }

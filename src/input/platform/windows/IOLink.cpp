@@ -123,7 +123,7 @@ OmniInputLink::OmniInputLink(InputLinkContext& Ctx) : IOCtx(Ctx)
     Device::MonitorRes MonRes = Device::GetMonitorResolution();
     IOCtx.Router.SetResolution(MonRes.Width, MonRes.Height);
 
-    ConditionManager.SyncConditions(2);
+    ConditionManager.SyncConditions();
 
     FocusEventListener(true);
 }
@@ -341,8 +341,10 @@ void OmniInputLink::CreateEdgeProbe()
                             SetCaptureHIDMode(ModeHID::CAPSEND);
                         } else {
                             SetCursorPos(
-                                Pos.x > 10 ? Pos.x - 5 : Pos.x + 5,
-                                Pos.y > 10 ? Pos.y - 5 : Pos.y + 5
+                                Pos.x > 10 ? Pos.x - SpatialConfig::EdgePushBackPadding
+                                           : Pos.x + SpatialConfig::EdgePushBackPadding,
+                                Pos.y > 10 ? Pos.y - SpatialConfig::EdgePushBackPadding
+                                           : Pos.y + SpatialConfig::EdgePushBackPadding
                             );
                             CursorOwner.store(DeviceMap::C0, std::memory_order_release);
                             ResetEdgeRelayMask();
@@ -373,7 +375,10 @@ void OmniInputLink::CreateEdgeProbe()
                         }
 
                         SetCursorPos(
-                            Pos.x > 10 ? Pos.x - 5 : Pos.x + 5, Pos.y > 10 ? Pos.y - 5 : Pos.y + 5
+                            Pos.x > 10 ? Pos.x - SpatialConfig::EdgePushBackPadding
+                                       : Pos.x + SpatialConfig::EdgePushBackPadding,
+                            Pos.y > 10 ? Pos.y - SpatialConfig::EdgePushBackPadding
+                                       : Pos.y + SpatialConfig::EdgePushBackPadding
                         );
                         CursorOwner.store(DeviceMap::C0, std::memory_order_release);
                         ResetEdgeRelayMask();
@@ -640,23 +645,37 @@ void OmniSynth::ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Pac
             ? static_cast<int>((static_cast<uint64_t>(Packet.X_Ratio) * (Res.Width - 1)) >> 16)
             : static_cast<int>(Res.Width >> 1);
 
+    using namespace SpatialConfig;
+
     DeviceMap Edge = Packet.Edge;
     switch (Edge) {
     case DeviceMap::L1:
-    case DeviceMap::LU1:
-    case DeviceMap::LD1:
-        TargetX = static_cast<int>(Res.Width - 2);
+        TargetX = static_cast<int>(Res.Width - 1 - EdgeArrivalPadding);
         break;
     case DeviceMap::R1:
-    case DeviceMap::RU1:
-    case DeviceMap::RD1:
-        TargetX = 2;
+        TargetX = EdgeArrivalPadding;
         break;
     case DeviceMap::U1:
-        TargetY = static_cast<int>(Res.Height - 2);
+        TargetY = static_cast<int>(Res.Height - 1 - EdgeArrivalPadding);
         break;
     case DeviceMap::D1:
-        TargetY = 2;
+        TargetY = EdgeArrivalPadding;
+        break;
+    case DeviceMap::LU1:
+        TargetX = static_cast<int>(Res.Width - 1 - EdgeArrivalPadding);
+        TargetY = static_cast<int>(Res.Height - 1 - EdgeArrivalPadding);
+        break;
+    case DeviceMap::RU1:
+        TargetX = EdgeArrivalPadding;
+        TargetY = static_cast<int>(Res.Height - 1 - EdgeArrivalPadding);
+        break;
+    case DeviceMap::LD1:
+        TargetX = static_cast<int>(Res.Width - 1 - EdgeArrivalPadding);
+        TargetY = EdgeArrivalPadding;
+        break;
+    case DeviceMap::RD1:
+        TargetX = EdgeArrivalPadding;
+        TargetY = EdgeArrivalPadding;
         break;
     default:
         break;

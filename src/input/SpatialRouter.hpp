@@ -57,6 +57,18 @@ struct EdgeSegmentMap
     }
 };
 
+namespace SpatialConfig {
+// Exact physical boundary margin for edge crossing
+constexpr int32_t EdgeTriggerMargin = 1;
+
+// Inward padding when cursor arrives at destination monitor
+constexpr int32_t EdgeArrivalPadding = 5;
+
+// Recoil push back distance when edge cross or return occurs
+constexpr int32_t EdgePushBackPadding = 5;
+
+} // namespace SpatialConfig
+
 class SpatialEdgeRouter
 {
   private:
@@ -70,7 +82,7 @@ class SpatialEdgeRouter
     RECT VirtualBounds{};
     RECT InnerBounds{};
 
-    int32_t Margin = 2;
+    int32_t Margin = SpatialConfig::EdgeTriggerMargin;
 
     [[nodiscard]] inline bool BitState(DeviceMap DeviceID) const
     {
@@ -105,7 +117,7 @@ class SpatialEdgeRouter
 
     void Reset() { ActiveMask = 0; }
 
-    void SyncConditions(int32_t Margin_);
+    void SyncConditions(int32_t Margin_ = SpatialConfig::EdgeTriggerMargin);
 
     [[nodiscard]] inline DeviceMap Evaluate(int X, int Y) const
     {
@@ -116,13 +128,13 @@ class SpatialEdgeRouter
             Y < InnerBounds.bottom)
             return DeviceMap::C0;
 
-        if (BitState(DeviceMap::LU1) && X <= VirtualBounds.left + Margin &&
-            Y <= VirtualBounds.top + Margin)
+        if (BitState(DeviceMap::LU1) && X <= VirtualBounds.left + Margin - 1 &&
+            Y <= VirtualBounds.top + Margin - 1)
             return DeviceMap::LU1;
         if (BitState(DeviceMap::RU1) && X >= VirtualBounds.right - Margin &&
-            Y <= VirtualBounds.top + Margin)
+            Y <= VirtualBounds.top + Margin - 1)
             return DeviceMap::RU1;
-        if (BitState(DeviceMap::LD1) && X <= VirtualBounds.left + Margin &&
+        if (BitState(DeviceMap::LD1) && X <= VirtualBounds.left + Margin - 1 &&
             Y >= VirtualBounds.bottom - Margin)
             return DeviceMap::LD1;
         if (BitState(DeviceMap::RD1) && X >= VirtualBounds.right - Margin &&

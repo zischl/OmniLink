@@ -107,7 +107,8 @@ void SpatialEdgeRouter::SyncConditions(int32_t Margin_)
 
             BottomEdges.Add(HEdge1, HEdge2, MaxBottom - Margin);
 
-            TopEdges.Add(HEdge1, HEdge2, MinTop + Margin);
+            // why -1 ? Windows RECT exclusive right/bottom
+            TopEdges.Add(HEdge1, HEdge2, MinTop + (Margin - 1));
         }
     }
 
@@ -179,7 +180,8 @@ void SpatialEdgeRouter::SyncConditions(int32_t Margin_)
 
             RightEdges.Add(VEdge1, VEdge2, MaxRight - Margin);
 
-            LeftEdges.Add(VEdge1, VEdge2, MinLeft + Margin);
+            // why -1 ? Windows RECT exclusive right/bottom
+            LeftEdges.Add(VEdge1, VEdge2, MinLeft + (Margin - 1));
         }
     }
 }
