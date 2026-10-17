@@ -31,6 +31,7 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
     hInstance = hInstance_;
     nCmdShow  = nCmdShow_;
     WindowID  = WindowID_;
+    InputLink.SetupInputLink(WindowID_);
 }
 
 OmniStreamer::StreamID OmniSystemLink::AddCaptureStream(
@@ -642,11 +643,13 @@ void OmniSystemLink::UnbindIOLinkSession(DeviceMap DeviceID)
     if (InputLinkCtx.ActiveRemoteEdge == DeviceID) {
         InputLinkCtx.DeactivateRemoteEdge();
     }
-    InputLink.ConditionManager.RemoveEdgeCondition(DeviceID);
 
-    if (InputLink.ConditionManager.GetActiveMask() == 0 && InputLink.GetEdgeProbeState()) {
-        InputLink.ToggleEdgeProbe();
+    if (InputLink.CursorOwner.load(std::memory_order_acquire) == DeviceID) {
+        InputLink.CursorOwner.store(DeviceMap::C0, std::memory_order_release);
+        InputLink.ResetEdgeRelayMask();
     }
+
+    InputLink.ConditionManager.RemoveEdgeCondition(DeviceID);
 
     ToggleInputFilter();
 }
@@ -799,7 +802,9 @@ OmniNet::PoolConfig OmniSystemLink::SetInputLinkState(
             Logger::log("InputLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
         }
     } else {
-        if (InputLink.ConditionManager.GetState(DeviceID)) {
+        if (InputLink.ConditionManager.GetState(DeviceID) ||
+            InputLinkCtx.ActiveRemoteEdge.load(std::memory_order_acquire) == DeviceID ||
+            InputLink.CursorOwner.load(std::memory_order_acquire) == DeviceID) {
             UnbindIOLinkSession(DeviceID);
             Logger::log("InputLink disabled for DeviceID {:d}", static_cast<int>(DeviceID));
         }

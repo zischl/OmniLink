@@ -77,8 +77,7 @@ class OmniInputLink
 
     inline void SetupInputLink(HWND CaptureWndHandle)
     {
-        if (!CaptureHWND)
-            CaptureHWND = CaptureWndHandle;
+        CaptureHWND = CaptureWndHandle;
     }
 
     // Mouse cursor position tracked locally for edge detection and delta math.
@@ -143,9 +142,9 @@ class OmniInputLink
 
   private:
     InputLinkContext& IOCtx;
-    HWND              CaptureHWND;
+    HWND              CaptureHWND = nullptr;
 
-    std::atomic<bool>    InputLinkStatus{false};
+    std::atomic<bool>    EdgeProbeState{false};
     std::atomic<bool>    MouseEventCapStatus{false};
     std::atomic<ModeHID> CaptureStateHID{ModeHID::DEAD};
 
