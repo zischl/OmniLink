@@ -303,11 +303,14 @@ class OmniCore
     inline void PushCommandWArgs(DeviceMap DeviceID, FuncArgTypes& CommandArgs)
     {
         if (!CommandBurstQWArgs.push(CommandQItem{DeviceID, CommandArgs})) {
-            Logger::log("Failed To Queue Commands With Args");
+            Logger::log(
+                "Failed to queue command for DeviceID {:d} (Maybe.. Queue Full!)",
+                static_cast<int>(DeviceID)
+            );
         }
     }
 
-    inline void TransmitNetCommand(
+    inline bool TransmitNetCommand(
         DeviceMap TargetDevice, OmniNetCommand& Command, uint8_t Target = 0, uint8_t Flags = 0
     )
     {
@@ -325,7 +328,7 @@ class OmniCore
                     static_cast<int>(Command.CommandType),
                     static_cast<int>(TargetDevice)
                 );
-                return;
+                return false;
             }
         }
 
@@ -341,6 +344,14 @@ class OmniCore
                 .InstanceSession->SessionSend(
                     reinterpret_cast<char*>(payload.data()), payload.size(), header
                 );
+            return true;
+        } else {
+            Logger::log(
+                "TargetDevice {:d} NOT in ActiveInstances, cannot transmit Command {:d}!",
+                static_cast<int>(TargetDevice),
+                static_cast<int>(Command.CommandType)
+            );
+            return false;
         }
     }
 

@@ -255,7 +255,8 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
     }
 
     NetLinkState CurrentLinkState = InstanceRegistry.GetConnectionState(DeviceID);
-    if (CurrentLinkState < NetLinkState::LINKING_WAIT || CurrentLinkState >= NetLinkState::LINKED) {
+    if (CurrentLinkState < NetLinkState::LINKING_WAIT ||
+        (CurrentLinkState >= NetLinkState::LINKED && QryptManager.SessionAuthState(DeviceID))) {
         Logger::log(
             "HandshakeData for device {} in unexpected state {}, Eliminated :]",
             InstanceRegistry.AllInstances[DeviceID].InstanceName,
@@ -318,6 +319,11 @@ void OmniCore::HandshakeHandler(HandshakeData Data)
                 "Device {} already linked, way too fast, skipping confirmation alert",
                 InstanceRegistry.AllInstances[DeviceID].InstanceName
             );
+            QryptManager.AuthenticateSession(DeviceID);
+            if (HandshakeRetries.count(DeviceID)) {
+                HandshakeRetries.erase(DeviceID);
+            }
+            CancelNotification(DeviceID);
         }
         return;
     }
@@ -794,7 +800,16 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
                     Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
                     FeatureToggleData::Serialize(ToggleData)
                 };
-                TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
+                if (!TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized)) {
+                    CloseSubStream(DeviceID, ID, false);
+                    Logger::log(
+                        "Failed to transmit Feature {:d} to DeviceID {:d}, local state cannot be "
+                        "updated",
+                        static_cast<int>(FeatureIndex),
+                        static_cast<int>(DeviceID)
+                    );
+                    return;
+                }
                 UpdateFeatureState(
                     DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, ID, Context
                 );
@@ -831,7 +846,13 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
                 Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
                 FeatureToggleData::Serialize(ToggleData)
             };
-            TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
+            if (!TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized)) {
+                Logger::log(
+                    "Failed to transmit WindowLink to DeviceID {:d}, local cannot be updated",
+                    static_cast<int>(DeviceID)
+                );
+                return;
+            }
 
             UpdateFeatureState(
                 DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, 0, Context
@@ -865,7 +886,9 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
                 static_cast<int>(DeviceID)
             );
         }
-    } else if (FeatureIndex == FeatureTypes::ClipboardLink || FeatureIndex == FeatureTypes::InputLink) {
+    } else if (
+        FeatureIndex == FeatureTypes::ClipboardLink || FeatureIndex == FeatureTypes::InputLink
+    ) {
         FeatureToggleData ToggleData{FeatureIndex, TargetAction};
 
         OmniNetCommand ToggleCmd{
@@ -873,7 +896,24 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
             Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
             FeatureToggleData::Serialize(ToggleData)
         };
-        TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
+        if (!TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized)) {
+            Logger::log(
+                "Failed to transmit Feature {:d} to DeviceID {:d}, local state cannot be updated!",
+                static_cast<int>(FeatureIndex),
+                static_cast<int>(DeviceID)
+            );
+            PushNotification(
+                Notification{
+                    Alert{
+                        "Feature Link Error", "Action Failed", "Session not authenticated with peer"
+                    },
+                    "FeatureLinkError",
+                    Notification::EventLayout::BOTTOM_RIGHT,
+                    2.0f
+                }
+            );
+            return;
+        }
 
         UpdateFeatureState(
             DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, 0, Context
@@ -889,7 +929,14 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
             Variance::GetVariantTypeIndex<FeatureToggleData, FuncArgTypes>,
             FeatureToggleData::Serialize(ToggleData)
         };
-        TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized);
+        if (!TransmitNetCommand(DeviceID, ToggleCmd, 0, OmniNet::Argonized)) {
+            Logger::log(
+                "Failed to transmit Feature {:d} to DeviceID {:d}, local state cannot be updated!",
+                static_cast<int>(FeatureIndex),
+                static_cast<int>(DeviceID)
+            );
+            return;
+        }
 
         UpdateFeatureState(
             DeviceID, FeatureIndex, FeatureActionRoute::Outbound, TargetAction, 0, Context
@@ -899,11 +946,21 @@ void OmniCore::ToggleFeature(FeatureTypes FeatureIndex, DeviceMap DeviceID, void
 
 void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& FeatureData)
 {
-    if (DeviceID == DeviceMap::C0 || !InstanceRegistry.ActiveInstances.contains(DeviceID)) {
+    if (DeviceID == DeviceMap::C0) {
+        Logger::log("Rejected: DeviceID is C0, how did this happen...");
         return;
     }
 
-    if (FeatureData.FeatureType == FeatureTypes::ClipboardLink || FeatureData.FeatureType == FeatureTypes::InputLink) {
+    if (!InstanceRegistry.ActiveInstances.contains(DeviceID)) {
+        Logger::log(
+            "Rejected: DeviceID {:d} not found in ActiveInstances!, again, how ?",
+            static_cast<int>(DeviceID)
+        );
+        return;
+    }
+
+    if (FeatureData.FeatureType == FeatureTypes::ClipboardLink ||
+        FeatureData.FeatureType == FeatureTypes::InputLink) {
         UpdateFeatureState(
             DeviceID,
             FeatureData.FeatureType,
@@ -918,6 +975,7 @@ void OmniCore::FeatureStateHandler(DeviceMap DeviceID, const FeatureToggleData& 
             FeatureData.Action,
             FeatureData.SubStreamID
         );
+
         return;
     }
 

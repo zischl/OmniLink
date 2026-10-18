@@ -59,11 +59,6 @@ struct ClipboardStreamEvent
     }
 };
 
-struct ClipboardFeatureContext
-{
-    std::function<void(const ClipboardStreamEvent&)> OnStreamEvent = nullptr;
-};
-
 struct ClipboardItemEntry
 {
     std::string ItemName;
@@ -76,6 +71,7 @@ struct ClipboardItemEntry
 struct ClipboardManifest
 {
     uint32_t                        StreamID   = 0;
+    uint32_t                        SenderIP   = 0;
     uint16_t                        ServerPort = 0;
     ClipboardCategory               Category   = ClipboardCategory::Text;
     std::string                     FormatMime;
@@ -88,7 +84,7 @@ struct ClipboardManifest
         uint32_t MimeLen   = static_cast<uint32_t>(Manifest.FormatMime.size());
         uint32_t ItemCount = static_cast<uint32_t>(Manifest.Items.size());
 
-        uint32_t TotalPayloadSize = 4 + 2 + 1 + 4 + MimeLen + 4 + 8 + 4;
+        uint32_t TotalPayloadSize = 4 + 4 + 2 + 1 + 4 + MimeLen + 4 + 8 + 4;
         for (const auto& Item : Manifest.Items) {
             TotalPayloadSize += 4 + static_cast<uint32_t>(Item.ItemName.size()) + 4 +
                                 static_cast<uint32_t>(Item.FormatMime.size()) + 4 + 8 + 4;
@@ -96,6 +92,7 @@ struct ClipboardManifest
 
         ByteVecStreamEx Writer{TotalPayloadSize};
         Writer.WriteU32Ex(Manifest.StreamID);
+        Writer.WriteU32Ex(Manifest.SenderIP);
         Writer.WriteU16Ex(Manifest.ServerPort);
         Writer.WriteU8Ex(static_cast<uint8_t>(Manifest.Category));
         Writer.WriteU32Ex(MimeLen);
@@ -131,6 +128,7 @@ struct ClipboardManifest
     {
         ClipboardManifest Manifest;
         Reader.ReadU32Ex(Manifest.StreamID);
+        Reader.ReadU32Ex(Manifest.SenderIP);
         Reader.ReadU16Ex(Manifest.ServerPort);
         uint8_t CatVal = 0;
         Reader.ReadU8Ex(CatVal);
