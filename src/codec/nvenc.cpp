@@ -34,7 +34,7 @@ void NVENCODER::LoadNvEncodeAPI()
     }
 
     NVFunctions.version = NV_ENCODE_API_FUNCTION_LIST_VER;
-    Status = NvEncodeAPICreateInstance(&NVFunctions);
+    Status              = NvEncodeAPICreateInstance(&NVFunctions);
     if (Status != NV_ENC_SUCCESS) {
         Logger::log("Encode API Function Filling Failed -_- \n");
     }
@@ -80,7 +80,7 @@ void NVENCODER::GetAvailableProfileGUIDs(void* NVEncoder, GUID NvencCodecGUID)
     NVENCSTATUS Status;
 
     uint32_t NvenvProfileGUIDCount;
-    GUID NvProfileGUIDs;
+    GUID     NvProfileGUIDs;
     NVFunctions.nvEncGetEncodeProfileGUIDCount(NVEncoder, NvencCodecGUID, &NvenvProfileGUIDCount);
     Status = NVFunctions.nvEncGetEncodeProfileGUIDs(
         NVEncoder, NvencCodecGUID, &NvProfileGUIDs, NvenvProfileGUIDCount, &NvenvProfileGUIDCount
@@ -127,9 +127,9 @@ NvencSession::NvencSession(
     OpenNvEncSession(D3DDevice);
 
     NV_ENC_INITIALIZE_PARAMS NvInitParams = {};
-    NvencInitConfig NvInitConfig = {};
-    NvInitConfig.Dimensions.Width = EncodeWidth;
-    NvInitConfig.Dimensions.Height = EncodeHeight;
+    NvencInitConfig          NvInitConfig = {};
+    NvInitConfig.Dimensions.Width         = EncodeWidth;
+    NvInitConfig.Dimensions.Height        = EncodeHeight;
     LoadDefaultInitParams(NvInitParams, NvInitConfig);
     NVEncoderInit(NvInitParams);
 
@@ -155,10 +155,10 @@ NvencSession::~NvencSession()
 void NvencSession::OpenNvEncSession(void* D3DDevice)
 {
     NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS NVSessionParams = {};
-    NVSessionParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
-    NVSessionParams.apiVersion = NVENCAPI_VERSION;
-    NVSessionParams.device = D3DDevice;
-    NVSessionParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;
+    NVSessionParams.version                              = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
+    NVSessionParams.apiVersion                           = NVENCAPI_VERSION;
+    NVSessionParams.device                               = D3DDevice;
+    NVSessionParams.deviceType                           = NV_ENC_DEVICE_TYPE_DIRECTX;
     Status = NVFunctions.nvEncOpenEncodeSessionEx(&NVSessionParams, &NVEncoder);
 
     if (Status != NV_ENC_SUCCESS || NVEncoder == nullptr) {
@@ -175,8 +175,8 @@ void NvencSession::LoadDefaultInitParams(
     NVENCODER::GetSupportedCodecGUIDs(NVEncoder, NVFunctions);
 
     NV_ENC_PRESET_CONFIG NVPresetConfig = {};
-    NVPresetConfig.version = NV_ENC_PRESET_CONFIG_VER;
-    NVPresetConfig.presetCfg.version = NV_ENC_CONFIG_VER;
+    NVPresetConfig.version              = NV_ENC_PRESET_CONFIG_VER;
+    NVPresetConfig.presetCfg.version    = NV_ENC_CONFIG_VER;
 
     Status = NVFunctions.nvEncGetEncodePresetConfigEx(
         NVEncoder,
@@ -190,57 +190,57 @@ void NvencSession::LoadDefaultInitParams(
         Logger::log("Encoder did not feel like giving me the preset config \n");
     }
 
-    NVPresetConfig.presetCfg.gopLength = config.gopLength;
+    NVPresetConfig.presetCfg.gopLength      = config.gopLength;
     NVPresetConfig.presetCfg.frameIntervalP = config.frameIntervalP;
 
     NVPresetConfig.presetCfg.rcParams.averageBitRate = config.rcParams.averageBitRate;
-    NVPresetConfig.presetCfg.rcParams.maxBitRate = config.rcParams.maxBitRate;
+    NVPresetConfig.presetCfg.rcParams.maxBitRate     = config.rcParams.maxBitRate;
 
     // I would prolly let the user decide on the multiplier later
     if (config.rcParams.averageBitRate > 0) {
-        const uint32_t fps = (config.FrameRateNum > 0) ? config.FrameRateNum : 60;
+        const uint32_t fps         = (config.FrameRateNum > 0) ? config.FrameRateNum : 60;
         const uint32_t onFrameBits = config.rcParams.averageBitRate / fps;
-        NVPresetConfig.presetCfg.rcParams.vbvBufferSize = onFrameBits * 4;
+        NVPresetConfig.presetCfg.rcParams.vbvBufferSize   = onFrameBits * 4;
         NVPresetConfig.presetCfg.rcParams.vbvInitialDelay = onFrameBits * 4;
     }
 
     NVPresetConfig.presetCfg.rcParams.enableLookahead = config.rcParams.enableLookahead;
-    NVPresetConfig.presetCfg.rcParams.lookaheadDepth = config.rcParams.enableLookahead;
-    NVPresetConfig.presetCfg.rcParams.disableIadapt = config.rcParams.disableIadapt;
-    NVPresetConfig.presetCfg.rcParams.disableBadapt = config.rcParams.disableBadapt;
+    NVPresetConfig.presetCfg.rcParams.lookaheadDepth  = config.rcParams.enableLookahead;
+    NVPresetConfig.presetCfg.rcParams.disableIadapt   = config.rcParams.disableIadapt;
+    NVPresetConfig.presetCfg.rcParams.disableBadapt   = config.rcParams.disableBadapt;
 
-    NVPresetConfig.presetCfg.rcParams.enableAQ = config.rcParams.enableAQ;
+    NVPresetConfig.presetCfg.rcParams.enableAQ   = config.rcParams.enableAQ;
     NVPresetConfig.presetCfg.rcParams.aqStrength = config.rcParams.aqStrength;
 
     auto& h264 = NVPresetConfig.presetCfg.encodeCodecConfig.h264Config;
 
-    h264.idrPeriod = config.h264Config.idrPeriod;
-    h264.repeatSPSPPS = config.h264Config.repeatSPSPPS;
+    h264.idrPeriod                  = config.h264Config.idrPeriod;
+    h264.repeatSPSPPS               = config.h264Config.repeatSPSPPS;
     h264.disableDeblockingFilterIDC = config.h264Config.disableDeblockingFilterIDC;
 
     h264.enableIntraRefresh = config.h264Config.enableIntraRefresh;
     h264.intraRefreshPeriod = config.h264Config.intraRefreshPeriod;
-    h264.intraRefreshCnt = config.h264Config.intraRefreshCnt;
+    h264.intraRefreshCnt    = config.h264Config.intraRefreshCnt;
 
-    h264.level = config.h264Config.level;
-    h264.maxNumRefFrames = config.h264Config.maxNumRefFrames;
+    h264.level             = config.h264Config.level;
+    h264.maxNumRefFrames   = config.h264Config.maxNumRefFrames;
     h264.entropyCodingMode = config.h264Config.entropyCodingMode;
-    h264.sliceMode = config.h264Config.sliceMode;
+    h264.sliceMode         = config.h264Config.sliceMode;
 
     NvInitParams.encodeConfig = &NVPresetConfig.presetCfg;
 
-    NvInitParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
-    NvInitParams.bufferFormat = config.NvencBufferFormat;
-    NvInitParams.encodeGUID = config.NvencCodecGUID;
-    NvInitParams.presetGUID = config.NvencPresetGUID;
-    NvInitParams.tuningInfo = config.NvencTuningInfo;
-    NvInitParams.encodeWidth = config.Dimensions.Width;
-    NvInitParams.encodeHeight = config.Dimensions.Height;
-    NvInitParams.darWidth = config.Dimensions.Width;
-    NvInitParams.darHeight = config.Dimensions.Height;
-    NvInitParams.frameRateNum = config.FrameRateNum;
-    NvInitParams.frameRateDen = config.FrameRateDen;
-    NvInitParams.enablePTD = config.EnablePTD;
+    NvInitParams.version           = NV_ENC_INITIALIZE_PARAMS_VER;
+    NvInitParams.bufferFormat      = config.NvencBufferFormat;
+    NvInitParams.encodeGUID        = config.NvencCodecGUID;
+    NvInitParams.presetGUID        = config.NvencPresetGUID;
+    NvInitParams.tuningInfo        = config.NvencTuningInfo;
+    NvInitParams.encodeWidth       = config.Dimensions.Width;
+    NvInitParams.encodeHeight      = config.Dimensions.Height;
+    NvInitParams.darWidth          = config.Dimensions.Width;
+    NvInitParams.darHeight         = config.Dimensions.Height;
+    NvInitParams.frameRateNum      = config.FrameRateNum;
+    NvInitParams.frameRateDen      = config.FrameRateDen;
+    NvInitParams.enablePTD         = config.EnablePTD;
     NvInitParams.enableEncodeAsync = 0;
 }
 
@@ -257,13 +257,13 @@ NV_ENC_REGISTERED_PTR
 NvencSession::RegisterResource(ID3D11Texture2D* inputResource, const NvencResourceRegConfig& config)
 {
     NV_ENC_REGISTER_RESOURCE regParam = {};
-    regParam.version = NV_ENC_REGISTER_RESOURCE_VER;
-    regParam.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
-    regParam.resourceToRegister = inputResource;
-    regParam.width = config.Dimensions.Width;
-    regParam.height = config.Dimensions.Height;
-    regParam.bufferFormat = config.NvencBufferFormat;
-    regParam.pitch = config.Dimensions.Width * 4;
+    regParam.version                  = NV_ENC_REGISTER_RESOURCE_VER;
+    regParam.resourceType             = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
+    regParam.resourceToRegister       = inputResource;
+    regParam.width                    = config.Dimensions.Width;
+    regParam.height                   = config.Dimensions.Height;
+    regParam.bufferFormat             = config.NvencBufferFormat;
+    regParam.pitch                    = config.Dimensions.Width * 4;
 
     Status = NVFunctions.nvEncRegisterResource(NVEncoder, &regParam);
     if (Status != NV_ENC_SUCCESS) {
@@ -306,8 +306,8 @@ bool NvencSession::Encode()
 {
 
     NV_ENC_MAP_INPUT_RESOURCE NVInputResource = {};
-    NVInputResource.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
-    NVInputResource.registeredResource = NVRegisterResource.registeredResource;
+    NVInputResource.version                   = NV_ENC_MAP_INPUT_RESOURCE_VER;
+    NVInputResource.registeredResource        = NVRegisterResource.registeredResource;
     Status = NVFunctions.nvEncMapInputResource(NVEncoder, &NVInputResource);
     if (Status != NV_ENC_SUCCESS) {
         Logger::log(NVFunctions.nvEncGetLastErrorString(NVEncoder));
@@ -320,21 +320,21 @@ bool NvencSession::Encode()
     NV_ENC_PIC_PARAMS NvencPicParams = {};
     memset(&NvencPicParams, 0, sizeof(NV_ENC_PIC_PARAMS));
 
-    NvencPicParams.version = NV_ENC_PIC_PARAMS_VER;
-    NvencPicParams.inputBuffer = NVInputResource.mappedResource;
-    NvencPicParams.bufferFmt = NVInputResource.mappedBufferFmt;
+    NvencPicParams.version         = NV_ENC_PIC_PARAMS_VER;
+    NvencPicParams.inputBuffer     = NVInputResource.mappedResource;
+    NvencPicParams.bufferFmt       = NVInputResource.mappedBufferFmt;
     NvencPicParams.outputBitstream = NvencOutput;
-    NvencPicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-    NvencPicParams.encodePicFlags = ForceIDR ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
+    NvencPicParams.pictureStruct   = NV_ENC_PIC_STRUCT_FRAME;
+    NvencPicParams.encodePicFlags  = ForceIDR ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
     NvencPicParams.completionEvent = nullptr;
 
     Status = NVFunctions.nvEncEncodePicture((void*)NVEncoder, &NvencPicParams);
     NVFunctions.nvEncUnmapInputResource(NVEncoder, NVInputResource.mappedResource);
     if (Status == NV_ENC_SUCCESS) {
-        NVBitstreamLock = {};
-        NVBitstreamLock.version = NV_ENC_LOCK_BITSTREAM_VER;
+        NVBitstreamLock                 = {};
+        NVBitstreamLock.version         = NV_ENC_LOCK_BITSTREAM_VER;
         NVBitstreamLock.outputBitstream = NvencOutput;
-        NVBitstreamLock.doNotWait = 0;
+        NVBitstreamLock.doNotWait       = 0;
 
         Status = NVFunctions.nvEncLockBitstream(NVEncoder, &NVBitstreamLock);
         if (Status != NV_ENC_SUCCESS) {
@@ -372,11 +372,11 @@ void NvencSession::NVCleanup()
 }
 
 StaticNvencSession::StaticNvencSession(
-    void* D3DDevice,
+    void*                        D3DDevice,
     NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
-    ID3D11Texture2D* InputResource,
-    UINT EncodeWidth,
-    UINT EncodeHeight
+    ID3D11Texture2D*             InputResource,
+    UINT                         EncodeWidth,
+    UINT                         EncodeHeight
 )
     : NvencSession(D3DDevice, NVFunctions_, EncodeWidth, EncodeHeight)
 {
@@ -400,11 +400,11 @@ void StaticNvencSession::NVCleanup()
 }
 
 CachedPoolNvencSession::CachedPoolNvencSession(
-    void* D3DDevice,
+    void*                        D3DDevice,
     NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
-    UINT EncodeWidth,
-    UINT EncodeHeight,
-    size_t PoolSize
+    UINT                         EncodeWidth,
+    UINT                         EncodeHeight,
+    size_t                       PoolSize
 )
     : NvencSession(D3DDevice, NVFunctions_, EncodeWidth, EncodeHeight)
 {
@@ -432,9 +432,14 @@ void CachedPoolNvencSession::NVCleanup()
 
 void CachedPoolNvencSession::ResolveCachedResource(ID3D11Texture2D* newTex)
 {
+    if (!newTex)
+        return;
+
     IUnknown* TextureID = nullptr;
     newTex->QueryInterface(IID_IUnknown, reinterpret_cast<void**>(&TextureID));
-    TextureID->Release();
+    if (TextureID) {
+        TextureID->Release();
+    }
 
     // Cache lookup
     for (auto& Slot : PoolCache) {
@@ -447,15 +452,30 @@ void CachedPoolNvencSession::ResolveCachedResource(ID3D11Texture2D* newTex)
     // Cache missed, get packing and register
     for (auto& Slot : PoolCache) {
         if (!Slot.SurfaceRawPtr) {
-            Slot.SurfaceRawPtr = TextureID;
-            Slot.D3DTexture = newTex;
-            Slot.NvRegisteredHandle = RegisterResource(newTex, ResourceConfig);
+            Slot.SurfaceRawPtr                    = TextureID;
+            Slot.D3DTexture                       = newTex;
+            Slot.NvRegisteredHandle               = RegisterResource(newTex, ResourceConfig);
             NVRegisterResource.registeredResource = Slot.NvRegisteredHandle;
             return;
         }
     }
 
-    Logger::log("ResolveCachedResource: pool cache full — frame dropped\n");
+    // Cache full, can't register, unregister oldest and retry.
+    if (!PoolCache.empty()) {
+        auto& Slot = PoolCache[NextEvictionSlot];
+        if (Slot.NvRegisteredHandle) {
+            UnregisterResource(Slot.NvRegisteredHandle);
+            Slot.NvRegisteredHandle = nullptr;
+        }
+
+        Slot.D3DTexture.Reset();
+        Slot.SurfaceRawPtr                    = TextureID;
+        Slot.D3DTexture                       = newTex;
+        Slot.NvRegisteredHandle               = RegisterResource(newTex, ResourceConfig);
+        NVRegisterResource.registeredResource = Slot.NvRegisteredHandle;
+
+        NextEvictionSlot = (NextEvictionSlot + 1) % PoolCache.size();
+    }
 }
 
 static void NvencOutputTest(NV_ENC_LOCK_BITSTREAM& NVBitstreamLock, const char* baseName)

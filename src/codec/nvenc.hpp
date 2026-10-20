@@ -22,7 +22,7 @@ class NVENCODER
   private:
     NVENCSTATUS Status;
 
-    size_t* OutputSize;
+    size_t*  OutputSize;
     uint8_t* Output;
 
     bool EncodeStatus = false;
@@ -36,9 +36,9 @@ class NVENCODER
     void LoadNvEncodeAPI();
 
     static void GetSupportedCodecGUIDs(void* NVEncoder, NV_ENCODE_API_FUNCTION_LIST& NVFunctions_);
-    void GetAvailablePresetGUIDs(void* NVEncoder);
-    void GetAvailableProfileGUIDs(void* NVEncoder, GUID NvencCodecGUID);
-    void GetSupportedInputFormats(void* NVEncoder, GUID NvencCodecGUID);
+    void        GetAvailablePresetGUIDs(void* NVEncoder);
+    void        GetAvailableProfileGUIDs(void* NVEncoder, GUID NvencCodecGUID);
+    void        GetSupportedInputFormats(void* NVEncoder, GUID NvencCodecGUID);
 };
 
 // Nvidia encoding session base class.
@@ -51,14 +51,14 @@ class NvencSession
     void* NVEncoder = nullptr;
 
     NV_ENC_REGISTER_RESOURCE NVRegisterResource = {};
-    NV_ENC_OUTPUT_PTR NvencOutput = nullptr;
-    NV_ENC_LOCK_BITSTREAM NVBitstreamLock = {};
+    NV_ENC_OUTPUT_PTR        NvencOutput        = nullptr;
+    NV_ENC_LOCK_BITSTREAM    NVBitstreamLock    = {};
 
     NvencSession(
-        void* D3DDevice,
+        void*                        D3DDevice,
         NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
-        UINT EncodeWidth,
-        UINT EncodeHeight
+        UINT                         EncodeWidth,
+        UINT                         EncodeHeight
     );
     ~NvencSession();
 
@@ -69,8 +69,8 @@ class NvencSession
     void UnregisterResource(NV_ENC_REGISTERED_PTR registeredHandle);
 
     NV_ENC_REGISTERED_PTR SwapResource(
-        NV_ENC_REGISTERED_PTR oldHandle,
-        ID3D11Texture2D* newTex,
+        NV_ENC_REGISTERED_PTR         oldHandle,
+        ID3D11Texture2D*              newTex,
         const NvencResourceRegConfig& config
     );
 
@@ -80,7 +80,7 @@ class NvencSession
     void NVCleanup();
 
   protected:
-    NVENCSTATUS Status;
+    NVENCSTATUS                  Status;
     NV_ENCODE_API_FUNCTION_LIST& NVFunctions;
 
     NV_ENC_CREATE_BITSTREAM_BUFFER NVOutputBufferDesc = {};
@@ -94,7 +94,7 @@ class NvencSession
     void NVEncoderInit(NV_ENC_INITIALIZE_PARAMS& NvInitParams);
     void CreateBitStream();
 
-    NV_ENC_OUTPUT_PTR getBitstream() const { return NvencOutput; }
+    NV_ENC_OUTPUT_PTR        getBitstream() const { return NvencOutput; }
     NV_ENC_REGISTER_RESOURCE getRegisteredResource() const { return NVRegisterResource; }
 };
 
@@ -104,11 +104,11 @@ class StaticNvencSession : public NvencSession
 {
   public:
     StaticNvencSession(
-        void* D3DDevice,
+        void*                        D3DDevice,
         NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
-        ID3D11Texture2D* InputResource,
-        UINT EncodeWidth,
-        UINT EncodeHeight
+        ID3D11Texture2D*             InputResource,
+        UINT                         EncodeWidth,
+        UINT                         EncodeHeight
     );
     ~StaticNvencSession();
 
@@ -123,17 +123,17 @@ class CachedPoolNvencSession : public NvencSession
   public:
     struct CachedNvencSlot
     {
-        IUnknown* SurfaceRawPtr = nullptr;
+        IUnknown*               SurfaceRawPtr = nullptr;
         ComPtr<ID3D11Texture2D> D3DTexture;
-        NV_ENC_REGISTERED_PTR NvRegisteredHandle = nullptr;
+        NV_ENC_REGISTERED_PTR   NvRegisteredHandle = nullptr;
     };
 
     CachedPoolNvencSession(
-        void* D3DDevice,
+        void*                        D3DDevice,
         NV_ENCODE_API_FUNCTION_LIST& NVFunctions_,
-        UINT EncodeWidth,
-        UINT EncodeHeight,
-        size_t PoolSize = 3
+        UINT                         EncodeWidth,
+        UINT                         EncodeHeight,
+        size_t                       PoolSize = 8
     );
     ~CachedPoolNvencSession();
 
@@ -142,6 +142,7 @@ class CachedPoolNvencSession : public NvencSession
 
   private:
     std::vector<CachedNvencSlot> PoolCache;
+    size_t                       NextEvictionSlot = 0;
 };
 
 // Takes the Nvidia Encoding sessions to the next level from having single or multiple inputs to
@@ -152,13 +153,13 @@ class CachedPoolNvencSession : public NvencSession
 template <typename BaseSession> class BufferedNvencSession : public BaseSession
 {
   public:
-    static constexpr size_t BITSTREAM_POOL_SIZE = 3;
-    NV_ENC_OUTPUT_PTR NvencOutputs[BITSTREAM_POOL_SIZE] = {};
-    std::atomic<bool> BufferUsageRegistry[BITSTREAM_POOL_SIZE];
-    bool BufferLockStates[BITSTREAM_POOL_SIZE] = {};
-    NV_ENC_LOCK_BITSTREAM NVBitstreamLocks[BITSTREAM_POOL_SIZE] = {};
-    size_t CurrentBufferIndex = 0;
-    std::atomic<uint64_t> DroppedFramesCount;
+    static constexpr size_t BITSTREAM_POOL_SIZE               = 3;
+    NV_ENC_OUTPUT_PTR       NvencOutputs[BITSTREAM_POOL_SIZE] = {};
+    std::atomic<bool>       BufferUsageRegistry[BITSTREAM_POOL_SIZE];
+    bool                    BufferLockStates[BITSTREAM_POOL_SIZE] = {};
+    NV_ENC_LOCK_BITSTREAM   NVBitstreamLocks[BITSTREAM_POOL_SIZE] = {};
+    size_t                  CurrentBufferIndex                    = 0;
+    std::atomic<uint64_t>   DroppedFramesCount;
 
     // Creates extra bitstream buffers.. yes, skipping 0 slot cuz base class handles that shit.
     template <typename... Args>
@@ -175,7 +176,7 @@ template <typename BaseSession> class BufferedNvencSession : public BaseSession
 
         for (size_t i = 1; i < BITSTREAM_POOL_SIZE; ++i) {
             NV_ENC_CREATE_BITSTREAM_BUFFER desc = {};
-            desc.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
+            desc.version                        = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
             this->Status = this->NVFunctions.nvEncCreateBitstreamBuffer(this->NVEncoder, &desc);
             if (this->Status != NV_ENC_SUCCESS) {
                 Logger::log(("RIP TripleBufferedSession buffer creation " + std::to_string(i) +
@@ -231,8 +232,8 @@ template <typename BaseSession> class BufferedNvencSession : public BaseSession
 
         // Map input resource
         NV_ENC_MAP_INPUT_RESOURCE NVInputResource = {};
-        NVInputResource.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
-        NVInputResource.registeredResource = this->NVRegisterResource.registeredResource;
+        NVInputResource.version                   = NV_ENC_MAP_INPUT_RESOURCE_VER;
+        NVInputResource.registeredResource        = this->NVRegisterResource.registeredResource;
         this->Status = this->NVFunctions.nvEncMapInputResource(this->NVEncoder, &NVInputResource);
         if (this->Status != NV_ENC_SUCCESS) {
             Logger::log(this->NVFunctions.nvEncGetLastErrorString(this->NVEncoder));
@@ -244,12 +245,12 @@ template <typename BaseSession> class BufferedNvencSession : public BaseSession
 
         NV_ENC_PIC_PARAMS NvencPicParams = {};
         memset(&NvencPicParams, 0, sizeof(NV_ENC_PIC_PARAMS));
-        NvencPicParams.version = NV_ENC_PIC_PARAMS_VER;
-        NvencPicParams.inputBuffer = NVInputResource.mappedResource;
-        NvencPicParams.bufferFmt = NVInputResource.mappedBufferFmt;
+        NvencPicParams.version         = NV_ENC_PIC_PARAMS_VER;
+        NvencPicParams.inputBuffer     = NVInputResource.mappedResource;
+        NvencPicParams.bufferFmt       = NVInputResource.mappedBufferFmt;
         NvencPicParams.outputBitstream = NvencOutputs[CurrentBufferIndex];
-        NvencPicParams.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-        NvencPicParams.encodePicFlags = ForceIDR ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
+        NvencPicParams.pictureStruct   = NV_ENC_PIC_STRUCT_FRAME;
+        NvencPicParams.encodePicFlags  = ForceIDR ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
         NvencPicParams.completionEvent = nullptr;
 
         this->Status = this->NVFunctions.nvEncEncodePicture(this->NVEncoder, &NvencPicParams);
@@ -260,10 +261,10 @@ template <typename BaseSession> class BufferedNvencSession : public BaseSession
             return false;
         }
 
-        NVBitstreamLocks[CurrentBufferIndex] = {};
-        NVBitstreamLocks[CurrentBufferIndex].version = NV_ENC_LOCK_BITSTREAM_VER;
+        NVBitstreamLocks[CurrentBufferIndex]                 = {};
+        NVBitstreamLocks[CurrentBufferIndex].version         = NV_ENC_LOCK_BITSTREAM_VER;
         NVBitstreamLocks[CurrentBufferIndex].outputBitstream = NvencOutputs[CurrentBufferIndex];
-        NVBitstreamLocks[CurrentBufferIndex].doNotWait = 0;
+        NVBitstreamLocks[CurrentBufferIndex].doNotWait       = 0;
 
         this->Status = this->NVFunctions.nvEncLockBitstream(
             this->NVEncoder, &NVBitstreamLocks[CurrentBufferIndex]
