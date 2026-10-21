@@ -25,6 +25,13 @@ enum class FeatureActionRoute : uint8_t { Outbound, Inbound };
 
 enum class FeatureAction : uint8_t { Deactivate = 0, Activate = 1, Pause = 2 };
 
+enum class StreamState : uint8_t {
+    Stopped = 0, // Not streaming / disconnected
+    Ready   = 1, // Capture initialized, waiting for receiver decoder to be ready
+    Active  = 2, // Full encoding and streaming
+    Paused  = 3  // It's.. paused okay.. just paused
+};
+
 enum class SubStreamState : uint8_t {
     Idle        = 0,
     Pending     = 1,

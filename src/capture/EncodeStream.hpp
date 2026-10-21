@@ -2,6 +2,7 @@
 #include "AsyncWorker.hpp"
 #include "CaptureTypes.hpp"
 #include "OmniEnums.hpp"
+#include "OmniLogger.hpp"
 #include "SessionHandler.hpp"
 #include "nvenc.hpp"
 #include <concepts>
@@ -19,15 +20,42 @@ concept OmniNetStreamerType = requires(T* OmniNetType, CHAR* Data, int Size) {
 
 template <
     CapSource CaptureSource,
-    typename EncoderType = NvencSession,
+    typename EncoderType                = NvencSession,
     OmniNetStreamerType OmniNetStreamer = OmniNetSubStream>
 struct EncodeStream
 {
-    CaptureSource* Source = nullptr;
-    EncoderType* Encoder = nullptr;
-    OmniNetStreamer* Target = nullptr;
-    DeviceMap TargetDevice;
-    AsyncWorker::Uncached Worker;
+    CaptureSource*           Source  = nullptr;
+    EncoderType*             Encoder = nullptr;
+    OmniNetStreamer*         Target  = nullptr;
+    DeviceMap                TargetDevice;
+    AsyncWorker::Uncached    Worker;
+    std::atomic<StreamState> State{StreamState::Stopped};
+
+    void RequestKeyframe()
+    {
+        if (Encoder) {
+            Encoder->RequestKeyframe();
+        }
+    }
+
+    void SetStreamState(StreamState NewState)
+    {
+        State.store(NewState, std::memory_order_release);
+        if (NewState == StreamState::Active && Encoder) {
+            Encoder->RequestKeyframe();
+        }
+    }
+
+    void SetStreamingState(bool Active)
+    {
+        SetStreamState(Active ? StreamState::Active : StreamState::Paused);
+    }
+
+    StreamState GetStreamState() const { return State.load(std::memory_order_acquire); }
+    bool        GetStreamingState() const
+    {
+        return State.load(std::memory_order_acquire) == StreamState::Active;
+    }
 
     // U might be wondering what this is... it's just Encode and Send
     inline static void Zencode(OmniNetStreamer* OmniNet, EncoderType* OmniEncode)
@@ -67,36 +95,51 @@ struct EncodeStream
         }
     }
 
-    static void
-    CaptureSend(OmniNetStreamer* OmniNet, CaptureSource* Source, EncoderType* OmniEncode)
+    static void CaptureSend(
+        OmniNetStreamer*          OmniNet,
+        CaptureSource*            Source,
+        EncoderType*              OmniEncode,
+        std::atomic<StreamState>* StateFlag
+    )
     {
         if constexpr (requires { Source->AcquireFrame(); }) {
             if (!Source->AcquireFrame())
                 return;
         }
 
+        if (StateFlag->load(std::memory_order_relaxed) != StreamState::Active)
+            return;
+
         Zencode(OmniNet, OmniEncode);
     }
 
     void Start(
-        CaptureSource* Source_,
-        EncoderType* Encoder_,
-        OmniNetStreamer* Target_,
-        DeviceMap TargetDevice_,
+        CaptureSource*      Source_,
+        EncoderType*        Encoder_,
+        OmniNetStreamer*    Target_,
+        DeviceMap           TargetDevice_,
         const StreamConfig& Config = {}
     )
     {
-        Source = Source_;
-        Encoder = Encoder_;
-        Target = Target_;
+        Source       = Source_;
+        Encoder      = Encoder_;
+        Target       = Target_;
         TargetDevice = TargetDevice_;
+        State.store(StreamState::Ready, std::memory_order_release);
 
         if constexpr (CaptureSource::Type == CaptureAPI::WGC) {
-            auto FrameCallback = [OmniEncode = Encoder, OmniNet = Target](auto* Tex2D) {
-                if constexpr (requires { OmniEncode->ResolveCachedResource(Tex2D); }) {
-                    OmniEncode->ResolveCachedResource(Tex2D);
+            auto FrameCallback = [this](auto* Tex2D) {
+                const StreamState CurrentState = State.load(std::memory_order_relaxed);
+                if (CurrentState != StreamState::Active) [[unlikely]] {
+                    if constexpr (requires { Tex2D->Release(); }) {
+                        Tex2D->Release();
+                    }
+                    return;
                 }
-                Zencode(OmniNet, OmniEncode);
+                if constexpr (requires { Encoder->ResolveCachedResource(Tex2D); }) {
+                    Encoder->ResolveCachedResource(Tex2D);
+                }
+                Zencode(Target, Encoder);
                 if constexpr (requires { Tex2D->Release(); }) {
                     Tex2D->Release();
                 }
@@ -125,26 +168,31 @@ struct EncodeStream
 #endif
             Source->StartSession();
         } else if constexpr (CaptureSource::Type == CaptureAPI::PipeWire) {
-            Source->SetupCapturePipeline(
-                Config.Width, Config.Height, [OmniEncode = Encoder, OmniNet = Target](auto* frame) {
-                    Zencode(OmniNet, OmniEncode);
-                }
-            );
+            Source->SetupCapturePipeline(Config.Width, Config.Height, [this](auto* frame) {
+                if (State.load(std::memory_order_relaxed) != StreamState::Active)
+                    return;
+                Zencode(Target, Encoder);
+            });
             Source->StartSession();
         } else if constexpr (CaptureSource::Type == CaptureAPI::DXGI) {
             Worker.StartSpinThread(
-                [](OmniNetStreamer* OmniNet, CaptureSource* Source, EncoderType* OmniEncode) {
-                    CaptureSend(OmniNet, Source, OmniEncode);
+                [](OmniNetStreamer*          OmniNet,
+                   CaptureSource*            Source,
+                   EncoderType*              OmniEncode,
+                   std::atomic<StreamState>* StateFlag) {
+                    CaptureSend(OmniNet, Source, OmniEncode, StateFlag);
                 },
                 Target,
                 Source,
-                Encoder
+                Encoder,
+                &State
             );
         }
     }
 
     void Stop()
     {
+        State.store(StreamState::Stopped, std::memory_order_release);
         if constexpr (CaptureSource::FrameAqMode == FrameAquisition::EventDriven) {
             Source->CloseSession();
         } else {

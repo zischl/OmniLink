@@ -49,5 +49,9 @@ struct OmniStreamer
 
     void RemoveStream(size_t StreamID);
 
+    void RequestKeyframe(size_t StreamID);
+    void SetStreamState(size_t StreamID, StreamState State);
+    void SetStreamingState(size_t StreamID, bool Active);
+
     void StopAll();
 };

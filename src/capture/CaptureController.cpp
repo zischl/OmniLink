@@ -121,6 +121,32 @@ void OmniStreamer::RemoveStream(size_t StreamID)
     }
 }
 
+void OmniStreamer::RequestKeyframe(size_t StreamID)
+{
+    auto StreamIter = Streams.find(StreamID);
+    if (StreamIter != Streams.end()) {
+        std::visit([](auto& stream) { stream.RequestKeyframe(); }, StreamIter->second);
+    }
+}
+
+void OmniStreamer::SetStreamState(size_t StreamID, StreamState State)
+{
+    auto StreamIter = Streams.find(StreamID);
+    if (StreamIter != Streams.end()) {
+        std::visit([State](auto& stream) { stream.SetStreamState(State); }, StreamIter->second);
+    }
+}
+
+void OmniStreamer::SetStreamingState(size_t StreamID, bool Active)
+{
+    auto StreamIter = Streams.find(StreamID);
+    if (StreamIter != Streams.end()) {
+        std::visit(
+            [Active](auto& stream) { stream.SetStreamingState(Active); }, StreamIter->second
+        );
+    }
+}
+
 void OmniStreamer::StopAll()
 {
     for (auto& [id, variant_stream] : Streams) {
