@@ -11,9 +11,8 @@ WinForge::WinForge(WNDPROC WindowProc)
 
 WinForge::~WinForge()
 {
+    EventHandler.OnWindowClose = nullptr;
     CloseWindowThread();
-    CleanupD3D();
-    CleanupEvents();
     CleanupFramePool();
 }
 
@@ -41,10 +40,10 @@ HWND WindowInit(const WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDP
     const int CenterY = (ScreenHeight - static_cast<int>(Config.wdHeight)) / 2;
 
     HWND hwnd_ = CreateWindowExW(
-        WS_EX_LAYERED,
+        Config.ExStyle,
         Config.ClassName,
         Config.WindowName,
-        WS_POPUP,
+        Config.Style,
         CenterX,
         CenterY,
         Config.wdWidth,
@@ -61,6 +60,10 @@ HWND WindowInit(const WinConfig& Config, HINSTANCE hInstance, int nCmdShow, WNDP
         return hwnd_;
     }
 
+    if (Config.ExStyle & WS_EX_LAYERED) {
+        SetLayeredWindowAttributes(hwnd_, 0, 255, LWA_ALPHA);
+    }
+
     return hwnd_;
 }
 
@@ -75,6 +78,10 @@ HWND WinForge::CreateWindowAsync(
 {
     std::wstring name(WindowName ? WindowName : L"Window Link");
     WindowThread = std::thread([this, name, hInstance, nCmdShow, Width, Height, D3DDevStruct] {
+        if (ExitRequested.load(std::memory_order_acquire)) {
+            return;
+        }
+
         hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
         uint32_t TargetWidth  = Width;
@@ -89,9 +96,19 @@ HWND WinForge::CreateWindowAsync(
         TextureWidth  = TargetWidth;
         TextureHeight = TargetHeight;
 
-        WinConfig config(L"Linker", TargetWidth, TargetHeight, name.c_str(), this);
-        hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
-        if (hwnd == NULL) {
+        WinConfig config(
+            L"Linker", TargetWidth, TargetHeight, name.c_str(), this, WS_EX_APPWINDOW, WS_POPUP
+        );
+        HWND hwnd_ = WindowInit(config, hInstance, nCmdShow, WProc);
+        hwnd.store(hwnd_, std::memory_order_release);
+        if (hwnd_ == NULL) {
+            CoUninitialize();
+            return;
+        }
+
+        if (ExitRequested.load(std::memory_order_acquire)) {
+            DestroyWindow(hwnd_);
+            hwnd.store(NULL, std::memory_order_release);
             CoUninitialize();
             return;
         }
@@ -106,7 +123,7 @@ HWND WinForge::CreateWindowAsync(
         HWNDxD3D11 RendererPtrs;
         RendererPtrs.D3D11Device  = D3DDevStruct.D3D11Device;
         RendererPtrs.D3D11Context = D3DDevStruct.D3D11Context;
-        Renderer.RendererInit(hwnd, TargetWidth, TargetHeight, RendererPtrs);
+        Renderer.RendererInit(hwnd_, TargetWidth, TargetHeight, RendererPtrs);
         D3D11Device = RendererPtrs.D3D11Device.Get();
         if (D3D11Device)
             D3D11Device->AddRef();
@@ -187,17 +204,30 @@ HWND WinForge::CreateWindowAsync(
             );
         }
 
-        if (nCmdShow != SW_HIDE) {
-            ShowWindow(hwnd, nCmdShow);
-            UpdateWindow(hwnd);
+        if (!ExitRequested.load(std::memory_order_acquire)) {
+            if (nCmdShow != SW_HIDE) {
+                ShowWindow(hwnd_, nCmdShow);
+                UpdateWindow(hwnd_);
+            }
+
+            OmniDecoder.emplace<NvdecSession>(TargetWidth, TargetHeight, FrameBufferTex.Get());
+            DecoderReady.store(true, std::memory_order_release);
+
+            if (EventHandler.OnDecoderReady) {
+                EventHandler.OnDecoderReady(EventHandler.Context);
+            }
+
+            MainLoop();
         }
-
-        OmniDecoder.emplace<NvdecSession>(TargetWidth, TargetHeight, FrameBufferTex.Get());
-
-        MainLoop();
 
         CleanupD3D();
         CleanupEvents();
+
+        HWND ActiveHWND = hwnd.load(std::memory_order_relaxed);
+        if (ActiveHWND && IsWindow(ActiveHWND)) {
+            DestroyWindow(ActiveHWND);
+            hwnd.store(NULL, std::memory_order_relaxed);
+        }
 
         CoUninitialize();
     });
@@ -263,6 +293,10 @@ void WinForge::MainLoop()
     while (true) {
         EventDW = MsgWaitForMultipleObjectsEx(1, Events, 0, QS_ALLINPUT, 0);
 
+        if (ExitRequested.load(std::memory_order_acquire)) {
+            return;
+        }
+
         switch (EventDW) {
         case WAIT_OBJECT_0 + 1:
             while (PeekMessage(&Msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -313,8 +347,10 @@ void WinForge::MainLoop()
 
 void WinForge::CloseWindowThread()
 {
-    if (hwnd != NULL && IsWindow(hwnd)) {
-        PostMessage(hwnd, WM_CLOSE, 0, 0);
+    ExitRequested.store(true, std::memory_order_release);
+    HWND HWND_ = hwnd.load(std::memory_order_acquire);
+    if (HWND_ != NULL && IsWindow(HWND_)) {
+        PostMessage(HWND_, WM_CLOSE, 0, 0);
     }
     if (Events != nullptr && Events[0] != NULL) {
         SetEvent(Events[0]);
@@ -592,7 +628,8 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         PostQuitMessage(0);
         return 0;
     case WM_CLOSE:
-        if (WinForgePtr && WinForgePtr->EventHandler.OnWindowClose) {
+        if (WinForgePtr && !WinForgePtr->GetExitState() &&
+            WinForgePtr->EventHandler.OnWindowClose) {
             WinForgePtr->EventHandler.OnWindowClose(WinForgePtr->EventHandler.Context);
         }
         DestroyWindow(hwnd);

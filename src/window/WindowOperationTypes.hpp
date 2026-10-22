@@ -67,3 +67,26 @@ struct alignas(16) OmniWinKeyPacket
 #pragma pack(pop)
 
 static_assert(sizeof(OmniWinKeyPacket) == 16, "OmniWinKeyPacket must be exactly 16 bytes");
+
+enum class StreamControl : uint8_t {
+    Ready      = 0, // Decoder & swapchain ready to receive
+    RequestIDR = 1, // Request an IDR keyframe
+    Pause      = 2, // Stream flow paused
+    Resume     = 3, // Stream flow resumed
+};
+
+#pragma pack(push, 1)
+
+struct alignas(8) OmniStreamControlPacket
+{
+    SubStreamID   StreamKey; // Target SubStream ID
+    StreamControl Command;   // Control action
+    uint8_t       Reserved;  // Padding
+    uint32_t      Param;     // Parameter / reason
+};
+
+#pragma pack(pop)
+
+static_assert(
+    sizeof(OmniStreamControlPacket) == 8, "OmniStreamControlPacket must be exactly 8 bytes"
+);

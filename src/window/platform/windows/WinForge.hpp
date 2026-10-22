@@ -36,6 +36,7 @@ struct OmniWindowEventHandlers
     void (*OnKeyInput)(void* Ctx, const OmniKeyPacket& Packet)     = nullptr;
     void (*OnResize)(void* Ctx, uint32_t Width, uint32_t Height)   = nullptr;
     void (*OnWindowClose)(void* Ctx)                               = nullptr;
+    void (*OnDecoderReady)(void* Ctx)                              = nullptr;
 };
 
 struct WinConfig
@@ -45,16 +46,20 @@ struct WinConfig
     UINT           wdWidth    = 1280;
     UINT           wdHeight   = 720;
     LPVOID         lParam     = nullptr;
+    DWORD          ExStyle    = WS_EX_APPWINDOW;
+    DWORD          Style      = WS_POPUP;
 
     WinConfig(
         const wchar_t* ClassName_,
         const UINT     Width,
         const UINT     Height,
         const wchar_t* WindowName_,
-        LPVOID         lParam_ = nullptr
+        LPVOID         lParam_  = nullptr,
+        DWORD          ExStyle_ = WS_EX_APPWINDOW,
+        DWORD          Style_   = WS_POPUP
     )
         : ClassName(ClassName_), WindowName(WindowName_), wdWidth(Width), wdHeight(Height),
-          lParam(lParam_)
+          lParam(lParam_), ExStyle(ExStyle_), Style(Style_)
     {
     }
 };
@@ -192,6 +197,9 @@ class WinForge
         if (!EventHandler.OnMouseInput && !EventHandler.OnKeyInput) {
             EventForwarderState.store(false, std::memory_order_release);
         }
+        if (DecoderReady.load(std::memory_order_acquire) && EventHandler.OnDecoderReady) {
+            EventHandler.OnDecoderReady(EventHandler.Context);
+        }
     }
 
     inline void SetEventForwarding(bool State)
@@ -231,6 +239,7 @@ class WinForge
     }
 
     inline HWND GetHwnd() const { return hwnd.load(std::memory_order_relaxed); }
+    inline bool GetExitState() const { return ExitRequested.load(std::memory_order_acquire); }
 
     // Sets viewport and updates vertex quad so that after the initial full resolution
     // texture allocation only the active window sized rectangle gets sampled and mapped
@@ -240,6 +249,8 @@ class WinForge
   private:
     OmniWindowEventHandlers EventHandler{};
     std::atomic<bool>       EventForwarderState{false};
+    std::atomic<bool>       DecoderReady{false};
+    std::atomic<bool>       ExitRequested{false};
 
     uint32_t WindowWidth     = 0;
     uint32_t WindowHeight    = 0;
