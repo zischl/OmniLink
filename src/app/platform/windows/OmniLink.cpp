@@ -274,6 +274,16 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
         }
         break;
     }
+    case OmniNet::PacketType::ProcStreamControl: {
+        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
+
+        if (BufferSize >= sizeof(OmniStreamControlPacket)) {
+            SysLink->HandleStreamControlPacket(
+                *reinterpret_cast<const OmniStreamControlPacket*>(Buffer), DeviceID
+            );
+        }
+        break;
+    }
     case OmniNet::PacketType::ProcClipboard: {
         HandleClipboard(Buffer, BufferSize);
         break;
@@ -295,7 +305,9 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
     Logger::log("Event Handler Setup Complete");
 
     // Control Panel Creation
-    WinConfig config(L"Controller Window", 1280, 810, L"Nexus", (LPVOID)this);
+    WinConfig config(
+        L"Controller Window", 1280, 810, L"Nexus", (LPVOID)this, WS_EX_LAYERED, WS_POPUP
+    );
     hwnd = WindowInit(config, hInstance, nCmdShow, WProc);
     ShowWindow(hwnd, SW_SHOW);
     UpdateWindow(hwnd);

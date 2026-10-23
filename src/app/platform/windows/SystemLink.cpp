@@ -105,6 +105,51 @@ void OmniSystemLink::TransmitWindowResizeEvent(
     );
 }
 
+void OmniSystemLink::TransmitStreamControlEvent(
+    SubStreamID StreamKey, DeviceMap DeviceID, StreamControl Command, uint32_t Param
+)
+{
+    if (!ActiveInstances || !ActiveInstances->contains(DeviceID)) {
+        return;
+    }
+
+    OmniActiveInstance& Instance = ActiveInstances->at(DeviceID);
+    if (!Instance.InstanceSession) {
+        return;
+    }
+
+    OmniStreamControlPacket Packet{};
+    Packet.StreamKey = StreamKey;
+    Packet.Command   = Command;
+    Packet.Reserved  = 0;
+    Packet.Param     = Param;
+
+    OmniNet::OmniHeader Header{};
+    Header.PacketType = OmniNet::PacketType::ProcStreamControl;
+    Header.Target     = 0;
+    Header.Flags      = 0;
+
+    Instance.InstanceSession->SessionSend(
+        reinterpret_cast<CHAR*>(&Packet), sizeof(OmniStreamControlPacket), Header
+    );
+}
+
+void OmniSystemLink::OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID)
+{
+    Logger::log(
+        "Stream Window ready for WindowKey={:d}, DeviceID={:d}",
+        WindowKey,
+        static_cast<int>(DeviceID)
+    );
+
+    TransmitStreamControlEvent(WindowKey, DeviceID, StreamControl::Ready);
+}
+
+void OmniSystemLink::RequestStreamIDR(SubStreamID WindowKey, DeviceMap DeviceID)
+{
+    TransmitStreamControlEvent(WindowKey, DeviceID, StreamControl::RequestIDR);
+}
+
 OmniStreamer::StreamID
 OmniSystemLink::StartScreenCaptureStream(SubStreamID SubStreamID, DeviceMap DeviceID)
 {
@@ -294,12 +339,14 @@ OmniNet::PoolConfig OmniSystemLink::SetupStreamRenderWindow(
             NetSession = ActiveInstances->at(DeviceID).InstanceSession.get();
         }
 
-        auto& StreamerContext = StreamContexts[SubStreamID] = WindowStreamContext{
+        auto StreamerContext = std::make_unique<WindowStreamContext>(WindowStreamContext{
             .SysLink = this, .Session = NetSession, .DeviceID = DeviceID, .WindowKey = SubStreamID
-        };
+        });
+        WindowStreamContext* ContextRawPtr = StreamerContext.get();
+        StreamContexts[SubStreamID]        = std::move(StreamerContext);
 
         OmniWindowEventHandlers EventHandler{};
-        EventHandler.Context = &StreamerContext;
+        EventHandler.Context = ContextRawPtr;
 
         EventHandler.OnMouseInput = [](void* Ctx, const OmniMousePacket& Packet) {
             auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
@@ -346,6 +393,18 @@ OmniNet::PoolConfig OmniSystemLink::SetupStreamRenderWindow(
             if (StreamContext && StreamContext->SysLink) {
                 StreamContext->SysLink->TransmitWindowResizeEvent(
                     StreamContext->WindowKey, StreamContext->DeviceID, NewWidth, NewHeight
+                );
+                StreamContext->SysLink->RequestStreamIDR(
+                    StreamContext->WindowKey, StreamContext->DeviceID
+                );
+            }
+        };
+
+        EventHandler.OnDecoderReady = [](void* Ctx) {
+            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
+            if (StreamContext && StreamContext->SysLink) {
+                StreamContext->SysLink->OnStreamWindowReady(
+                    StreamContext->WindowKey, StreamContext->DeviceID
                 );
             }
         };
@@ -616,6 +675,63 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
                 StreamID
             );
         }
+    }
+}
+
+void OmniSystemLink::HandleStreamControlPacket(
+    const OmniStreamControlPacket& Packet, DeviceMap SenderDevice
+)
+{
+    const SubStreamID StreamKey = Packet.StreamKey;
+
+    switch (Packet.Command) {
+    case StreamControl::Ready: {
+        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
+        if (IterStreamID != StreamerIDRegistry.end()) {
+            Streamer.SetStreamState(IterStreamID->second, StreamState::Active);
+            Logger::log("Streamer activated wwith IDR keyframe for SubStreamID={:d}", StreamKey);
+        }
+        break;
+    }
+
+    case StreamControl::RequestIDR: {
+        Logger::log(
+            "IDR keyframe requested for SubStreamID={:d}, SenderDevice={:d}",
+            StreamKey,
+            static_cast<int>(SenderDevice)
+        );
+        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
+        if (IterStreamID != StreamerIDRegistry.end()) {
+            Streamer.RequestKeyframe(IterStreamID->second);
+        }
+        break;
+    }
+
+    case StreamControl::Pause: {
+        Logger::log(
+            "Pause stream for SubStreamID={:d}, SenderDevice={:d}",
+            StreamKey,
+            static_cast<int>(SenderDevice)
+        );
+        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
+        if (IterStreamID != StreamerIDRegistry.end()) {
+            Streamer.SetStreamState(IterStreamID->second, StreamState::Paused);
+        }
+        break;
+    }
+
+    case StreamControl::Resume: {
+        Logger::log(
+            "Resume stream for SubStreamID={:d}, SenderDevice={:d}",
+            StreamKey,
+            static_cast<int>(SenderDevice)
+        );
+        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
+        if (IterStreamID != StreamerIDRegistry.end()) {
+            Streamer.SetStreamState(IterStreamID->second, StreamState::Active);
+        }
+        break;
+    }
     }
 }
 

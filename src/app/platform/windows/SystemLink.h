@@ -83,7 +83,7 @@ struct OmniSystemLink
         SubStreamID              WindowKey = 0;
     };
 
-    std::unordered_map<SubStreamID, WindowStreamContext> StreamContexts;
+    std::unordered_map<SubStreamID, std::unique_ptr<WindowStreamContext>> StreamContexts;
 
     // SubStream request, release, and configuration callbacks.
     std::function<SubStreamID(DeviceMap, FeatureTypes)>                     RequestSubStream;
@@ -118,6 +118,22 @@ struct OmniSystemLink
     void TransmitWindowResizeEvent(
         SubStreamID WindowKey, DeviceMap DeviceID, uint32_t NewWidth, uint32_t NewHeight
     );
+
+    // Sends a stream control packet over the network
+    void TransmitStreamControlEvent(
+        SubStreamID StreamKey, DeviceMap DeviceID, StreamControl Command, uint32_t Param = 0
+    );
+
+    // Processes stream control packets received from the peer
+    void HandleStreamControlPacket(
+        const OmniStreamControlPacket& Packet, DeviceMap SenderDevice = DeviceMap::C0
+    );
+
+    // Callback fired when WinForge finishes initializing its decoder
+    void OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID);
+
+    // Requests an IDR keyframe from the remote sender
+    void RequestStreamIDR(SubStreamID WindowKey, DeviceMap DeviceID);
 
     // For the given SubStream and DeviceID, boot up and setup a DXGI screen capture stream
     // Populates the StreamLookup Registries
