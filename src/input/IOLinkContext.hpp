@@ -42,7 +42,7 @@ struct alignas(16) OmniEdgeCrossPacket
     uint8_t   EdgeRelayMask; // IO Active Device Grid based nearby Instances
     uint16_t  Y_Ratio;       // Normalized Y ratio (0..65535)
     uint16_t  X_Ratio;       // Normalized X ratio (0..65535)
-    uint16_t  Reserved;      // Padding
+    uint16_t  Buttons;       // Button flags
     uint64_t  Reserved2;     // Padding to 16 bytes
 };
 

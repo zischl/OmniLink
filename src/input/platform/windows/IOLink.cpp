@@ -336,6 +336,15 @@ void OmniInputLink::CreateEdgeProbe()
                         EntryData.Y_Ratio = YRatio;
                         EntryData.X_Ratio = XRatio;
 
+                        uint16_t HeldButtons = 0;
+                        if (GetAsyncKeyState(VK_LBUTTON) & 0x8000)
+                            HeldButtons |= MOUSEEVENTF_LEFTDOWN;
+                        if (GetAsyncKeyState(VK_RBUTTON) & 0x8000)
+                            HeldButtons |= MOUSEEVENTF_RIGHTDOWN;
+                        if (GetAsyncKeyState(VK_MBUTTON) & 0x8000)
+                            HeldButtons |= MOUSEEVENTF_MIDDLEDOWN;
+                        EntryData.Buttons = HeldButtons;
+
                         NetSession->SessionSend(
                             reinterpret_cast<CHAR*>(&EntryData), sizeof(OmniEdgeCrossPacket), Header
                         );
@@ -602,6 +611,7 @@ void OmniSynth::ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Pac
             EntryData.Edge    = ActiveLinkID;
             EntryData.X_Ratio = XRatio;
             EntryData.Y_Ratio = YRatio;
+            EntryData.Buttons = Packet.Buttons;
 
             NetSession->SessionSend(
                 reinterpret_cast<CHAR*>(&EntryData), sizeof(OmniEdgeCrossPacket), Header
@@ -682,6 +692,14 @@ void OmniSynth::ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Pac
     }
 
     SetCursorPos(TargetX, TargetY);
+
+    if (Packet.Buttons) {
+        INPUT Input          = {};
+        Input.type           = INPUT_MOUSE;
+        Input.mi.dwFlags     = Packet.Buttons;
+        Input.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
+        SendInput(1, &Input, sizeof(INPUT));
+    }
 }
 
 void OmniSynth::ProcEdgeRelayCross(DeviceMap DeviceID, const OmniEdgeRelayPacket& Packet)
