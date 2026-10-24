@@ -169,6 +169,14 @@ struct OmniSystemLink
     // Processes Window Resize Events for both ends, simply looks up the correct HWND and resizes
     void HandleStreamWindowResize(const OmniWinResizePacket Packet);
 
+    // Processes Window Mouse Events, routing either to the specific target HWND (WindowLink)
+    // or falling back to full-desktop KVM (ScreenLink)
+    void HandleStreamWindowMouse(const OmniWinMousePacket& Packet);
+
+    // Processes Window Key Events, routing either to the specific target HWND (WindowLink)
+    // or falling back to full-desktop KVM (ScreenLink)
+    void HandleStreamWindowKey(const OmniWinKeyPacket& Packet);
+
     // Creates a Stream Window to receive a capture stream over the network.
     // Additionally sets up window event handling such as OnInput, OnResize and OnWindowClose.
     // Returns the StreamWindow's populated frame buffer PoolConfig

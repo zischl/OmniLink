@@ -12,6 +12,7 @@
 #include <atomic>
 #include <codecvt>
 #include <d3d11.h>
+#include <dwmapi.h>
 
 OmniSystemLink::OmniSystemLink(OmniGraphicsContext& GraphicsContext)
     : GraphicsContext(GraphicsContext)
@@ -676,6 +677,103 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
             );
         }
     }
+}
+
+static void EnsureWindowFocus(HWND TargetHwnd)
+{
+    if (!TargetHwnd || !IsWindow(TargetHwnd))
+        return;
+
+    HWND CurrentForeground = GetForegroundWindow();
+    if (CurrentForeground == TargetHwnd)
+        return;
+
+    DWORD TargetThread  = GetWindowThreadProcessId(TargetHwnd, nullptr);
+    DWORD CurrentThread = GetCurrentThreadId();
+
+    if (TargetThread != 0 && TargetThread != CurrentThread) {
+        AttachThreadInput(CurrentThread, TargetThread, TRUE);
+        BringWindowToTop(TargetHwnd);
+        SetForegroundWindow(TargetHwnd);
+        SetFocus(TargetHwnd);
+        AttachThreadInput(CurrentThread, TargetThread, FALSE);
+    } else {
+        BringWindowToTop(TargetHwnd);
+        SetForegroundWindow(TargetHwnd);
+        SetFocus(TargetHwnd);
+    }
+}
+
+void OmniSystemLink::HandleStreamWindowMouse(const OmniWinMousePacket& Packet)
+{
+    auto IterStreamHwnd =
+        SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
+    if (IterStreamHwnd != SubStream2HwndRegistry.end() && IsWindow(IterStreamHwnd->second)) {
+        HWND TargetHwnd = IterStreamHwnd->second;
+
+        RECT WinRect{};
+        HRESULT hr = DwmGetWindowAttribute(
+            TargetHwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &WinRect, sizeof(WinRect)
+        );
+        if (FAILED(hr)) {
+            GetWindowRect(TargetHwnd, &WinRect);
+        }
+
+        LONG WinW = WinRect.right - WinRect.left;
+        LONG WinH = WinRect.bottom - WinRect.top;
+        if (WinW <= 0 || WinH <= 0)
+            return;
+
+        POINT CursorPoint = {
+            WinRect.left +
+                static_cast<LONG>((static_cast<uint64_t>(Packet.NormalizedX) * WinW) / 65535ULL),
+            WinRect.top +
+                static_cast<LONG>((static_cast<uint64_t>(Packet.NormalizedY) * WinH) / 65535ULL)
+        };
+
+        SetCursorPos(CursorPoint.x, CursorPoint.y);
+
+        constexpr uint16_t MOUSE_DOWN_MASK =
+            MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_MIDDLEDOWN | MOUSEEVENTF_XDOWN;
+        if (Packet.Buttons & MOUSE_DOWN_MASK) {
+            EnsureWindowFocus(TargetHwnd);
+        }
+
+        if (Packet.Buttons | Packet.Wheel) {
+            INPUT ButtonInput{};
+            ButtonInput.type           = INPUT_MOUSE;
+            ButtonInput.mi.mouseData   = Packet.Wheel;
+            ButtonInput.mi.dwFlags     = Packet.Buttons;
+            ButtonInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
+            SendInput(1, &ButtonInput, sizeof(INPUT));
+        }
+        return;
+    }
+
+    // Fallback for capture streams without mapped HWND (e.g. ScreenLink)
+    OmniMousePacket FallbackPacket{};
+    FallbackPacket.dX      = Packet.NormalizedX;
+    FallbackPacket.dY      = Packet.NormalizedY;
+    FallbackPacket.Buttons = Packet.Buttons;
+    FallbackPacket.Wheel   = Packet.Wheel;
+    FallbackPacket.Flags   = OMNI_MOUSE_ABSOLUTE;
+    OmniSynth::ProcMouse(FallbackPacket);
+}
+
+void OmniSystemLink::HandleStreamWindowKey(const OmniWinKeyPacket& Packet)
+{
+    auto IterStreamHwnd =
+        SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
+    if (IterStreamHwnd != SubStream2HwndRegistry.end() && IsWindow(IterStreamHwnd->second)) {
+        EnsureWindowFocus(IterStreamHwnd->second);
+    }
+
+    OmniKeyPacket KeyPacket{};
+    KeyPacket.VkCode    = Packet.VkCode;
+    KeyPacket.ScanCode  = Packet.ScanCode;
+    KeyPacket.Flags     = Packet.Flags;
+    KeyPacket.ExtraInfo = OMNI_INPUT_COOKIE;
+    OmniSynth::ProcKey(KeyPacket);
 }
 
 void OmniSystemLink::HandleStreamControlPacket(

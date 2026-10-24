@@ -83,88 +83,6 @@ static void HandleKey(CHAR* Buffer, uint32_t BufferSize)
     OmniSynth::ProcKey(*Packet);
 }
 
-static void HandleWinMouse(CHAR* Buffer, uint32_t BufferSize, OmniSystemLink* SysLink)
-{
-    if (!Buffer || BufferSize < sizeof(OmniWinMousePacket) || !SysLink)
-        return;
-
-    const auto* Packet = reinterpret_cast<const OmniWinMousePacket*>(Buffer);
-
-    auto IterStreamHwnd =
-        SysLink->SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet->SubStreamID));
-    if (IterStreamHwnd != SysLink->SubStream2HwndRegistry.end() &&
-        IsWindow(IterStreamHwnd->second)) {
-        HWND TargetHwnd = IterStreamHwnd->second;
-
-        RECT ClientRect{};
-        GetClientRect(TargetHwnd, &ClientRect);
-        LONG WindowW = ClientRect.right - ClientRect.left;
-        LONG WindowH = ClientRect.bottom - ClientRect.top;
-
-        if (WindowW > 0 && WindowH > 0) {
-            POINT CursorPoint = {
-                static_cast<LONG>(
-                    (static_cast<uint64_t>(Packet->NormalizedX) * WindowW) / 65535ULL
-                ),
-                static_cast<LONG>((static_cast<uint64_t>(Packet->NormalizedY) * WindowH) / 65535ULL)
-            };
-
-            ClientToScreen(TargetHwnd, &CursorPoint);
-
-            SetCursorPos(CursorPoint.x, CursorPoint.y);
-
-            if (Packet->Buttons &
-                (MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_MIDDLEDOWN)) {
-                SetForegroundWindow(TargetHwnd);
-            }
-
-            if (Packet->Buttons | Packet->Wheel) {
-                INPUT ButtonInput{};
-                ButtonInput.type           = INPUT_MOUSE;
-                ButtonInput.mi.mouseData   = Packet->Wheel;
-                ButtonInput.mi.dwFlags     = Packet->Buttons;
-                ButtonInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
-                SendInput(1, &ButtonInput, sizeof(INPUT));
-            }
-            return;
-        }
-    }
-
-    // Fallback for capture streams without mapped HWND
-    OmniMousePacket FallbackPacket{};
-    FallbackPacket.dX      = Packet->NormalizedX;
-    FallbackPacket.dY      = Packet->NormalizedY;
-    FallbackPacket.Buttons = Packet->Buttons;
-    FallbackPacket.Wheel   = Packet->Wheel;
-    FallbackPacket.Flags   = OMNI_MOUSE_ABSOLUTE;
-    OmniSynth::ProcMouse(FallbackPacket);
-}
-
-static void HandleWinKey(CHAR* Buffer, uint32_t BufferSize, OmniSystemLink* SysLink)
-{
-    if (!Buffer || BufferSize < sizeof(OmniWinKeyPacket) || !SysLink)
-        return;
-
-    const auto* Packet = reinterpret_cast<const OmniWinKeyPacket*>(Buffer);
-
-    auto IterStreamHwnd =
-        SysLink->SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet->SubStreamID));
-    if (IterStreamHwnd != SysLink->SubStream2HwndRegistry.end() &&
-        IsWindow(IterStreamHwnd->second)) {
-        HWND TargetHwnd = IterStreamHwnd->second;
-        if (GetForegroundWindow() != TargetHwnd) {
-            SetForegroundWindow(TargetHwnd);
-        }
-    }
-
-    OmniKeyPacket KeyPacket{};
-    KeyPacket.VkCode    = Packet->VkCode;
-    KeyPacket.ScanCode  = Packet->ScanCode;
-    KeyPacket.Flags     = Packet->Flags;
-    KeyPacket.ExtraInfo = OMNI_INPUT_COOKIE;
-    OmniSynth::ProcKey(KeyPacket);
-}
-
 static void HandleClipboard(CHAR* Buffer, uint32_t BufferSize)
 {
     if (!Buffer || BufferSize <= OmniHeaderSize)
@@ -216,12 +134,16 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
     }
     case OmniNet::PacketType::ProcWinMouse: {
         OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
-        HandleWinMouse(Buffer, BufferSize, SysLink);
+        if (SysLink && Buffer && BufferSize >= sizeof(OmniWinMousePacket)) {
+            SysLink->HandleStreamWindowMouse(*reinterpret_cast<const OmniWinMousePacket*>(Buffer));
+        }
         break;
     }
     case OmniNet::PacketType::ProcWinKey: {
         OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
-        HandleWinKey(Buffer, BufferSize, SysLink);
+        if (SysLink && Buffer && BufferSize >= sizeof(OmniWinKeyPacket)) {
+            SysLink->HandleStreamWindowKey(*reinterpret_cast<const OmniWinKeyPacket*>(Buffer));
+        }
         break;
     }
     case OmniNet::PacketType::ProcEdgeCross: {
