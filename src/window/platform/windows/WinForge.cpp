@@ -434,12 +434,21 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         return 0;
 
     case WM_EXITSIZEMOVE:
-        if (WinForgePtr && WinForgePtr->EventHandler.OnResize) {
-            WinForgePtr->EventHandler.OnResize(
-                WinForgePtr->EventHandler.Context,
-                WinForgePtr->WindowWidth,
-                WinForgePtr->WindowHeight
-            );
+        if (WinForgePtr) {
+            RECT WindowRect{};
+            GetWindowRect(hwnd, &WindowRect);
+            if (WinForgePtr->EventHandler.OnWindowDragRelease) {
+                WinForgePtr->EventHandler.OnWindowDragRelease(
+                    WinForgePtr->EventHandler.Context, WindowRect.left, WindowRect.top
+                );
+            }
+            if (WinForgePtr->EventHandler.OnResize) {
+                WinForgePtr->EventHandler.OnResize(
+                    WinForgePtr->EventHandler.Context,
+                    WinForgePtr->WindowWidth,
+                    WinForgePtr->WindowHeight
+                );
+            }
         }
         return 0;
     case WM_MOUSEACTIVATE:

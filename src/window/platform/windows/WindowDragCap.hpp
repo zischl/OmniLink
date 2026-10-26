@@ -19,6 +19,9 @@ class OmniDragLink
     // Returns a uint16_t id which can be used or passed around, as a unique window id helper
     std::function<uint16_t(HWND, DeviceMap, WinDragAction)> WindowDragCallback = nullptr;
 
+    // Checks if a window is already actively being streamed to avoid re-triggering drag
+    std::function<bool(HWND)> WindowExclusionCheck = nullptr;
+
   private:
     OmniRouter&           Router;
     HWINEVENTHOOK         WinCapHook = NULL;

@@ -37,6 +37,7 @@ struct OmniWindowEventHandlers
     void (*OnResize)(void* Ctx, uint32_t Width, uint32_t Height)   = nullptr;
     void (*OnWindowClose)(void* Ctx)                               = nullptr;
     void (*OnDecoderReady)(void* Ctx)                              = nullptr;
+    void (*OnWindowDragRelease)(void* Ctx, int FinalX, int FinalY) = nullptr;
 };
 
 struct WinConfig

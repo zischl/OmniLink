@@ -109,6 +109,9 @@ void CALLBACK OmniDragLink::WinMvEventProc(
     if (!IsWindow(Hwnd) || !IsWindowVisible(Hwnd) || IsIconic(Hwnd))
         return;
 
+    if (Instance->WindowExclusionCheck && Instance->WindowExclusionCheck(Hwnd))
+        return;
+
     if (Event == EVENT_SYSTEM_MOVESIZESTART) {
         Instance->StartDragTracking(Hwnd);
     } else if (Event == EVENT_SYSTEM_MOVESIZEEND) {
@@ -180,6 +183,14 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
             } else if ((NetSession = Router.GetWindowSession(Grid[Row][1]))) {
                 ActiveEdge = Grid[Row][1];
             }
+        }
+
+        const bool ModifierState = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) ||
+                                   ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
+
+        if (!EdgeCrossState && !ModifierState) {
+            ActiveEdge = DeviceMap::C0;
+            NetSession = nullptr;
         }
 
         if (NetSession) {

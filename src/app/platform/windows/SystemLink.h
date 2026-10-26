@@ -18,6 +18,7 @@
 #include "WindowOperationTypes.hpp"
 
 #include <algorithm>
+#include <climits>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -71,9 +72,10 @@ struct OmniSystemLink
     std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
 
     // Map/Reverse Map Hwnd with Sub Streams for the DragDetection in WindowLink
-    // FYI these 2 are for the source window handles
-    std::unordered_map<HWND, SubStreamID> Hwnd2SubStreamRegistry;
-    std::unordered_map<SubStreamID, HWND> SubStream2HwndRegistry;
+    // FYI the first 2 are for the source window handles
+    std::unordered_map<HWND, SubStreamID>      Hwnd2SubStreamRegistry;
+    std::unordered_map<SubStreamID, HWND>      SubStream2HwndRegistry;
+    std::unordered_map<SubStreamID, DeviceMap> SubStream2DeviceRegistry;
 
     struct WindowStreamContext
     {
@@ -81,6 +83,8 @@ struct OmniSystemLink
         OmniNetSession<OmniMTU>* Session   = nullptr;
         DeviceMap                DeviceID  = DeviceMap::C0;
         SubStreamID              WindowKey = 0;
+        int                      LastX     = INT_MIN;
+        int                      LastY     = INT_MIN;
     };
 
     std::unordered_map<SubStreamID, std::unique_ptr<WindowStreamContext>> StreamContexts;
@@ -200,6 +204,9 @@ struct OmniSystemLink
     // Called upon a DragLink trigger when an edge crossing drag event begins, Drops, Cancels
     // Although move is handled here it's not called, unused for now
     SubStreamID HandleWindowDragEvent(HWND Hwnd, DeviceMap TargetDevice, WinDragAction Action);
+
+    // Centers a window on the desktop given the target HWND, self explanatory..
+    void CenterWindowOnDesktop(HWND TargetHwnd);
 
     // Toggles edge crossing detection for the cursor.
     void ToggleEdgeProbe();
