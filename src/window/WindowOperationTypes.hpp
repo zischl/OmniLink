@@ -5,7 +5,15 @@
 
 #pragma pack(push, 1)
 
+// Packet command states for a window drag action. quite obvious isn't it..
 enum class WinDragAction : uint8_t { Begin = 0, Move = 1, Drop = 2, Cancel = 3 };
+
+// States for Stream Context positional/boundary state for a window.
+// Local means within local monitor bounds.
+// InTransit represents between 2 spaces in a physical monitor boundary seam.
+// Position mirroring is active in InTransit state.
+// Remote represents fully positioned on remote peer monitor either streaming or parked on host
+enum class EdgeSpatiality : uint8_t { Local = 0, InTransit = 1, Remote = 2 };
 
 struct alignas(16) OmniWinDragPacket
 {

@@ -32,12 +32,13 @@ struct OmniWindowEventHandlers
 {
     void* Context = nullptr;
 
-    void (*OnMouseInput)(void* Ctx, const OmniMousePacket& Packet) = nullptr;
-    void (*OnKeyInput)(void* Ctx, const OmniKeyPacket& Packet)     = nullptr;
-    void (*OnResize)(void* Ctx, uint32_t Width, uint32_t Height)   = nullptr;
-    void (*OnWindowClose)(void* Ctx)                               = nullptr;
-    void (*OnDecoderReady)(void* Ctx)                              = nullptr;
-    void (*OnWindowDragRelease)(void* Ctx, int FinalX, int FinalY) = nullptr;
+    void (*OnMouseInput)(void* Ctx, const OmniMousePacket& Packet)  = nullptr;
+    void (*OnKeyInput)(void* Ctx, const OmniKeyPacket& Packet)      = nullptr;
+    void (*OnResize)(void* Ctx, uint32_t Width, uint32_t Height)    = nullptr;
+    void (*OnWindowClose)(void* Ctx)                                = nullptr;
+    void (*OnDecoderReady)(void* Ctx)                               = nullptr;
+    void (*OnWindowDragMove)(void* Ctx, int CurrentX, int CurrentY) = nullptr;
+    void (*OnWindowDragRelease)(void* Ctx, int FinalX, int FinalY)  = nullptr;
 };
 
 struct WinConfig

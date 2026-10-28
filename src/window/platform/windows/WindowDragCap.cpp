@@ -36,49 +36,137 @@ void OmniDragLink::WindowMoveListener(bool State)
     }
 }
 
-// Calculates remote window position based on source window position
-// and source/target device resolutions
-static void ComputeEdgeTarget(
+void EncodeEdgePosition(
     DeviceMap   Edge,
     const RECT& WindowPosition,
-    uint32_t    LocalResW,
-    uint32_t    LocalResH,
-    uint32_t    TargetResW,
-    uint32_t    TargetResH,
-    int&        OutTargetX,
-    int&        OutTargetY
+    uint32_t    ResWidth,
+    uint32_t    ResHeight,
+    int16_t&    RatioX,
+    int16_t&    RatioY
 )
 {
-    OutTargetX = WindowPosition.left;
-    OutTargetY = WindowPosition.top;
-
-    switch (Edge) {
-    case DeviceMap::R1:
-    case DeviceMap::RU1:
-    case DeviceMap::RD1:
-        OutTargetX = WindowPosition.left - static_cast<int>(LocalResW);
-        break;
-    case DeviceMap::L1:
-    case DeviceMap::LU1:
-    case DeviceMap::LD1:
-        OutTargetX = static_cast<int>(TargetResW) + WindowPosition.left;
-        break;
-    default:
-        break;
+    if (ResWidth == 0 || ResHeight == 0) {
+        RatioX = static_cast<int16_t>(WindowPosition.left);
+        RatioY = static_cast<int16_t>(WindowPosition.top);
+        return;
     }
 
     switch (Edge) {
-    case DeviceMap::D1:
-    case DeviceMap::RD1:
-    case DeviceMap::LD1:
-        OutTargetY = WindowPosition.top - static_cast<int>(LocalResH);
+    case DeviceMap::R1: {
+        RatioX          = static_cast<int16_t>(WindowPosition.left - static_cast<int>(ResWidth));
+        int64_t ScaledY = (static_cast<int64_t>(WindowPosition.top) * 65535LL) / ResHeight;
+        RatioY          = static_cast<int16_t>(std::clamp<int64_t>(ScaledY, 0, 65535));
         break;
-    case DeviceMap::U1:
-    case DeviceMap::RU1:
-    case DeviceMap::LU1:
-        OutTargetY = static_cast<int>(TargetResH) + WindowPosition.top;
+    }
+    case DeviceMap::L1: {
+        RatioX          = static_cast<int16_t>(WindowPosition.left);
+        int64_t ScaledY = (static_cast<int64_t>(WindowPosition.top) * 65535LL) / ResHeight;
+        RatioY          = static_cast<int16_t>(std::clamp<int64_t>(ScaledY, 0, 65535));
         break;
+    }
+    case DeviceMap::D1: {
+        int64_t ScaledX = (static_cast<int64_t>(WindowPosition.left) * 65535LL) / ResWidth;
+        RatioX          = static_cast<int16_t>(std::clamp<int64_t>(ScaledX, 0, 65535));
+        RatioY          = static_cast<int16_t>(WindowPosition.top - static_cast<int>(ResHeight));
+        break;
+    }
+    case DeviceMap::U1: {
+        int64_t ScaledX = (static_cast<int64_t>(WindowPosition.left) * 65535LL) / ResWidth;
+        RatioX          = static_cast<int16_t>(std::clamp<int64_t>(ScaledX, 0, 65535));
+        RatioY          = static_cast<int16_t>(WindowPosition.top);
+        break;
+    }
+    case DeviceMap::RU1: {
+        RatioX = static_cast<int16_t>(WindowPosition.left - static_cast<int>(ResWidth));
+        RatioY = static_cast<int16_t>(WindowPosition.top);
+        break;
+    }
+    case DeviceMap::LU1: {
+        RatioX = static_cast<int16_t>(WindowPosition.left);
+        RatioY = static_cast<int16_t>(WindowPosition.top);
+        break;
+    }
+    case DeviceMap::RD1: {
+        RatioX = static_cast<int16_t>(WindowPosition.left - static_cast<int>(ResWidth));
+        RatioY = static_cast<int16_t>(WindowPosition.top - static_cast<int>(ResHeight));
+        break;
+    }
+    case DeviceMap::LD1: {
+        RatioX = static_cast<int16_t>(WindowPosition.left);
+        RatioY = static_cast<int16_t>(WindowPosition.top - static_cast<int>(ResHeight));
+        break;
+    }
     default:
+        RatioX = static_cast<int16_t>(WindowPosition.left);
+        RatioY = static_cast<int16_t>(WindowPosition.top);
+        break;
+    }
+}
+
+void DecodeEdgePosition(
+    DeviceMap Edge,
+    int16_t   RatioX,
+    int16_t   RatioY,
+    uint32_t  ResWidth,
+    uint32_t  ResHeight,
+    int&      TargetX,
+    int&      TargetY
+)
+{
+    if (ResWidth == 0 || ResHeight == 0) {
+        TargetX = RatioX;
+        TargetY = RatioY;
+        return;
+    }
+
+    switch (Edge) {
+    case DeviceMap::R1: {
+        TargetX         = RatioX;
+        uint16_t RatioY = static_cast<uint16_t>(RatioY);
+        TargetY         = static_cast<int>((static_cast<uint64_t>(RatioY) * ResHeight) / 65535ULL);
+        break;
+    }
+    case DeviceMap::L1: {
+        TargetX         = static_cast<int>(ResWidth) + RatioX;
+        uint16_t RatioY = static_cast<uint16_t>(RatioY);
+        TargetY         = static_cast<int>((static_cast<uint64_t>(RatioY) * ResHeight) / 65535ULL);
+        break;
+    }
+    case DeviceMap::D1: {
+        uint16_t RatioX = static_cast<uint16_t>(RatioX);
+        TargetX         = static_cast<int>((static_cast<uint64_t>(RatioX) * ResWidth) / 65535ULL);
+        TargetY         = RatioY;
+        break;
+    }
+    case DeviceMap::U1: {
+        uint16_t RatioX = static_cast<uint16_t>(RatioX);
+        TargetX         = static_cast<int>((static_cast<uint64_t>(RatioX) * ResWidth) / 65535ULL);
+        TargetY         = static_cast<int>(ResHeight) + RatioY;
+        break;
+    }
+    case DeviceMap::RU1: {
+        TargetX = RatioX;
+        TargetY = static_cast<int>(ResHeight) + RatioY;
+        break;
+    }
+    case DeviceMap::LU1: {
+        TargetX = static_cast<int>(ResWidth) + RatioX;
+        TargetY = static_cast<int>(ResHeight) + RatioY;
+        break;
+    }
+    case DeviceMap::RD1: {
+        TargetX = RatioX;
+        TargetY = RatioY;
+        break;
+    }
+    case DeviceMap::LD1: {
+        TargetX = static_cast<int>(ResWidth) + RatioX;
+        TargetY = RatioY;
+        break;
+    }
+    default:
+        TargetX = RatioX;
+        TargetY = RatioY;
         break;
     }
 }
@@ -134,13 +222,13 @@ void OmniDragLink::StopDragTracking()
 
 void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
 {
-    RECT      WindowPos      = {};
-    POINT     CursorPt       = {};
-    bool      EdgeCrossState = false;
-    DeviceMap PrevEdge       = DeviceMap::C0;
-    int       InitialGripX   = 0;
-    int       InitialGripY   = 0;
-    uint16_t  WindowID       = 0;
+    RECT           WindowPos    = {};
+    POINT          CursorPt     = {};
+    EdgeSpatiality SpatialState = EdgeSpatiality::Local;
+    DeviceMap      PrevEdge     = DeviceMap::C0;
+    int            InitialGripX = 0;
+    int            InitialGripY = 0;
+    uint16_t       WindowID     = 0;
 
     while (SessionId == DragSessionId.load(std::memory_order_relaxed)) {
         if (!IsWindow(Hwnd) || Instance != this)
@@ -152,7 +240,7 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
         int WindowWidth  = WindowPos.right - WindowPos.left;
         int WindowHeight = WindowPos.bottom - WindowPos.top;
 
-        if (!EdgeCrossState) {
+        if (SpatialState == EdgeSpatiality::Local) {
             InitialGripX = CursorPt.x - WindowPos.left;
             InitialGripY = CursorPt.y - WindowPos.top;
         }
@@ -188,7 +276,7 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
         const bool ModifierState = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) ||
                                    ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
 
-        if (!EdgeCrossState && !ModifierState) {
+        if (SpatialState == EdgeSpatiality::Local && !ModifierState) {
             ActiveEdge = DeviceMap::C0;
             NetSession = nullptr;
         }
@@ -196,7 +284,7 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
         if (NetSession) {
             // If transitioning directly from one remote edge to another,
             // gotta cancel the old one first
-            if (EdgeCrossState && PrevEdge != ActiveEdge) {
+            if (SpatialState == EdgeSpatiality::InTransit && PrevEdge != ActiveEdge) {
                 auto* OldSession = Router.GetWindowSession(PrevEdge);
                 if (OldSession) {
                     OmniNet::OmniHeader CancelHeader;
@@ -217,19 +305,13 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
                 if (WindowDragCallback) {
                     WindowDragCallback(Hwnd, PrevEdge, WinDragAction::Cancel);
                 }
-                WindowID       = 0;
-                EdgeCrossState = false;
+                WindowID     = 0;
+                SpatialState = EdgeSpatiality::Local;
             }
 
-            int      TargetX    = 0;
-            int      TargetY    = 0;
-            uint32_t TargetResW = 0;
-            uint32_t TargetResH = 0;
-
-            Router.GetDeviceResolution(ActiveEdge, TargetResW, TargetResH);
-            ComputeEdgeTarget(
-                ActiveEdge, WindowPos, ResW, ResH, TargetResW, TargetResH, TargetX, TargetY
-            );
+            int16_t PacketX = 0;
+            int16_t PacketY = 0;
+            EncodeEdgePosition(ActiveEdge, WindowPos, ResW, ResH, PacketX, PacketY);
 
             OmniNet::OmniHeader Header;
             Header.Target     = 0;
@@ -238,17 +320,17 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
 
             OmniWinDragPacket Packet = {};
             Packet.Edge              = ActiveEdge;
-            Packet.WindowX           = static_cast<int16_t>(TargetX);
-            Packet.WindowY           = static_cast<int16_t>(TargetY);
+            Packet.WindowX           = PacketX;
+            Packet.WindowY           = PacketY;
             Packet.WindowWidth       = static_cast<uint16_t>(WindowWidth);
             Packet.WindowHeight      = static_cast<uint16_t>(WindowHeight);
             Packet.CursorGripX       = static_cast<int16_t>(InitialGripX);
             Packet.CursorGripY       = static_cast<int16_t>(InitialGripY);
 
-            if (!EdgeCrossState) {
-                EdgeCrossState = true;
-                PrevEdge       = ActiveEdge;
-                Packet.Action  = WinDragAction::Begin;
+            if (SpatialState == EdgeSpatiality::Local) {
+                SpatialState  = EdgeSpatiality::InTransit;
+                PrevEdge      = ActiveEdge;
+                Packet.Action = WinDragAction::Begin;
 
                 if (WindowDragCallback) {
                     WindowID = WindowDragCallback(Hwnd, ActiveEdge, WinDragAction::Begin);
@@ -265,9 +347,9 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
                     reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
                 );
             }
-        } else if (EdgeCrossState) {
-            EdgeCrossState = false;
-            auto* Session  = Router.GetWindowSession(PrevEdge);
+        } else if (SpatialState == EdgeSpatiality::InTransit) {
+            SpatialState  = EdgeSpatiality::Local;
+            auto* Session = Router.GetWindowSession(PrevEdge);
             if (Session) {
                 OmniNet::OmniHeader Header;
                 Header.Target     = 0;
@@ -292,7 +374,7 @@ void OmniDragLink::DragTrackingLoop(HWND Hwnd, uint64_t SessionId)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    if (EdgeCrossState && Instance == this) {
+    if (SpatialState == EdgeSpatiality::InTransit && Instance == this) {
         FinalizeDrop(Hwnd, PrevEdge, WindowPos, InitialGripX, InitialGripY, WindowID);
     }
 }
@@ -310,13 +392,9 @@ void OmniDragLink::FinalizeDrop(
     int WinW = FinalPos.right - FinalPos.left;
     int WinH = FinalPos.bottom - FinalPos.top;
 
-    int      TargetX    = 0;
-    int      TargetY    = 0;
-    uint32_t TargetResW = 0;
-    uint32_t TargetResH = 0;
-
-    Router.GetDeviceResolution(Edge, TargetResW, TargetResH);
-    ComputeEdgeTarget(Edge, FinalPos, ResW, ResH, TargetResW, TargetResH, TargetX, TargetY);
+    int16_t RatioX = 0;
+    int16_t RatioY = 0;
+    EncodeEdgePosition(Edge, FinalPos, ResW, ResH, RatioX, RatioY);
 
     if (NetSession) {
         OmniNet::OmniHeader Header;
@@ -327,8 +405,8 @@ void OmniDragLink::FinalizeDrop(
         OmniWinDragPacket Packet = {};
         Packet.Action            = WinDragAction::Drop;
         Packet.Edge              = Edge;
-        Packet.WindowX           = static_cast<int16_t>(TargetX);
-        Packet.WindowY           = static_cast<int16_t>(TargetY);
+        Packet.WindowX           = RatioX;
+        Packet.WindowY           = RatioY;
         Packet.WindowWidth       = static_cast<uint16_t>(WinW);
         Packet.WindowHeight      = static_cast<uint16_t>(WinH);
         Packet.CursorGripX       = static_cast<int16_t>(GripX);

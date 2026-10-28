@@ -433,6 +433,18 @@ LRESULT CALLBACK WinForge::WProc2(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         }
         return 0;
 
+    case WM_MOVING: {
+        if (WinForgePtr && WinForgePtr->EventHandler.OnWindowDragMove) {
+            RECT* WindowRect = reinterpret_cast<RECT*>(lParam);
+            if (WindowRect) {
+                WinForgePtr->EventHandler.OnWindowDragMove(
+                    WinForgePtr->EventHandler.Context, WindowRect->left, WindowRect->top
+                );
+            }
+        }
+        return TRUE;
+    }
+
     case WM_EXITSIZEMOVE:
         if (WinForgePtr) {
             RECT WindowRect{};
