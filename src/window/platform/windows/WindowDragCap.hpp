@@ -1,7 +1,6 @@
 #pragma once
 
 #include "OmniEnums.hpp"
-#include "OmniRouterContext.hpp"
 #include "WindowOperationTypes.hpp"
 #include <Windows.h>
 #include <atomic>
@@ -31,43 +30,44 @@ void DecodeEdgePosition(
     int&      TargetY
 );
 
+// Window drag detection module. Monitors system-wide drag events via WinEvent hook
+// and reports raw window/cursor position each poll tick.
 class OmniDragLink
 {
   public:
-    explicit OmniDragLink(OmniRouter& Context);
+    OmniDragLink() = default;
     ~OmniDragLink();
 
+    // Simply toggles window move hook install/uninstall
     void WindowMoveListener(bool State = false);
 
-    // Returns a uint16_t id which can be used or passed around, as a unique window id helper
-    std::function<uint16_t(HWND, DeviceMap, WinDragAction)> WindowDragCallback = nullptr;
-
-    // Checks if a window is already actively being streamed to avoid re-triggering drag
+    // Exclusion check, returns true to skip tracking drags for this window
     std::function<bool(HWND)> WindowExclusionCheck = nullptr;
 
+    // Called every poll tick during an active drag with the window rect and cursor pos
+    std::function<void(HWND, const RECT&, POINT)> OnDragMove = nullptr;
+
+    // Called on EVENT_SYSTEM_MOVESIZEEND when a drag completes
+    std::function<void(HWND)> OnDragEnd = nullptr;
+
   private:
-    OmniRouter&           Router;
     HWINEVENTHOOK         WinCapHook = NULL;
     std::atomic<uint64_t> DragSessionId{0};
 
     static OmniDragLink* Instance;
 
-    // Called on the moment drag starts to boot up a drag session
+    // Increments session ID and launches DragTrackingLoop on a detached thread
     void StartDragTracking(HWND Hwnd);
 
-    // Called on drag release, Invalidates the active session
+    // Invalidates the active session and the tracking thread exits on its next iteration
     void StopDragTracking();
 
-    // Runs and stops from Start/Stop DragTracking functions.
-    // Handles first edge crossing and subsequent movement mirroring.
+    // Polls window rect and cursor pos each tick and calls OnDragMove until session ends
     void DragTrackingLoop(HWND Hwnd, uint64_t SessionId);
 
-    // Final drop gurantees remote window position mirroring sits at the exact correct
-    // position for the last time and takes focus to that window.
-    void FinalizeDrop(
-        HWND Hwnd, DeviceMap Edge, const RECT& Pos, int GripX, int GripY, uint16_t WindowID
-    );
-
+    // Main callback called by the windows event hook registered through WindowMoveListener
+    // On move start if accepted from the WindowExclusionCheck, calls StartDragTracking
+    // On move end calls StopDragTracking
     static void CALLBACK WinMvEventProc(
         HWINEVENTHOOK HWinEventHook,
         DWORD         Event,
