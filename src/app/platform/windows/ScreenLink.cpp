@@ -1,12 +1,11 @@
 #include "ScreenLink.h"
+#include "CaptureStreams.h"
 #include "OmniInstances.h"
 #include "OmniLogger.hpp"
 #include "OmniRouterContext.hpp"
-#include "SystemLink.h"
-#include "CaptureStreams.h"
 
 OmniStreamer::StreamID SystemScreenLink::StartScreenCaptureStream(
-    OmniSystemLink* SysLink, SystemLinkContext& Ctx, SubStreamID SubStreamID, DeviceMap DeviceID
+    SystemLinkContext& Ctx, SubStreamID SubStreamID, DeviceMap DeviceID
 )
 {
     if (!Ctx.ActiveInstances || !Ctx.ActiveInstances->contains(DeviceID)) {
@@ -46,7 +45,6 @@ void SystemScreenLink::StopScreenCaptureStream(SystemLinkContext& Ctx, SubStream
 }
 
 OmniNet::PoolConfig SystemScreenLink::SetState(
-    OmniSystemLink*    SysLink,
     SystemLinkContext& Ctx,
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
@@ -58,7 +56,7 @@ OmniNet::PoolConfig SystemScreenLink::SetState(
     (void)Context;
     if (Route == FeatureActionRoute::Outbound) {
         if (Action == FeatureAction::Activate) {
-            StartScreenCaptureStream(SysLink, Ctx, SubStreamID, DeviceID);
+            StartScreenCaptureStream(Ctx, SubStreamID, DeviceID);
         } else {
             if (SubStreamID != 0) {
                 StopScreenCaptureStream(Ctx, SubStreamID);
@@ -76,16 +74,7 @@ OmniNet::PoolConfig SystemScreenLink::SetState(
             Ctx.Router.GetDeviceResolution(DeviceID, TargetW, TargetH);
 
             return Ctx.CaptureStreams.SetupStreamRenderWindow(
-                SysLink,
-                Ctx,
-                SubStreamID,
-                DeviceID,
-                TargetW,
-                TargetH,
-                0,
-                0,
-                SW_SHOWNORMAL,
-                "Screen Link"
+                Ctx, SubStreamID, DeviceID, TargetW, TargetH, 0, 0, SW_SHOWNORMAL, "Screen Link"
             );
         } else {
             if (SubStreamID != 0) {

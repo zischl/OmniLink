@@ -16,7 +16,7 @@ struct SystemInputLink
     OmniInputFilter  InputFilter;
     OmniSynth        InputSynth;
 
-    SystemInputLink(OmniRouter& Router);
+    SystemInputLink(OmniRouter& Router, OmniSpatialRouter& SpatialRouter);
 
     void Setup(HWND WindowID);
 

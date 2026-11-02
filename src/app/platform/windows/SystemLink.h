@@ -10,6 +10,7 @@
 #include "OmniPackets.hpp"
 #include "OmniRouterContext.hpp"
 #include "ScreenLink.h"
+#include "SpatialRouter.hpp"
 #include "SystemLinkContext.h"
 #include "WindowLink.h"
 
@@ -28,7 +29,6 @@ template <uint32_t MTU> class OmniNetSession;
 class OmniNetSubStream;
 
 using NetworkPacketHandlerFn = void(char*, uint32_t, uint8_t, void*);
-using SubStreamID            = uint16_t;
 
 NetworkPacketHandlerFn NetworkPacketHandler;
 
@@ -52,10 +52,11 @@ struct OmniSystemLink
     std::function<void(DeviceMap, SubStreamID, const OmniNet::PoolConfig&)> ConfigureSubStream;
 
     // Composed Feature Modules
+    OmniSpatialRouter    SpatialRouter;
     SystemCaptureStreams CaptureStreams;
     SystemAudioLink      Audio;
     SystemClipboardLink  Clipboard;
-    SystemInputLink      Input{OmniRouter};
+    SystemInputLink      Input{OmniRouter, SpatialRouter};
     SystemScreenLink     Screen;
     SystemWindowLink     Window;
 
@@ -64,6 +65,8 @@ struct OmniSystemLink
 
     void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
 
+    inline OmniSpatialRouter& GetSpatialRouter() { return SpatialRouter; }
+
     inline SystemLinkContext GetContext()
     {
         return SystemLinkContext{
@@ -71,6 +74,7 @@ struct OmniSystemLink
             hInstance,
             ActiveInstances,
             OmniRouter,
+            SpatialRouter,
             GraphicsContext,
             CaptureStreams,
             RequestSubStream,
@@ -90,7 +94,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return Screen.SetState(this, Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return Screen.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetWindowLinkState(
@@ -102,7 +106,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return Window.SetState(this, Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return Window.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetInputLinkState(
@@ -163,19 +167,16 @@ struct OmniSystemLink
 
     inline void TransmitClipboard(const std::string& Text)
     {
-        Clipboard.ActiveInstances = ActiveInstances;
         Clipboard.TransmitClipboard(Text);
     }
     inline void TransmitClipboardManifest(const ClipboardManifest& Manifest)
     {
-        Clipboard.ActiveInstances = ActiveInstances;
         Clipboard.TransmitClipboardManifest(Manifest);
     }
 
     inline std::vector<uint8_t>
     ReceiveClipboardData(const ClipboardManifest& Manifest, UINT Format = 0)
     {
-        Clipboard.ActiveInstances = ActiveInstances;
         return Clipboard.ReceiveClipboardData(Manifest, Format);
     }
 
@@ -198,44 +199,6 @@ struct OmniSystemLink
         CaptureStreams.HandleStreamControlPacket(Ctx, Packet, SenderDevice);
     }
 
-    inline void TransmitWindowResizeEvent(
-        SubStreamID WindowKey, DeviceMap DeviceID, uint32_t Width, uint32_t Height
-    )
-    {
-        auto Ctx = GetContext();
-        CaptureStreams.TransmitWindowResizeEvent(Ctx, WindowKey, DeviceID, Width, Height);
-    }
-
-    inline void TransmitStreamControlEvent(
-        SubStreamID StreamKey, DeviceMap DeviceID, StreamControl Command, uint32_t Param = 0
-    )
-    {
-        auto Ctx = GetContext();
-        CaptureStreams.TransmitStreamControlEvent(Ctx, StreamKey, DeviceID, Command, Param);
-    }
-
-    inline void RequestStreamIDR(SubStreamID WindowKey, DeviceMap DeviceID)
-    {
-        auto Ctx = GetContext();
-        CaptureStreams.RequestStreamIDR(Ctx, WindowKey, DeviceID);
-    }
-
-    inline void OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID)
-    {
-        CaptureStreams.OnStreamWindowReady(WindowKey, DeviceID);
-    }
-
-    inline void OnStreamWindowClose(SubStreamID WindowKey, DeviceMap DeviceID)
-    {
-        auto Ctx = GetContext();
-        CaptureStreams.OnStreamWindowClose(Ctx, WindowKey, DeviceID);
-    }
-
-    inline StreamWindow*
-    CreateStreamWindow(const WindowCreationData& WindowData, int ShowCmd = SW_SHOWNORMAL)
-    {
-        return CaptureStreams.CreateStreamWindow(WindowData, ShowCmd, hInstance);
-    }
 
     inline OmniNet::PoolConfig SetupStreamRenderWindow(
         SubStreamID      SubStreamID,
@@ -250,7 +213,7 @@ struct OmniSystemLink
     {
         auto Ctx = GetContext();
         return CaptureStreams.SetupStreamRenderWindow(
-            this, Ctx, SubStreamID, DeviceID, Width, Height, X, Y, ShowCmd, Title
+            Ctx, SubStreamID, DeviceID, Width, Height, X, Y, ShowCmd, Title
         );
     }
 

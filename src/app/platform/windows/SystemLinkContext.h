@@ -10,10 +10,9 @@
 #include <functional>
 
 class OmniRouter;
+class OmniSpatialRouter;
 struct OmniGraphicsContext;
 struct SystemCaptureStreams;
-
-using SubStreamID = uint16_t;
 
 // System context for all feature links
 struct SystemLinkContext
@@ -22,6 +21,7 @@ struct SystemLinkContext
     HINSTANCE                hInstance       = nullptr;
     ActiveInstanceContainer* ActiveInstances = nullptr;
     OmniRouter&              Router;
+    OmniSpatialRouter&       SpatialRouter;
     OmniGraphicsContext&     GraphicsContext;
     SystemCaptureStreams&    CaptureStreams;
 

@@ -40,17 +40,20 @@ struct SystemCaptureStreams
     // LastMoveMsgTime is for stream window drag move event smoothing to avoid flooding.
     struct WindowStreamContext
     {
-        OmniSystemLink*          SysLink         = nullptr;
-        OmniNetSession<OmniMTU>* Session         = nullptr;
-        DeviceMap                DeviceID        = DeviceMap::C0;
-        SubStreamID              WindowKey       = 0;
-        HWND                     WindowHwnd      = NULL;
-        int                      LastX           = INT_MIN;
-        int                      LastY           = INT_MIN;
-        int                      LastSentX       = INT_MIN;
-        int                      LastSentY       = INT_MIN;
-        DWORD                    LastMoveMsgTime = 0;
-        EdgeSpatiality           SpatialState    = EdgeSpatiality::Local;
+        SystemCaptureStreams*                             Streams       = nullptr;
+        OmniNetSession<OmniMTU>*                          Session       = nullptr;
+        OmniSpatialRouter*                                SpatialRouter = nullptr;
+        OmniRouter*                                       Router        = nullptr;
+        std::function<void(DeviceMap, SubStreamID, bool)> ReleaseSubStream;
+        DeviceMap                                         DeviceID        = DeviceMap::C0;
+        SubStreamID                                       WindowKey       = 0;
+        HWND                                              WindowHwnd      = NULL;
+        int                                               LastX           = INT_MIN;
+        int                                               LastY           = INT_MIN;
+        int                                               LastSentX       = INT_MIN;
+        int                                               LastSentY       = INT_MIN;
+        DWORD                                             LastMoveMsgTime = 0;
+        EdgeSpatiality                                    SpatialState    = EdgeSpatiality::Local;
     };
 
     std::unordered_map<SubStreamID, std::unique_ptr<WindowStreamContext>> StreamContexts;
@@ -67,21 +70,12 @@ struct SystemCaptureStreams
     );
 
     // Sends a Window Resize Event packet over the network.. the end..
-    void TransmitWindowResizeEvent(
-        SystemLinkContext& Ctx,
-        SubStreamID        WindowKey,
-        DeviceMap          DeviceID,
-        uint32_t           NewWidth,
-        uint32_t           NewHeight
-    );
-
-    // Sends a stream control packet over the network
-    void TransmitStreamControlEvent(
-        SystemLinkContext& Ctx,
-        SubStreamID        StreamKey,
-        DeviceMap          DeviceID,
-        StreamControl      Command,
-        uint32_t           Param = 0
+    void TransmitWindowResize(
+        OmniNetSession<OmniMTU>* Session,
+        SubStreamID              WindowKey,
+        DeviceMap                DeviceID,
+        uint32_t                 Width,
+        uint32_t                 Height
     );
 
     // Processes stream control packets received from the peer
@@ -95,7 +89,8 @@ struct SystemCaptureStreams
     void OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID);
 
     // Requests an IDR keyframe from the remote sender
-    void RequestStreamIDR(SystemLinkContext& Ctx, SubStreamID WindowKey, DeviceMap DeviceID);
+    void
+    RequestStreamIDR(OmniNetSession<OmniMTU>* Session, SubStreamID WindowKey, DeviceMap DeviceID);
 
     // Base function to create an async WinForge stream window.
     StreamWindow* CreateStreamWindow(
@@ -106,7 +101,11 @@ struct SystemCaptureStreams
 
     // Handles the OnClose event of a stream window, closes the sub stream, destroys the window.
     // FYI it's delegating work to a thread to let the window proc msg end to safely deconstruct.
-    void OnStreamWindowClose(SystemLinkContext& Ctx, SubStreamID WindowKey, DeviceMap DeviceID);
+    void OnStreamWindowClose(
+        std::function<void(DeviceMap, SubStreamID, bool)> ReleaseSubStream,
+        SubStreamID                                       WindowKey,
+        DeviceMap                                         DeviceID
+    );
 
     // Processes Window Resize Events for both ends, simply looks up the correct HWND and resizes
     void HandleStreamWindowResize(const OmniWinResizePacket Packet);
@@ -124,7 +123,6 @@ struct SystemCaptureStreams
     // Returns the StreamWindow's populated frame buffer PoolConfig
     // Frame bytes are expected to be written to the pool after which gets decoded and rendered
     OmniNet::PoolConfig SetupStreamRenderWindow(
-        OmniSystemLink*    SysLink,
         SystemLinkContext& Ctx,
         SubStreamID        SubStreamID,
         DeviceMap          DeviceID,
@@ -140,5 +138,3 @@ struct SystemCaptureStreams
 
     OmniNet::PoolConfig GetStreamWindowPoolConfig(SubStreamID SubStreamID);
 };
-
-using SystemVideoStream = SystemCaptureStreams;

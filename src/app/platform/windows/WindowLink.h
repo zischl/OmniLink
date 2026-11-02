@@ -13,8 +13,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-struct OmniSystemLink;
-
 struct SystemWindowLink
 {
     // Feature Class Instance for Drag Detection
@@ -93,6 +91,9 @@ struct SystemWindowLink
         SystemLinkContext& Ctx, HWND Hwnd, DeviceMap TargetDevice, WinDragAction Action
     );
 
+    // Handles the window drag grab when cursor returns from client to host with left mouse down
+    void HandleReturningWindow(DeviceMap DeviceID);
+
     // Centers a window on the desktop given the target HWND, self explanatory..
     void CenterWindowOnDesktop(HWND TargetHwnd);
 
@@ -107,7 +108,6 @@ struct SystemWindowLink
     size_t RecallAllStreamingWindows(SystemLinkContext& Ctx);
 
     OmniNet::PoolConfig SetState(
-        OmniSystemLink*    SysLink,
         SystemLinkContext& Ctx,
         DeviceMap          DeviceID,
         FeatureActionRoute Route,

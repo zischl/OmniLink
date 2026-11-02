@@ -12,9 +12,10 @@ OmniSystemLink::~OmniSystemLink() {}
 
 void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND WindowID_)
 {
-    hInstance = hInstance_;
-    nCmdShow  = nCmdShow_;
-    WindowID  = WindowID_;
+    hInstance                 = hInstance_;
+    nCmdShow                  = nCmdShow_;
+    WindowID                  = WindowID_;
+    Clipboard.ActiveInstances = ActiveInstances;
     Input.Setup(WindowID_);
     OmniRouter.SetResolution(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     Logger::log(

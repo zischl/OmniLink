@@ -59,20 +59,15 @@ OmniStreamer::StreamID SystemCaptureStreams::AddCaptureStream(
     );
 }
 
-void SystemCaptureStreams::TransmitWindowResizeEvent(
-    SystemLinkContext& Ctx,
-    SubStreamID        WindowKey,
-    DeviceMap          DeviceID,
-    uint32_t           Width,
-    uint32_t           Height
+void SystemCaptureStreams::TransmitWindowResize(
+    OmniNetSession<OmniMTU>* NetSession,
+    SubStreamID              WindowKey,
+    DeviceMap                DeviceID,
+    uint32_t                 Width,
+    uint32_t                 Height
 )
 {
-    if (!Ctx.ActiveInstances || !Ctx.ActiveInstances->contains(DeviceID)) {
-        return;
-    }
-
-    OmniActiveInstance& Instance = Ctx.ActiveInstances->at(DeviceID);
-    if (!Instance.InstanceSession) {
+    if (!NetSession) {
         return;
     }
 
@@ -86,9 +81,7 @@ void SystemCaptureStreams::TransmitWindowResizeEvent(
     Header.Target     = 0;
     Header.Flags      = 0;
 
-    Instance.InstanceSession->SessionSend(
-        reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinResizePacket), Header
-    );
+    NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinResizePacket), Header);
 
     Logger::log(
         "WindowResizeEvent sent to WindowKey={:d}, TargetDevice={:d}, NewSize={}x{}",
@@ -96,39 +89,6 @@ void SystemCaptureStreams::TransmitWindowResizeEvent(
         static_cast<int>(DeviceID),
         Width,
         Height
-    );
-}
-
-void SystemCaptureStreams::TransmitStreamControlEvent(
-    SystemLinkContext& Ctx,
-    SubStreamID        StreamKey,
-    DeviceMap          DeviceID,
-    StreamControl      Command,
-    uint32_t           Param
-)
-{
-    if (!Ctx.ActiveInstances || !Ctx.ActiveInstances->contains(DeviceID)) {
-        return;
-    }
-
-    OmniActiveInstance& Instance = Ctx.ActiveInstances->at(DeviceID);
-    if (!Instance.InstanceSession) {
-        return;
-    }
-
-    OmniStreamControlPacket Packet{};
-    Packet.StreamKey = StreamKey;
-    Packet.Command   = Command;
-    Packet.Reserved  = 0;
-    Packet.Param     = Param;
-
-    OmniNet::OmniHeader Header{};
-    Header.PacketType = OmniNet::PacketType::ProcStreamControl;
-    Header.Target     = 0;
-    Header.Flags      = 0;
-
-    Instance.InstanceSession->SessionSend(
-        reinterpret_cast<CHAR*>(&Packet), sizeof(OmniStreamControlPacket), Header
     );
 }
 
@@ -142,10 +102,26 @@ void SystemCaptureStreams::OnStreamWindowReady(SubStreamID WindowKey, DeviceMap 
 }
 
 void SystemCaptureStreams::RequestStreamIDR(
-    SystemLinkContext& Ctx, SubStreamID WindowKey, DeviceMap DeviceID
+    OmniNetSession<OmniMTU>* NetSession, SubStreamID WindowKey, DeviceMap DeviceID
 )
 {
-    TransmitStreamControlEvent(Ctx, WindowKey, DeviceID, StreamControl::RequestIDR);
+    if (!NetSession) {
+        return;
+    }
+
+    OmniStreamControlPacket Packet{};
+    Packet.StreamKey = WindowKey;
+    Packet.Command   = StreamControl::RequestIDR;
+    Packet.Param     = 0;
+
+    OmniNet::OmniHeader Header{};
+    Header.PacketType = OmniNet::PacketType::ProcStreamControl;
+    Header.Target     = 0;
+    Header.Flags      = 0;
+
+    NetSession->SessionSend(
+        reinterpret_cast<CHAR*>(&Packet), sizeof(OmniStreamControlPacket), Header
+    );
 }
 
 StreamWindow* SystemCaptureStreams::CreateStreamWindow(
@@ -170,12 +146,14 @@ StreamWindow* SystemCaptureStreams::CreateStreamWindow(
 }
 
 void SystemCaptureStreams::OnStreamWindowClose(
-    SystemLinkContext& Ctx, SubStreamID WindowKey, DeviceMap DeviceID
+    std::function<void(DeviceMap, SubStreamID, bool)> ReleaseSubStream,
+    SubStreamID                                       WindowKey,
+    DeviceMap                                         DeviceID
 )
 {
-    std::thread([this, &Ctx, WindowKey, DeviceID]() {
-        if (Ctx.ReleaseSubStream) {
-            Ctx.ReleaseSubStream(DeviceID, WindowKey, true);
+    std::thread([this, ReleaseSubStream, WindowKey, DeviceID]() {
+        if (ReleaseSubStream) {
+            ReleaseSubStream(DeviceID, WindowKey, true);
         }
         DestroyStreamRenderWindow(WindowKey);
     }).detach();
@@ -228,41 +206,47 @@ static void StreamWindowOnKeyInput(void* Ctx, const OmniKeyPacket& Packet)
 static void StreamWindowOnResize(void* Ctx, uint32_t NewWidth, uint32_t NewHeight)
 {
     auto* StreamContext = static_cast<SystemCaptureStreams::WindowStreamContext*>(Ctx);
-    if (!StreamContext || !StreamContext->SysLink)
+    if (!StreamContext || !StreamContext->Streams || !StreamContext->Session)
         return;
 
     if (StreamContext->SpatialState == EdgeSpatiality::Remote)
         return;
 
-    StreamContext->SysLink->TransmitWindowResizeEvent(
-        StreamContext->WindowKey, StreamContext->DeviceID, NewWidth, NewHeight
+    StreamContext->Streams->TransmitWindowResize(
+        StreamContext->Session,
+        StreamContext->WindowKey,
+        StreamContext->DeviceID,
+        NewWidth,
+        NewHeight
     );
-    StreamContext->SysLink->RequestStreamIDR(StreamContext->WindowKey, StreamContext->DeviceID);
+    StreamContext->Streams->RequestStreamIDR(
+        StreamContext->Session, StreamContext->WindowKey, StreamContext->DeviceID
+    );
 }
 
 static void StreamWindowOnDecoderReady(void* Ctx)
 {
     auto* StreamContext = static_cast<SystemCaptureStreams::WindowStreamContext*>(Ctx);
-    if (!StreamContext || !StreamContext->SysLink)
+    if (!StreamContext || !StreamContext->Streams)
         return;
 
     if (!StreamContext->WindowHwnd) {
         auto IterStreamWindows =
-            StreamContext->SysLink->CaptureStreams.StreamWindowRegistry.find(StreamContext->WindowKey);
-        if (IterStreamWindows != StreamContext->SysLink->CaptureStreams.StreamWindowRegistry.end() &&
+            StreamContext->Streams->StreamWindowRegistry.find(StreamContext->WindowKey);
+        if (IterStreamWindows != StreamContext->Streams->StreamWindowRegistry.end() &&
             IterStreamWindows->second) {
             StreamContext->WindowHwnd = IterStreamWindows->second->GetHwnd();
         }
     }
-    StreamContext->SysLink->OnStreamWindowReady(StreamContext->WindowKey, StreamContext->DeviceID);
+    StreamContext->Streams->OnStreamWindowReady(StreamContext->WindowKey, StreamContext->DeviceID);
 }
 
 static void StreamWindowOnWindowClose(void* Ctx)
 {
     auto* StreamContext = static_cast<SystemCaptureStreams::WindowStreamContext*>(Ctx);
-    if (StreamContext && StreamContext->SysLink) {
-        StreamContext->SysLink->OnStreamWindowClose(
-            StreamContext->WindowKey, StreamContext->DeviceID
+    if (StreamContext && StreamContext->Streams) {
+        StreamContext->Streams->OnStreamWindowClose(
+            StreamContext->ReleaseSubStream, StreamContext->WindowKey, StreamContext->DeviceID
         );
     }
 }
@@ -270,7 +254,7 @@ static void StreamWindowOnWindowClose(void* Ctx)
 static void StreamWindowOnWindowDragMove(void* Ctx, int CurrentX, int CurrentY)
 {
     auto* StreamContext = static_cast<SystemCaptureStreams::WindowStreamContext*>(Ctx);
-    if (!StreamContext || !StreamContext->Session || !StreamContext->SysLink)
+    if (!StreamContext || !StreamContext->Session || !StreamContext->SpatialRouter)
         return;
 
     if (CurrentX == StreamContext->LastSentX && CurrentY == StreamContext->LastSentY)
@@ -284,47 +268,29 @@ static void StreamWindowOnWindowDragMove(void* Ctx, int CurrentX, int CurrentY)
     StreamContext->LastSentX       = CurrentX;
     StreamContext->LastSentY       = CurrentY;
 
-    DeviceMap ReverseEdge = ComputeRelativeSpartialID(StreamContext->DeviceID, DeviceMap::C0);
+    DeviceMap ReverseEdge = ComputeRelativeSpatialID(StreamContext->DeviceID, DeviceMap::C0);
 
     uint32_t ClientResW =
-        StreamContext->SysLink->OmniRouter.ResWidth.load(std::memory_order_relaxed);
-    uint32_t ClientResH =
-        StreamContext->SysLink->OmniRouter.ResHeight.load(std::memory_order_relaxed);
+        StreamContext->Router ? StreamContext->Router->ResWidth.load(std::memory_order_relaxed) : 0;
+    uint32_t ClientResH = StreamContext->Router
+                              ? StreamContext->Router->ResHeight.load(std::memory_order_relaxed)
+                              : 0;
     if (ClientResW == 0)
         ClientResW = GetSystemMetrics(SM_CXSCREEN);
     if (ClientResH == 0)
         ClientResH = GetSystemMetrics(SM_CYSCREEN);
 
-    // Temporary.. will be replaced by the Unified Spatial Router for overlap detection
-    bool OverlapState = false;
-    switch (ReverseEdge) {
-    case DeviceMap::L1:
-    case DeviceMap::LU1:
-    case DeviceMap::LD1:
-        OverlapState = (CurrentX < 0);
-        break;
-    case DeviceMap::R1:
-    case DeviceMap::RU1:
-    case DeviceMap::RD1:
-        OverlapState = (CurrentX > static_cast<int>(ClientResW));
-        break;
-    case DeviceMap::U1:
-        OverlapState = (CurrentY < 0);
-        break;
-    case DeviceMap::D1:
-        OverlapState = (CurrentY > static_cast<int>(ClientResH));
-        break;
-    default:
-        OverlapState = (CurrentX < 0);
-        break;
-    }
+    RECT ClientWindowRect{CurrentX, CurrentY, CurrentX + 1, CurrentY + 1};
+    bool OverlapState =
+        (StreamContext->SpatialRouter->EvaluateWindow(ClientWindowRect) == ReverseEdge);
 
     if (OverlapState) {
         StreamContext->SpatialState = EdgeSpatiality::InTransit;
 
         int16_t PacketX = 0, PacketY = 0;
-        RECT    ClientWindowRect{CurrentX, CurrentY, CurrentX + 1, CurrentY + 1};
-        EncodeEdgePosition(ReverseEdge, ClientWindowRect, ClientResW, ClientResH, PacketX, PacketY);
+        OmniSpatialRouter::EncodeEdgePosition(
+            ReverseEdge, ClientWindowRect, ClientResW, ClientResH, PacketX, PacketY
+        );
 
         OmniWinDragPacket MovePacket{};
         MovePacket.Action   = WinDragAction::Move;
@@ -340,6 +306,28 @@ static void StreamWindowOnWindowDragMove(void* Ctx, int CurrentX, int CurrentY)
         StreamContext->Session->SessionSend(
             reinterpret_cast<CHAR*>(&MovePacket), sizeof(OmniWinDragPacket), Header
         );
+
+        POINT CursorPoint{};
+        GetCursorPos(&CursorPoint);
+        bool CursorEdge =
+            (StreamContext->SpatialRouter->Evaluate(CursorPoint.x, CursorPoint.y) == ReverseEdge);
+
+        if (CursorEdge) {
+            StreamContext->SpatialState = EdgeSpatiality::Remote;
+            ReleaseCapture();
+            HWND TargetRenderHwnd = StreamContext->WindowHwnd;
+            if (!TargetRenderHwnd) {
+                auto IterStreamWindows =
+                    StreamContext->Streams->StreamWindowRegistry.find(StreamContext->WindowKey);
+                if (IterStreamWindows != StreamContext->Streams->StreamWindowRegistry.end() &&
+                    IterStreamWindows->second) {
+                    TargetRenderHwnd = IterStreamWindows->second->GetHwnd();
+                }
+            }
+            if (TargetRenderHwnd && IsWindow(TargetRenderHwnd)) {
+                ShowWindow(TargetRenderHwnd, SW_HIDE);
+            }
+        }
 
     } else if (StreamContext->SpatialState == EdgeSpatiality::InTransit) {
         // Window just cleared the edge onto the Client screen —
@@ -383,7 +371,7 @@ static void StreamWindowOnWindowDragRelease(void* Ctx, int FinalX, int FinalY)
     OmniWinDragPacket DropPacket{};
     DropPacket.Action   = WinDragAction::Drop;
     DropPacket.WindowID = StreamContext->WindowKey;
-    DropPacket.Edge     = ComputeRelativeSpartialID(StreamContext->DeviceID, DeviceMap::C0);
+    DropPacket.Edge     = ComputeRelativeSpatialID(StreamContext->DeviceID, DeviceMap::C0);
     DropPacket.WindowX  = static_cast<int16_t>(FinalX);
     DropPacket.WindowY  = static_cast<int16_t>(FinalY);
 
@@ -397,7 +385,6 @@ static void StreamWindowOnWindowDragRelease(void* Ctx, int FinalX, int FinalY)
 }
 
 OmniNet::PoolConfig SystemCaptureStreams::SetupStreamRenderWindow(
-    OmniSystemLink*    SysLink,
     SystemLinkContext& Ctx,
     SubStreamID        SubStreamID,
     DeviceMap          DeviceID,
@@ -449,11 +436,14 @@ OmniNet::PoolConfig SystemCaptureStreams::SetupStreamRenderWindow(
         }
 
         auto StreamerContext = std::make_unique<WindowStreamContext>(WindowStreamContext{
-            .SysLink    = SysLink,
-            .Session    = NetSession,
-            .DeviceID   = DeviceID,
-            .WindowKey  = SubStreamID,
-            .WindowHwnd = WindowHwnd
+            .Streams          = this,
+            .Session          = NetSession,
+            .SpatialRouter    = &Ctx.SpatialRouter,
+            .Router           = &Ctx.Router,
+            .ReleaseSubStream = Ctx.ReleaseSubStream,
+            .DeviceID         = DeviceID,
+            .WindowKey        = SubStreamID,
+            .WindowHwnd       = WindowHwnd
         });
         WindowStreamContext* ContextRawPtr = StreamerContext.get();
         StreamContexts[SubStreamID]        = std::move(StreamerContext);

@@ -4,8 +4,8 @@
 #include "OmniRouterContext.hpp"
 #include "SessionHandler.hpp"
 
-SystemInputLink::SystemInputLink(OmniRouter& Router)
-    : InputLinkCtx(Router), InputLink(InputLinkCtx), InputFilter(InputLinkCtx),
+SystemInputLink::SystemInputLink(OmniRouter& Router, OmniSpatialRouter& SpatialRouter)
+    : InputLinkCtx(Router), InputLink(InputLinkCtx, SpatialRouter), InputFilter(InputLinkCtx),
       InputSynth(InputLink, InputLinkCtx)
 {
 }
@@ -25,7 +25,7 @@ void SystemInputLink::BindIOLinkSession(SystemLinkContext& Ctx, DeviceMap Device
     if (Ctx.ActiveInstances && Ctx.ActiveInstances->contains(DeviceID)) {
         auto& instance = Ctx.ActiveInstances->at(DeviceID);
         Ctx.Router.RegisterSession(DeviceID, instance.InstanceSession.get());
-        InputLink.AddEdgeCondition(DeviceID);
+        InputLink.SpatialRouter.AddEdgeCondition(DeviceID);
         if (!InputLink.GetEdgeProbeState())
             InputLink.ToggleEdgeProbe();
 
@@ -45,7 +45,7 @@ void SystemInputLink::UnbindIOLinkSession(SystemLinkContext& Ctx, DeviceMap Devi
         InputLink.ResetEdgeRelayMask();
     }
 
-    InputLink.ConditionManager.RemoveEdgeCondition(DeviceID);
+    InputLink.SpatialRouter.RemoveEdgeCondition(DeviceID);
 
     ToggleInputFilter();
 }
@@ -72,13 +72,13 @@ OmniNet::PoolConfig SystemInputLink::SetState(
     (void)Route;
     (void)Context;
     if (Action == FeatureAction::Activate) {
-        if (!InputLink.ConditionManager.GetState(DeviceID)) {
+        if (!InputLink.SpatialRouter.GetState(DeviceID)) {
             InputLink.SetupInputLink(Ctx.WindowID);
             BindIOLinkSession(Ctx, DeviceID);
             Logger::log("InputLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
         }
     } else {
-        if (InputLink.ConditionManager.GetState(DeviceID) ||
+        if (InputLink.SpatialRouter.GetState(DeviceID) ||
             InputLinkCtx.ActiveRemoteEdge.load(std::memory_order_acquire) == DeviceID ||
             InputLink.CursorOwner.load(std::memory_order_acquire) == DeviceID) {
             UnbindIOLinkSession(Ctx, DeviceID);

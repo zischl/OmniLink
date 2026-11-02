@@ -5,6 +5,7 @@
 #include "OmniLogger.hpp"
 #include "OmniRouterContext.hpp"
 #include "SessionHandler.hpp"
+#include "SpatialRouter.hpp"
 #include "SubStream.hpp"
 #include "SystemLink.h"
 #include "WinForge.hpp"
@@ -57,7 +58,8 @@ OmniStreamer::StreamID SystemWindowLink::StartWindowCaptureStream(
     Config.Width    = static_cast<uint32_t>(rect.right - rect.left);
     Config.Height   = static_cast<uint32_t>(rect.bottom - rect.top);
     Config.OnResize = [this, &Ctx, DeviceID, SubStreamID](uint32_t Width, uint32_t Height) {
-        Ctx.CaptureStreams.TransmitWindowResizeEvent(Ctx, SubStreamID, DeviceID, Width, Height);
+        auto* NetSession = Ctx.Router.GetWindowSession(DeviceID);
+        Ctx.CaptureStreams.TransmitWindowResize(NetSession, SubStreamID, DeviceID, Width, Height);
     };
     Config.OnClose = [this, &Ctx, DeviceID, SubStreamID]() {
         Logger::log(
@@ -253,7 +255,7 @@ void SystemWindowLink::HandleStreamSourceDrag(
             LocalResH = GetSystemMetrics(SM_CYSCREEN);
 
         int TargetX = 0, TargetY = 0;
-        DecodeEdgePosition(
+        OmniSpatialRouter::DecodeEdgePosition(
             Packet.Edge, Packet.WindowX, Packet.WindowY, LocalResW, LocalResH, TargetX, TargetY
         );
 
@@ -297,7 +299,7 @@ void SystemWindowLink::HandleStreamClientDrag(
         LocalResH = GetSystemMetrics(SM_CYSCREEN);
 
     int TargetX = 0, TargetY = 0;
-    DecodeEdgePosition(
+    OmniSpatialRouter::DecodeEdgePosition(
         Packet.Edge, Packet.WindowX, Packet.WindowY, LocalResW, LocalResH, TargetX, TargetY
     );
 
@@ -307,7 +309,6 @@ void SystemWindowLink::HandleStreamClientDrag(
         if (IterStreamWindows == Ctx.CaptureStreams.StreamWindowRegistry.end() ||
             !IterStreamWindows->second) {
             OmniNet::PoolConfig PoolConfig = Ctx.CaptureStreams.SetupStreamRenderWindow(
-                nullptr,
                 Ctx,
                 Packet.WindowID,
                 DeviceID,
@@ -473,45 +474,6 @@ size_t SystemWindowLink::RecallAllStreamingWindows(SystemLinkContext& Ctx)
     return RecalledCount;
 }
 
-// Grid-based edge resolver used by HandleWindowDragMove.
-// Classifies the window's position on a 3x3 zone grid relative to local resolution and
-// returns the first registered window session found for the active edge.
-// Swapped out wholesale by the Unified Spatial Router when it arrives.
-static DeviceMap ResolveWindowEdge(
-    OmniRouter&               Router,
-    const RECT&               WindowPos,
-    uint32_t                  ResW,
-    uint32_t                  ResH,
-    OmniNetSession<OmniMTU>*& OutSession
-)
-{
-    OutSession = nullptr;
-
-    static constexpr DeviceMap Grid[3][3] = {
-        {DeviceMap::LU1, DeviceMap::U1, DeviceMap::RU1},
-        {DeviceMap::L1, DeviceMap::C0, DeviceMap::R1},
-        {DeviceMap::LD1, DeviceMap::D1, DeviceMap::RD1}
-    };
-
-    const int Column =
-        (WindowPos.right > static_cast<int>(ResW)) ? 2 : ((WindowPos.left < 0) ? 0 : 1);
-    const int Row = (WindowPos.top < 0) ? 0 : ((WindowPos.bottom > static_cast<int>(ResH)) ? 2 : 1);
-
-    const DeviceMap Candidate = Grid[Row][Column];
-    if (Candidate != DeviceMap::C0 && (OutSession = Router.GetWindowSession(Candidate))) {
-        return Candidate;
-    }
-
-    if (Row != 1 && Column != 1) {
-        if ((OutSession = Router.GetWindowSession(Grid[1][Column])))
-            return Grid[1][Column];
-        if ((OutSession = Router.GetWindowSession(Grid[Row][1])))
-            return Grid[Row][1];
-    }
-
-    return DeviceMap::C0;
-}
-
 void SystemWindowLink::HandleWindowDragMove(
     SystemLinkContext& Ctx, HWND Hwnd, const RECT& WindowPos, POINT CursorPos
 )
@@ -531,9 +493,10 @@ void SystemWindowLink::HandleWindowDragMove(
     if (DragState.ResH == 0)
         DragState.ResH = GetSystemMetrics(SM_CYSCREEN);
 
-    OmniNetSession<OmniMTU>* NetSession = nullptr;
-    DeviceMap                ActiveEdge =
-        ResolveWindowEdge(Ctx.Router, WindowPos, DragState.ResW, DragState.ResH, NetSession);
+    DeviceMap ActiveEdge = Ctx.SpatialRouter.EvaluateWindow(WindowPos);
+
+    OmniNetSession<OmniMTU>* NetSession =
+        (ActiveEdge != DeviceMap::C0) ? Ctx.Router.GetWindowSession(ActiveEdge) : nullptr;
 
     const bool ModifierHeld = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) ||
                               ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
@@ -549,7 +512,9 @@ void SystemWindowLink::HandleWindowDragMove(
     if (ActiveEdge != DeviceMap::C0 && NetSession) {
         int16_t RatioX = 0;
         int16_t RatioY = 0;
-        EncodeEdgePosition(ActiveEdge, WindowPos, DragState.ResW, DragState.ResH, RatioX, RatioY);
+        OmniSpatialRouter::EncodeEdgePosition(
+            ActiveEdge, WindowPos, DragState.ResW, DragState.ResH, RatioX, RatioY
+        );
 
         OmniNet::OmniHeader Header;
         Header.Target     = 0;
@@ -620,7 +585,7 @@ void SystemWindowLink::HandleWindowDragEnd(SystemLinkContext& Ctx, HWND Hwnd)
 
         int16_t RatioX = 0;
         int16_t RatioY = 0;
-        EncodeEdgePosition(
+        OmniSpatialRouter::EncodeEdgePosition(
             DragState.ActiveEdge, FinalPos, DragState.ResW, DragState.ResH, RatioX, RatioY
         );
 
@@ -657,8 +622,18 @@ void SystemWindowLink::HandleWindowDragEnd(SystemLinkContext& Ctx, HWND Hwnd)
     }
 }
 
+void SystemWindowLink::HandleReturningWindow(DeviceMap DeviceID)
+{
+    auto IterReturners = ActiveReturningWindows.find(DeviceID);
+    if (IterReturners != ActiveReturningWindows.end() && IterReturners->second &&
+        IsWindow(IterReturners->second)) {
+        HWND ReturningHwnd = IterReturners->second;
+        ActiveReturningWindows.erase(IterReturners);
+        PostMessage(ReturningHwnd, WM_SYSCOMMAND, 0xF012, 0);
+    }
+}
+
 OmniNet::PoolConfig SystemWindowLink::SetState(
-    OmniSystemLink*    SysLink,
     SystemLinkContext& Ctx,
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
@@ -684,13 +659,11 @@ OmniNet::PoolConfig SystemWindowLink::SetState(
                 DragLink.WindowExclusionCheck = [this](HWND Hwnd) {
                     return Hwnd2SubStreamRegistry.contains(Hwnd);
                 };
-                DragLink.OnDragMove = [this,
-                                       SysLink](HWND Hwnd, const RECT& WindowPos, POINT CursorPos) {
-                    auto Ctx = SysLink->GetContext();
-                    HandleWindowDragMove(Ctx, Hwnd, WindowPos, CursorPos);
-                };
-                DragLink.OnDragEnd = [this, SysLink](HWND Hwnd) {
-                    auto Ctx = SysLink->GetContext();
+                DragLink.OnDragMove =
+                    [this, Ctx](HWND Hwnd, const RECT& WindowPos, POINT CursorPos) mutable {
+                        HandleWindowDragMove(Ctx, Hwnd, WindowPos, CursorPos);
+                    };
+                DragLink.OnDragEnd = [this, Ctx](HWND Hwnd) mutable {
                     HandleWindowDragEnd(Ctx, Hwnd);
                 };
                 DragLink.WindowMoveListener(true);
