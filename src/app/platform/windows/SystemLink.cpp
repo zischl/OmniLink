@@ -1346,6 +1346,206 @@ OmniNet::PoolConfig OmniSystemLink::SetScreenLinkState(
     return OmniNet::PoolConfig{};
 }
 
+// Grid-based edge resolver used by HandleWindowDragMove.
+// Classifies the window's position on a 3x3 zone grid relative to local resolution and
+// returns the first registered window session found for the active edge.
+// Swapped out wholesale by the Unified Spatial Router when it arrives.
+static DeviceMap ResolveWindowEdge(
+    OmniRouter&               Router,
+    const RECT&               WindowPos,
+    uint32_t                  ResW,
+    uint32_t                  ResH,
+    OmniNetSession<OmniMTU>*& OutSession
+)
+{
+    OutSession = nullptr;
+
+    static constexpr DeviceMap Grid[3][3] = {
+        {DeviceMap::LU1, DeviceMap::U1, DeviceMap::RU1},
+        {DeviceMap::L1, DeviceMap::C0, DeviceMap::R1},
+        {DeviceMap::LD1, DeviceMap::D1, DeviceMap::RD1}
+    };
+
+    const int Column =
+        (WindowPos.right > static_cast<int>(ResW)) ? 2 : ((WindowPos.left < 0) ? 0 : 1);
+    const int Row = (WindowPos.top < 0) ? 0 : ((WindowPos.bottom > static_cast<int>(ResH)) ? 2 : 1);
+
+    const DeviceMap Candidate = Grid[Row][Column];
+    if (Candidate != DeviceMap::C0 && (OutSession = Router.GetWindowSession(Candidate))) {
+        return Candidate;
+    }
+
+    if (Row != 1 && Column != 1) {
+        if ((OutSession = Router.GetWindowSession(Grid[1][Column])))
+            return Grid[1][Column];
+        if ((OutSession = Router.GetWindowSession(Grid[Row][1])))
+            return Grid[Row][1];
+    }
+
+    return DeviceMap::C0;
+}
+
+void OmniSystemLink::HandleWindowDragMove(HWND Hwnd, const RECT& WindowPos, POINT CursorPos)
+{
+    // Latch grip offset while the window is still local (may update each tick until edge cross)
+    if (DragState.SpatialState == EdgeSpatiality::Local) {
+        DragState.GripX = CursorPos.x - WindowPos.left;
+        DragState.GripY = CursorPos.y - WindowPos.top;
+    }
+
+    DragState.LastWindowPos = WindowPos;
+
+    DragState.ResW = OmniRouter.ResWidth.load(std::memory_order_relaxed);
+    DragState.ResH = OmniRouter.ResHeight.load(std::memory_order_relaxed);
+    if (DragState.ResW == 0)
+        DragState.ResW = GetSystemMetrics(SM_CXSCREEN);
+    if (DragState.ResH == 0)
+        DragState.ResH = GetSystemMetrics(SM_CYSCREEN);
+
+    OmniNetSession<OmniMTU>* NetSession = nullptr;
+    DeviceMap                ActiveEdge =
+        ResolveWindowEdge(OmniRouter, WindowPos, DragState.ResW, DragState.ResH, NetSession);
+
+    const bool ModifierHeld = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) ||
+                              ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
+
+    if (DragState.SpatialState == EdgeSpatiality::Local && !ModifierHeld) {
+        ActiveEdge = DeviceMap::C0;
+        NetSession = nullptr;
+    }
+
+    const int WindowWidth  = WindowPos.right - WindowPos.left;
+    const int WindowHeight = WindowPos.bottom - WindowPos.top;
+
+    if (NetSession) {
+        // If transitioning directly from one remote edge to another,
+        // gotta cancel the old one first
+        if (DragState.SpatialState == EdgeSpatiality::InTransit &&
+            DragState.ActiveEdge != ActiveEdge) {
+            auto* OldSession = OmniRouter.GetWindowSession(DragState.ActiveEdge);
+            if (OldSession) {
+                OmniNet::OmniHeader CancelHeader;
+                CancelHeader.Target     = 0;
+                CancelHeader.PacketType = OmniNet::PacketType::ProcWinDrag;
+                CancelHeader.Flags      = 0;
+
+                OmniWinDragPacket CancelPacket = {};
+                CancelPacket.Action            = WinDragAction::Cancel;
+                CancelPacket.Edge              = DragState.ActiveEdge;
+                CancelPacket.WindowID          = DragState.WindowID;
+                OldSession->SessionSend(
+                    reinterpret_cast<CHAR*>(&CancelPacket), sizeof(OmniWinDragPacket), CancelHeader
+                );
+            }
+            HandleWindowDragEvent(Hwnd, DragState.ActiveEdge, WinDragAction::Cancel);
+            DragState.WindowID     = 0;
+            DragState.SpatialState = EdgeSpatiality::Local;
+        }
+
+        int16_t PacketX = 0;
+        int16_t PacketY = 0;
+        EncodeEdgePosition(ActiveEdge, WindowPos, DragState.ResW, DragState.ResH, PacketX, PacketY);
+
+        OmniNet::OmniHeader Header;
+        Header.Target     = 0;
+        Header.PacketType = OmniNet::PacketType::ProcWinDrag;
+        Header.Flags      = 0;
+
+        OmniWinDragPacket Packet = {};
+        Packet.Edge              = ActiveEdge;
+        Packet.WindowX           = PacketX;
+        Packet.WindowY           = PacketY;
+        Packet.WindowWidth       = static_cast<uint16_t>(WindowWidth);
+        Packet.WindowHeight      = static_cast<uint16_t>(WindowHeight);
+        Packet.CursorGripX       = static_cast<int16_t>(DragState.GripX);
+        Packet.CursorGripY       = static_cast<int16_t>(DragState.GripY);
+
+        if (DragState.SpatialState == EdgeSpatiality::Local) {
+            DragState.SpatialState = EdgeSpatiality::InTransit;
+            DragState.ActiveEdge   = ActiveEdge;
+            Packet.Action          = WinDragAction::Begin;
+            DragState.WindowID     = HandleWindowDragEvent(Hwnd, ActiveEdge, WinDragAction::Begin);
+            Packet.WindowID        = DragState.WindowID;
+            NetSession->SessionSend(
+                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
+            );
+        } else {
+            Packet.Action   = WinDragAction::Move;
+            Packet.WindowID = DragState.WindowID;
+            NetSession->SessionSend(
+                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
+            );
+        }
+    } else if (DragState.SpatialState == EdgeSpatiality::InTransit) {
+        auto* Session = OmniRouter.GetWindowSession(DragState.ActiveEdge);
+        if (Session) {
+            OmniNet::OmniHeader Header;
+            Header.Target     = 0;
+            Header.PacketType = OmniNet::PacketType::ProcWinDrag;
+            Header.Flags      = 0;
+
+            OmniWinDragPacket Packet = {};
+            Packet.Action            = WinDragAction::Cancel;
+            Packet.Edge              = DragState.ActiveEdge;
+            Packet.WindowID          = DragState.WindowID;
+            Session->SessionSend(
+                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
+            );
+        }
+        HandleWindowDragEvent(Hwnd, DragState.ActiveEdge, WinDragAction::Cancel);
+        DragState.WindowID     = 0;
+        DragState.ActiveEdge   = DeviceMap::C0;
+        DragState.SpatialState = EdgeSpatiality::Local;
+    }
+}
+
+void OmniSystemLink::HandleWindowDragEnd(HWND Hwnd)
+{
+    if (DragState.SpatialState == EdgeSpatiality::InTransit) {
+        RECT FinalPos = DragState.LastWindowPos;
+        GetWindowRect(Hwnd, &FinalPos);
+        const int WinW = FinalPos.right - FinalPos.left;
+        const int WinH = FinalPos.bottom - FinalPos.top;
+
+        int16_t RatioX = 0;
+        int16_t RatioY = 0;
+        EncodeEdgePosition(
+            DragState.ActiveEdge, FinalPos, DragState.ResW, DragState.ResH, RatioX, RatioY
+        );
+
+        auto* NetSession = OmniRouter.GetWindowSession(DragState.ActiveEdge);
+        if (NetSession) {
+            OmniNet::OmniHeader Header;
+            Header.Target     = 0;
+            Header.PacketType = OmniNet::PacketType::ProcWinDrag;
+            Header.Flags      = 0;
+
+            OmniWinDragPacket Packet = {};
+            Packet.Action            = WinDragAction::Drop;
+            Packet.Edge              = DragState.ActiveEdge;
+            Packet.WindowX           = RatioX;
+            Packet.WindowY           = RatioY;
+            Packet.WindowWidth       = static_cast<uint16_t>(WinW);
+            Packet.WindowHeight      = static_cast<uint16_t>(WinH);
+            Packet.CursorGripX       = static_cast<int16_t>(DragState.GripX);
+            Packet.CursorGripY       = static_cast<int16_t>(DragState.GripY);
+            Packet.WindowID          = DragState.WindowID;
+            NetSession->SessionSend(
+                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
+            );
+        }
+
+        HandleWindowDragEvent(Hwnd, DragState.ActiveEdge, WinDragAction::Drop);
+    }
+
+    DragState = {};
+
+    if (ReturningSourceWindows.contains(Hwnd)) {
+        ReturningSourceWindows.erase(Hwnd);
+        RecallWindow(Hwnd, false);
+    }
+}
+
 OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
@@ -1360,18 +1560,22 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
                 if (ActiveInstances && ActiveInstances->contains(DeviceID)) {
                     auto& Instance = ActiveInstances->at(DeviceID);
                     OmniRouter.RegisterWindowSession(DeviceID, Instance.InstanceSession.get());
+                } else {
+                    Logger::log(
+                        "Window Link failed to activate, DeviceID={:d} not found in "
+                        "ActiveInstances",
+                        static_cast<int>(DeviceID)
+                    );
                 }
 
-                if (OmniRouter.GetWindowSessionCount() == 1) {
-                    DragLink.WindowDragCallback =
-                        [this](HWND Hwnd, DeviceMap TargetDevice, WinDragAction WinAction) {
-                            return HandleWindowDragEvent(Hwnd, TargetDevice, WinAction);
-                        };
-                    DragLink.WindowExclusionCheck = [this](HWND Hwnd) {
-                        return Hwnd2SubStreamRegistry.contains(Hwnd);
-                    };
-                    DragLink.WindowMoveListener(true);
-                }
+                DragLink.WindowExclusionCheck = [this](HWND Hwnd) {
+                    return Hwnd2SubStreamRegistry.contains(Hwnd);
+                };
+                DragLink.OnDragMove = [this](HWND Hwnd, const RECT& WindowPos, POINT CursorPos) {
+                    HandleWindowDragMove(Hwnd, WindowPos, CursorPos);
+                };
+                DragLink.OnDragEnd = [this](HWND Hwnd) { HandleWindowDragEnd(Hwnd); };
+                DragLink.WindowMoveListener(true);
 
                 Logger::log("WindowLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
             } else {
@@ -1391,8 +1595,9 @@ OmniNet::PoolConfig OmniSystemLink::SetWindowLinkState(
 
                 if (OmniRouter.GetWindowSessionCount() == 0) {
                     DragLink.WindowMoveListener(false);
-                    DragLink.WindowDragCallback   = nullptr;
                     DragLink.WindowExclusionCheck = nullptr;
+                    DragLink.OnDragMove           = nullptr;
+                    DragLink.OnDragEnd            = nullptr;
                 }
                 Logger::log("WindowLink disabled for DeviceID {:d}", static_cast<int>(DeviceID));
             } else {

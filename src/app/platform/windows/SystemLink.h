@@ -192,6 +192,33 @@ struct OmniSystemLink
     // Processes Window Resize Events for both ends, simply looks up the correct HWND and resizes
     void HandleStreamWindowResize(const OmniWinResizePacket Packet);
 
+    // Per-drag state for the DragLink move/end handlers. Owned by the OnDragMove/OnDragEnd
+    // Callbacks wired in SetWindowLinkState.
+    // Remember to Reset at the start of each new drag via OnDragMove future me!.
+    struct WindowDragState
+    {
+        EdgeSpatiality SpatialState  = EdgeSpatiality::Local;
+        DeviceMap      ActiveEdge    = DeviceMap::C0;
+        uint16_t       WindowID      = 0;
+        int            GripX         = 0;
+        int            GripY         = 0;
+        uint32_t       ResW          = 0;
+        uint32_t       ResH          = 0;
+        RECT           LastWindowPos = {};
+    };
+    WindowDragState DragState;
+
+    // Called by DragLink.OnDragMove on each tick
+    // Resolves the active edge, maintains the Begin/Move/Cancel state machine
+    // Also.. sends the appropriate WinDrag network packets.
+    void HandleWindowDragMove(HWND Hwnd, const RECT& WindowPos, POINT CursorPos);
+
+    // Called by DragLink.OnDragEnd on mouse release
+    // sends the final Drop packet if the drag was in transit to a remote edge
+    // if this window was returning from a remote edge, recall it in-place
+    // Also.. yes.. resets drag state for the next drag
+    void HandleWindowDragEnd(HWND Hwnd);
+
     // Processes Window Mouse Events, routing either to the specific target HWND (WindowLink)
     // or falling back to full-desktop KVM (ScreenLink)
     void HandleStreamWindowMouse(const OmniWinMousePacket& Packet);
