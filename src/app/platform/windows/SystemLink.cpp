@@ -33,6 +33,7 @@ void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND W
     nCmdShow  = nCmdShow_;
     WindowID  = WindowID_;
     InputLink.SetupInputLink(WindowID_);
+    OmniRouter.SetResolution(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
 }
 
 OmniStreamer::StreamID OmniSystemLink::AddCaptureStream(
@@ -193,14 +194,34 @@ void OmniSystemLink::StopScreenCaptureStream(SubStreamID SubStreamID)
 OmniStreamer::StreamID
 OmniSystemLink::StartWindowCaptureStream(SubStreamID SubStreamID, DeviceMap DeviceID, HWND Hwnd)
 {
-    if (!Hwnd || !IsWindow(Hwnd) || !ActiveInstances || !ActiveInstances->contains(DeviceID) ||
-        SubStreamID == 0)
+    if (!Hwnd || !IsWindow(Hwnd)) {
+        Logger::log("Invalid HWND={:p}, Failed to start capture stream", static_cast<void*>(Hwnd));
         return 0;
+    }
+    if (!ActiveInstances || !ActiveInstances->contains(DeviceID)) {
+        Logger::log(
+            "DeviceID={:d} not in ActiveInstances , Failed to start capture stream"
+            "(ActiveInstances={:p})",
+            static_cast<int>(DeviceID),
+            static_cast<void*>(ActiveInstances)
+        );
+        return 0;
+    }
+    if (SubStreamID == 0) {
+        Logger::log("SubStreamID is 0, Failed to start capture stream");
+        return 0;
+    }
 
     auto&           Instance = ActiveInstances->at(DeviceID);
     SubStreamEntry* Entry    = Instance.FindSubStream(SubStreamID);
-    if (!Entry || !Entry->SubStream)
+    if (!Entry || !Entry->SubStream) {
+        Logger::log(
+            "SubStream Entry could not be found for "
+            "SubStreamID={:d}, Failed to start capture stream",
+            SubStreamID
+        );
         return 0;
+    }
 
     StreamConfig Config{};
     Config.WindowHandle = Hwnd;
@@ -227,8 +248,15 @@ OmniSystemLink::StartWindowCaptureStream(SubStreamID SubStreamID, DeviceMap Devi
 
     OmniStreamer::StreamID CaptureStreamID =
         AddCaptureStream(Entry->SubStream, DeviceID, CaptureMode::WGC_Window, Config);
-    if (CaptureStreamID == 0)
+    if (CaptureStreamID == 0) {
+        Logger::log(
+            "Failed to add a capture stream for HWND={:p}"
+            "SubStreamID={:d}",
+            static_cast<void*>(Hwnd),
+            SubStreamID
+        );
         return 0;
+    }
 
     StreamerIDRegistry[SubStreamID]       = CaptureStreamID;
     Hwnd2SubStreamRegistry[Hwnd]          = SubStreamID;
@@ -294,6 +322,219 @@ void OmniSystemLink::OnStreamWindowClose(SubStreamID WindowKey, DeviceMap Device
     }).detach();
 }
 
+static void StreamWindowOnMouseInput(void* Ctx, const OmniMousePacket& Packet)
+{
+    auto* StreamContext = static_cast<OmniSystemLink::WindowStreamContext*>(Ctx);
+    if (!StreamContext || !StreamContext->Session)
+        return;
+
+    OmniWinMousePacket WinPacket{};
+    WinPacket.SubStreamID = static_cast<uint64_t>(StreamContext->WindowKey);
+    WinPacket.NormalizedX = static_cast<uint16_t>(Packet.dX);
+    WinPacket.NormalizedY = static_cast<uint16_t>(Packet.dY);
+    WinPacket.Buttons     = Packet.Buttons;
+    WinPacket.Wheel       = Packet.Wheel;
+
+    OmniNet::OmniHeader Header;
+    Header.Target     = 0;
+    Header.PacketType = OmniNet::PacketType::ProcWinMouse;
+    Header.Flags      = 0;
+    StreamContext->Session->SessionSend(
+        reinterpret_cast<CHAR*>(&WinPacket), sizeof(OmniWinMousePacket), Header
+    );
+}
+
+static void StreamWindowOnKeyInput(void* Ctx, const OmniKeyPacket& Packet)
+{
+    auto* StreamContext = static_cast<OmniSystemLink::WindowStreamContext*>(Ctx);
+    if (!StreamContext || !StreamContext->Session)
+        return;
+
+    OmniWinKeyPacket WinPacket{};
+    WinPacket.SubStreamID = static_cast<uint64_t>(StreamContext->WindowKey);
+    WinPacket.VkCode      = Packet.VkCode;
+    WinPacket.ScanCode    = Packet.ScanCode;
+    WinPacket.Flags       = Packet.Flags;
+    WinPacket.Reserved    = 0;
+
+    OmniNet::OmniHeader Header;
+    Header.Target     = 0;
+    Header.PacketType = OmniNet::PacketType::ProcWinKey;
+    Header.Flags      = 0;
+    StreamContext->Session->SessionSend(
+        reinterpret_cast<CHAR*>(&WinPacket), sizeof(OmniWinKeyPacket), Header
+    );
+}
+
+static void StreamWindowOnResize(void* Ctx, uint32_t NewWidth, uint32_t NewHeight)
+{
+    auto* StreamContext = static_cast<OmniSystemLink::WindowStreamContext*>(Ctx);
+    if (!StreamContext || !StreamContext->SysLink)
+        return;
+
+    if (StreamContext->SpatialState == EdgeSpatiality::Remote)
+        return;
+
+    StreamContext->SysLink->TransmitWindowResizeEvent(
+        StreamContext->WindowKey, StreamContext->DeviceID, NewWidth, NewHeight
+    );
+    StreamContext->SysLink->RequestStreamIDR(StreamContext->WindowKey, StreamContext->DeviceID);
+}
+
+static void StreamWindowOnDecoderReady(void* Ctx)
+{
+    auto* StreamContext = static_cast<OmniSystemLink::WindowStreamContext*>(Ctx);
+    if (!StreamContext || !StreamContext->SysLink)
+        return;
+
+    if (!StreamContext->WindowHwnd) {
+        auto It = StreamContext->SysLink->StreamWindowRegistry.find(StreamContext->WindowKey);
+        if (It != StreamContext->SysLink->StreamWindowRegistry.end() && It->second) {
+            StreamContext->WindowHwnd = It->second->GetHwnd();
+        }
+    }
+    StreamContext->SysLink->OnStreamWindowReady(StreamContext->WindowKey, StreamContext->DeviceID);
+}
+
+static void StreamWindowOnWindowClose(void* Ctx)
+{
+    auto* StreamContext = static_cast<OmniSystemLink::WindowStreamContext*>(Ctx);
+    if (StreamContext && StreamContext->SysLink) {
+        StreamContext->SysLink->OnStreamWindowClose(
+            StreamContext->WindowKey, StreamContext->DeviceID
+        );
+    }
+}
+
+static void StreamWindowOnWindowDragMove(void* Ctx, int CurrentX, int CurrentY)
+{
+    auto* StreamContext = static_cast<OmniSystemLink::WindowStreamContext*>(Ctx);
+    if (!StreamContext || !StreamContext->Session || !StreamContext->SysLink)
+        return;
+
+    if (CurrentX == StreamContext->LastSentX && CurrentY == StreamContext->LastSentY)
+        return;
+
+    DWORD CurrentTime = GetMessageTime();
+    if (CurrentTime - StreamContext->LastMoveMsgTime < 10)
+        return;
+
+    StreamContext->LastMoveMsgTime = CurrentTime;
+    StreamContext->LastSentX       = CurrentX;
+    StreamContext->LastSentY       = CurrentY;
+
+    DeviceMap ReverseEdge = ComputeRelativeSpartialID(StreamContext->DeviceID, DeviceMap::C0);
+
+    uint32_t ClientResW =
+        StreamContext->SysLink->OmniRouter.ResWidth.load(std::memory_order_relaxed);
+    uint32_t ClientResH =
+        StreamContext->SysLink->OmniRouter.ResHeight.load(std::memory_order_relaxed);
+    if (ClientResW == 0)
+        ClientResW = GetSystemMetrics(SM_CXSCREEN);
+    if (ClientResH == 0)
+        ClientResH = GetSystemMetrics(SM_CYSCREEN);
+
+    // Temporary.. will be replaced by the Unified Spatial Router for overlap detection
+    bool OverlapState = false;
+    switch (ReverseEdge) {
+    case DeviceMap::L1:
+    case DeviceMap::LU1:
+    case DeviceMap::LD1:
+        OverlapState = (CurrentX < 0);
+        break;
+    case DeviceMap::R1:
+    case DeviceMap::RU1:
+    case DeviceMap::RD1:
+        OverlapState = (CurrentX > static_cast<int>(ClientResW));
+        break;
+    case DeviceMap::U1:
+        OverlapState = (CurrentY < 0);
+        break;
+    case DeviceMap::D1:
+        OverlapState = (CurrentY > static_cast<int>(ClientResH));
+        break;
+    default:
+        OverlapState = (CurrentX < 0);
+        break;
+    }
+
+    if (OverlapState) {
+        StreamContext->SpatialState = EdgeSpatiality::InTransit;
+
+        int16_t PacketX = 0, PacketY = 0;
+        RECT    ClientWindowRect{CurrentX, CurrentY, CurrentX + 1, CurrentY + 1};
+        EncodeEdgePosition(ReverseEdge, ClientWindowRect, ClientResW, ClientResH, PacketX, PacketY);
+
+        OmniWinDragPacket MovePacket{};
+        MovePacket.Action   = WinDragAction::Move;
+        MovePacket.WindowID = StreamContext->WindowKey;
+        MovePacket.Edge     = ReverseEdge;
+        MovePacket.WindowX  = PacketX;
+        MovePacket.WindowY  = PacketY;
+
+        OmniNet::OmniHeader Header;
+        Header.Target     = 0;
+        Header.PacketType = OmniNet::PacketType::ProcWinDrag;
+        Header.Flags      = 0;
+        StreamContext->Session->SessionSend(
+            reinterpret_cast<CHAR*>(&MovePacket), sizeof(OmniWinDragPacket), Header
+        );
+
+    } else if (StreamContext->SpatialState == EdgeSpatiality::InTransit) {
+        // Window just cleared the edge onto the Client screen —
+        // send one final Drop so Host parks the source window in the center
+        StreamContext->SpatialState = EdgeSpatiality::Local;
+
+        OmniWinDragPacket DropPacket{};
+        DropPacket.Action   = WinDragAction::Drop;
+        DropPacket.WindowID = StreamContext->WindowKey;
+        DropPacket.Edge     = ReverseEdge;
+        DropPacket.WindowX  = static_cast<int16_t>(CurrentX);
+        DropPacket.WindowY  = static_cast<int16_t>(CurrentY);
+
+        OmniNet::OmniHeader Header;
+        Header.Target     = 0;
+        Header.PacketType = OmniNet::PacketType::ProcWinDrag;
+        Header.Flags      = 0;
+        StreamContext->Session->SessionSend(
+            reinterpret_cast<CHAR*>(&DropPacket), sizeof(OmniWinDragPacket), Header
+        );
+    }
+}
+
+static void StreamWindowOnWindowDragRelease(void* Ctx, int FinalX, int FinalY)
+{
+    auto* StreamContext = static_cast<OmniSystemLink::WindowStreamContext*>(Ctx);
+    if (!StreamContext || !StreamContext->Session)
+        return;
+
+    if (StreamContext->SpatialState == EdgeSpatiality::Remote)
+        return;
+
+    StreamContext->SpatialState = EdgeSpatiality::Local;
+
+    if (FinalX == StreamContext->LastX && FinalY == StreamContext->LastY)
+        return;
+
+    StreamContext->LastX = FinalX;
+    StreamContext->LastY = FinalY;
+
+    OmniWinDragPacket DropPacket{};
+    DropPacket.Action   = WinDragAction::Drop;
+    DropPacket.WindowID = StreamContext->WindowKey;
+    DropPacket.Edge     = ComputeRelativeSpartialID(StreamContext->DeviceID, DeviceMap::C0);
+    DropPacket.WindowX  = static_cast<int16_t>(FinalX);
+    DropPacket.WindowY  = static_cast<int16_t>(FinalY);
+
+    OmniNet::OmniHeader Header;
+    Header.Target     = 0;
+    Header.PacketType = OmniNet::PacketType::ProcWinDrag;
+    Header.Flags      = 0;
+    StreamContext->Session->SessionSend(
+        reinterpret_cast<CHAR*>(&DropPacket), sizeof(OmniWinDragPacket), Header
+    );
+}
+
 OmniNet::PoolConfig OmniSystemLink::SetupStreamRenderWindow(
     SubStreamID      SubStreamID,
     DeviceMap        DeviceID,
@@ -330,10 +571,12 @@ OmniNet::PoolConfig OmniSystemLink::SetupStreamRenderWindow(
     if (Window) {
         StreamWindowRegistry[SubStreamID] = Window;
 
+        HWND WindowHwnd = Window->GetHwnd();
         if (X != 0 || Y != 0) {
-            HWND h = Window->GetHwnd();
-            if (h) {
-                SetWindowPos(h, NULL, X, Y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            if (WindowHwnd) {
+                SetWindowPos(
+                    WindowHwnd, NULL, X, Y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+                );
             }
         }
 
@@ -343,214 +586,24 @@ OmniNet::PoolConfig OmniSystemLink::SetupStreamRenderWindow(
         }
 
         auto StreamerContext = std::make_unique<WindowStreamContext>(WindowStreamContext{
-            .SysLink = this, .Session = NetSession, .DeviceID = DeviceID, .WindowKey = SubStreamID
+            .SysLink    = this,
+            .Session    = NetSession,
+            .DeviceID   = DeviceID,
+            .WindowKey  = SubStreamID,
+            .WindowHwnd = WindowHwnd
         });
         WindowStreamContext* ContextRawPtr = StreamerContext.get();
         StreamContexts[SubStreamID]        = std::move(StreamerContext);
 
         OmniWindowEventHandlers EventHandler{};
-        EventHandler.Context = ContextRawPtr;
-
-        EventHandler.OnMouseInput = [](void* Ctx, const OmniMousePacket& Packet) {
-            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
-            if (StreamContext && StreamContext->Session) {
-                OmniWinMousePacket WinPacket{};
-                WinPacket.SubStreamID = static_cast<uint64_t>(StreamContext->WindowKey);
-                WinPacket.NormalizedX = static_cast<uint16_t>(Packet.dX);
-                WinPacket.NormalizedY = static_cast<uint16_t>(Packet.dY);
-                WinPacket.Buttons     = Packet.Buttons;
-                WinPacket.Wheel       = Packet.Wheel;
-
-                OmniNet::OmniHeader Header;
-                Header.Target     = 0;
-                Header.PacketType = OmniNet::PacketType::ProcWinMouse;
-                Header.Flags      = 0;
-                StreamContext->Session->SessionSend(
-                    reinterpret_cast<CHAR*>(&WinPacket), sizeof(OmniWinMousePacket), Header
-                );
-            }
-        };
-
-        EventHandler.OnKeyInput = [](void* Ctx, const OmniKeyPacket& Packet) {
-            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
-            if (StreamContext && StreamContext->Session) {
-                OmniWinKeyPacket WinPacket{};
-                WinPacket.SubStreamID = static_cast<uint64_t>(StreamContext->WindowKey);
-                WinPacket.VkCode      = Packet.VkCode;
-                WinPacket.ScanCode    = Packet.ScanCode;
-                WinPacket.Flags       = Packet.Flags;
-                WinPacket.Reserved    = 0;
-
-                OmniNet::OmniHeader Header;
-                Header.Target     = 0;
-                Header.PacketType = OmniNet::PacketType::ProcWinKey;
-                Header.Flags      = 0;
-                StreamContext->Session->SessionSend(
-                    reinterpret_cast<CHAR*>(&WinPacket), sizeof(OmniWinKeyPacket), Header
-                );
-            }
-        };
-
-        EventHandler.OnResize = [](void* Ctx, uint32_t NewWidth, uint32_t NewHeight) {
-            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
-            if (StreamContext && StreamContext->SysLink) {
-                StreamContext->SysLink->TransmitWindowResizeEvent(
-                    StreamContext->WindowKey, StreamContext->DeviceID, NewWidth, NewHeight
-                );
-                StreamContext->SysLink->RequestStreamIDR(
-                    StreamContext->WindowKey, StreamContext->DeviceID
-                );
-            }
-        };
-
-        EventHandler.OnDecoderReady = [](void* Ctx) {
-            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
-            if (StreamContext && StreamContext->SysLink) {
-                StreamContext->SysLink->OnStreamWindowReady(
-                    StreamContext->WindowKey, StreamContext->DeviceID
-                );
-            }
-        };
-
-        EventHandler.OnWindowClose = [](void* Ctx) {
-            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
-            if (StreamContext && StreamContext->SysLink) {
-                StreamContext->SysLink->OnStreamWindowClose(
-                    StreamContext->WindowKey, StreamContext->DeviceID
-                );
-            }
-        };
-
-        EventHandler.OnWindowDragMove = [](void* Ctx, int CurrentX, int CurrentY) {
-            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
-            if (!StreamContext || !StreamContext->Session || !StreamContext->SysLink)
-                return;
-
-            if (CurrentX == StreamContext->LastSentX && CurrentY == StreamContext->LastSentY) {
-                return;
-            }
-
-            DWORD CurrentTime = GetMessageTime();
-            if (CurrentTime - StreamContext->LastMoveMsgTime < 10) {
-                return;
-            }
-
-            StreamContext->LastMoveMsgTime = CurrentTime;
-            StreamContext->LastSentX       = CurrentX;
-            StreamContext->LastSentY       = CurrentY;
-
-            DeviceMap ReverseEdge =
-                ComputeRelativeSpartialID(StreamContext->DeviceID, DeviceMap::C0);
-
-            uint32_t ClientResW =
-                StreamContext->SysLink->OmniRouter.ResWidth.load(std::memory_order_relaxed);
-            uint32_t ClientResH =
-                StreamContext->SysLink->OmniRouter.ResHeight.load(std::memory_order_relaxed);
-            if (ClientResW == 0)
-                ClientResW = GetSystemMetrics(SM_CXSCREEN);
-            if (ClientResH == 0)
-                ClientResH = GetSystemMetrics(SM_CYSCREEN);
-
-            // Temporary
-            // will replace when the unified spatial router is done, detects overlaps on windrag
-            bool OverlapState = false;
-            switch (ReverseEdge) {
-            case DeviceMap::L1:
-            case DeviceMap::LU1:
-            case DeviceMap::LD1:
-                OverlapState = (CurrentX < 0);
-                break;
-            case DeviceMap::R1:
-            case DeviceMap::RU1:
-            case DeviceMap::RD1:
-                OverlapState = (CurrentX > static_cast<int>(ClientResW));
-                break;
-            case DeviceMap::U1:
-                OverlapState = (CurrentY < 0);
-                break;
-            case DeviceMap::D1:
-                OverlapState = (CurrentY > static_cast<int>(ClientResH));
-                break;
-            default:
-                OverlapState = (CurrentX < 0);
-                break;
-            }
-
-            if (OverlapState) {
-                StreamContext->SpatialState = EdgeSpatiality::InTransit;
-
-                int16_t PacketX = 0, PacketY = 0;
-                RECT    ClientWindowRect{CurrentX, CurrentY, CurrentX + 1, CurrentY + 1};
-                EncodeEdgePosition(
-                    ReverseEdge, ClientWindowRect, ClientResW, ClientResH, PacketX, PacketY
-                );
-
-                OmniWinDragPacket MovePacket{};
-                MovePacket.Action   = WinDragAction::Move;
-                MovePacket.WindowID = StreamContext->WindowKey;
-                MovePacket.Edge     = ReverseEdge;
-                MovePacket.WindowX  = PacketX;
-                MovePacket.WindowY  = PacketY;
-
-                OmniNet::OmniHeader Header;
-                Header.Target     = 0;
-                Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-                Header.Flags      = 0;
-
-                StreamContext->Session->SessionSend(
-                    reinterpret_cast<CHAR*>(&MovePacket), sizeof(OmniWinDragPacket), Header
-                );
-            } else if (StreamContext->SpatialState == EdgeSpatiality::InTransit) {
-                // Window just cleared the edge onto the Client screen
-                // Send one final Drop packet so Host parks the source window in the center
-                // Incomplete, need to handle both routes
-                StreamContext->SpatialState = EdgeSpatiality::Local;
-
-                OmniWinDragPacket DropPacket{};
-                DropPacket.Action   = WinDragAction::Drop;
-                DropPacket.WindowID = StreamContext->WindowKey;
-                DropPacket.Edge     = ReverseEdge;
-                DropPacket.WindowX  = static_cast<int16_t>(CurrentX);
-                DropPacket.WindowY  = static_cast<int16_t>(CurrentY);
-
-                OmniNet::OmniHeader Header;
-                Header.Target     = 0;
-                Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-                Header.Flags      = 0;
-
-                StreamContext->Session->SessionSend(
-                    reinterpret_cast<CHAR*>(&DropPacket), sizeof(OmniWinDragPacket), Header
-                );
-            }
-        };
-
-        EventHandler.OnWindowDragRelease = [](void* Ctx, int FinalX, int FinalY) {
-            auto* StreamContext = static_cast<WindowStreamContext*>(Ctx);
-            if (StreamContext && StreamContext->Session) {
-                StreamContext->SpatialState = EdgeSpatiality::Local;
-                if (FinalX == StreamContext->LastX && FinalY == StreamContext->LastY) {
-                    return;
-                }
-                StreamContext->LastX = FinalX;
-                StreamContext->LastY = FinalY;
-
-                OmniWinDragPacket DropPacket{};
-                DropPacket.Action   = WinDragAction::Drop;
-                DropPacket.WindowID = StreamContext->WindowKey;
-                DropPacket.Edge     = StreamContext->DeviceID;
-                DropPacket.WindowX  = static_cast<int16_t>(FinalX);
-                DropPacket.WindowY  = static_cast<int16_t>(FinalY);
-
-                OmniNet::OmniHeader Header;
-                Header.Target     = 0;
-                Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-                Header.Flags      = 0;
-
-                StreamContext->Session->SessionSend(
-                    reinterpret_cast<CHAR*>(&DropPacket), sizeof(OmniWinDragPacket), Header
-                );
-            }
-        };
+        EventHandler.Context             = ContextRawPtr;
+        EventHandler.OnMouseInput        = StreamWindowOnMouseInput;
+        EventHandler.OnKeyInput          = StreamWindowOnKeyInput;
+        EventHandler.OnResize            = StreamWindowOnResize;
+        EventHandler.OnDecoderReady      = StreamWindowOnDecoderReady;
+        EventHandler.OnWindowClose       = StreamWindowOnWindowClose;
+        EventHandler.OnWindowDragMove    = StreamWindowOnWindowDragMove;
+        EventHandler.OnWindowDragRelease = StreamWindowOnWindowDragRelease;
 
         Window->SetEventForwarder(EventHandler);
         Window->SetEventForwarding(true);
@@ -632,13 +685,28 @@ OmniSystemLink::HandleWindowDragEvent(HWND Hwnd, DeviceMap TargetDevice, WinDrag
             SubStreamID NewSubStreamID = RequestSubStream(TargetDevice, FeatureTypes::WindowLink);
             if (NewSubStreamID != 0) {
                 if (StartWindowCaptureStream(NewSubStreamID, TargetDevice, Hwnd) == 0) {
+                    Logger::log(
+                        "Capture stream failed to start for SubStreamID={:d}", NewSubStreamID
+                    );
                     if (ReleaseSubStream) {
                         ReleaseSubStream(TargetDevice, NewSubStreamID, true);
                     }
                     return 0;
                 }
                 return NewSubStreamID;
+            } else {
+                Logger::log(
+                    "SubStream request for Capture Stream returned 0 for DeviceID={:d}",
+                    static_cast<int>(TargetDevice)
+                );
             }
+        } else {
+            Logger::log(
+                "Requested SubStream for Window Capture Stream returned null or "
+                "TargetDevice is C0 (RequestSubStream={}, TargetDevice={:d})",
+                (RequestSubStream != nullptr),
+                static_cast<int>(TargetDevice)
+            );
         }
         return 0;
     }
@@ -694,6 +762,9 @@ void OmniSystemLink::HandleStreamSourceDrag(
 
     switch (Packet.Action) {
     case WinDragAction::Move: {
+        ActiveReturningWindows[DeviceID] = SourceHwnd;
+        ReturningSourceWindows.insert(SourceHwnd);
+
         uint32_t LocalResW = OmniRouter.ResWidth.load(std::memory_order_relaxed);
         uint32_t LocalResH = OmniRouter.ResHeight.load(std::memory_order_relaxed);
         if (LocalResW == 0)
@@ -708,20 +779,24 @@ void OmniSystemLink::HandleStreamSourceDrag(
 
         SetWindowPos(
             SourceHwnd,
-            NULL,
+            HWND_TOP,
             TargetX,
             TargetY,
             0,
             0,
-            SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW
+            SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW
         );
         break;
     }
     case WinDragAction::Drop: {
+        ActiveReturningWindows.erase(DeviceID);
+        ReturningSourceWindows.erase(SourceHwnd);
         CenterWindowOnDesktop(SourceHwnd);
         break;
     }
     case WinDragAction::Cancel: {
+        ActiveReturningWindows.erase(DeviceID);
+        ReturningSourceWindows.erase(SourceHwnd);
         RecallWindow(SourceHwnd);
         break;
     }
@@ -858,13 +933,6 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
                 static_cast<int>(NewHeight),
                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
             );
-            Logger::log(
-                "Resized source HWND={:p} to {}x{} for SubStreamID={:d}",
-                static_cast<void*>(SourceHwnd),
-                NewWidth,
-                NewHeight,
-                StreamID
-            );
         }
         return;
     }
@@ -893,13 +961,6 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
                 static_cast<int>(NewWidth),
                 static_cast<int>(NewHeight),
                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
-            );
-            Logger::log(
-                "Resized stream window dimensions to {}x{} for "
-                "SubStreamID={:d}",
-                NewWidth,
-                NewHeight,
-                StreamID
             );
         }
     }
@@ -930,7 +991,7 @@ static void EnsureWindowFocus(HWND TargetHwnd)
     }
 }
 
-bool OmniSystemLink::RecallWindow(HWND SourceHwnd)
+bool OmniSystemLink::RecallWindow(HWND SourceHwnd, bool CenterOnDesktop)
 {
     if (!SourceHwnd || !IsWindow(SourceHwnd)) {
         return false;
@@ -973,14 +1034,22 @@ bool OmniSystemLink::RecallWindow(HWND SourceHwnd)
         ReleaseSubStream(TargetDevice, StreamID, true);
     }
 
+    if (TargetDevice != DeviceMap::C0) {
+        ActiveReturningWindows.erase(TargetDevice);
+    }
+    ReturningSourceWindows.erase(SourceHwnd);
+
     ShowWindow(SourceHwnd, SW_RESTORE);
-    CenterWindowOnDesktop(SourceHwnd);
+    if (CenterOnDesktop) {
+        CenterWindowOnDesktop(SourceHwnd);
+    }
     EnsureWindowFocus(SourceHwnd);
 
     Logger::log(
-        "Recalled window HWND={:p} (SubStreamID={:d}) to Host",
+        "Recalled window HWND={:p} (SubStreamID={:d}, Center={}) to Host",
         static_cast<void*>(SourceHwnd),
-        StreamID
+        StreamID,
+        CenterOnDesktop
     );
     return true;
 }

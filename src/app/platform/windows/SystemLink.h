@@ -24,6 +24,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -54,7 +55,7 @@ struct OmniSystemLink
     // Feature Class Instances for main 5 Feature
     OmniRouter        OmniRouter;
     OmniStreamer      Streamer;
-    OmniDragLink      DragLink{OmniRouter};
+    OmniDragLink      DragLink;
     InputLinkContext  InputLinkCtx{OmniRouter};
     OmniInputLink     InputLink{InputLinkCtx};
     OmniInputFilter   InputFilter{InputLinkCtx};
@@ -77,6 +78,10 @@ struct OmniSystemLink
     std::unordered_map<SubStreamID, HWND>      SubStream2HwndRegistry;
     std::unordered_map<SubStreamID, DeviceMap> SubStream2DeviceRegistry;
 
+    // Windows crossing from back and forth.
+    std::unordered_map<DeviceMap, HWND> ActiveReturningWindows;
+    std::unordered_set<HWND>            ReturningSourceWindows;
+
     // Context used by streamer windows including pointers to system link and related net session.
     // Additionally includes last window position and the last position transmitted via stream.
     // LastMoveMsgTime is for stream window drag move event smoothing to avoid flooding.
@@ -86,6 +91,7 @@ struct OmniSystemLink
         OmniNetSession<OmniMTU>* Session         = nullptr;
         DeviceMap                DeviceID        = DeviceMap::C0;
         SubStreamID              WindowKey       = 0;
+        HWND                     WindowHwnd      = NULL;
         int                      LastX           = INT_MIN;
         int                      LastY           = INT_MIN;
         int                      LastSentX       = INT_MIN;
@@ -224,8 +230,8 @@ struct OmniSystemLink
     // Recalls a specific streamed window back to the host desktop
     // Notifying Client to destroy its stream render window and..
     // Stops capture stream on Host, releases SubStream on Host
-    // Finally.. Centers and restores source window on Host desktop
-    bool RecallWindow(HWND SourceHwnd);
+    // Finally.. Restores source window on Host desktop and centers if CenterOnDesktop is true
+    bool RecallWindow(HWND SourceHwnd, bool CenterOnDesktop = true);
 
     // Recalls all active streamed windows back to the host desktop
     // Just.. a loop on RecallWindow
