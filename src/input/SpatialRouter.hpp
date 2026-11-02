@@ -69,7 +69,7 @@ constexpr int32_t EdgePushBackPadding = 5;
 
 } // namespace SpatialConfig
 
-class SpatialEdgeRouter
+class OmniSpatialRouter
 {
   private:
     uint8_t ActiveMask = 0;
@@ -90,6 +90,7 @@ class SpatialEdgeRouter
     }
 
   public:
+    // Adds a spatial edge detection condition based on directionality map DeviceMap
     void AddEdgeCondition(DeviceMap DeviceID)
     {
         if (DeviceID != DeviceMap::C0 && DeviceID != DeviceMap::END) {
@@ -97,6 +98,7 @@ class SpatialEdgeRouter
         }
     }
 
+    // Removes the spatial edge detection condition added by AddEdgeCondition, obvious much ?
     void RemoveEdgeCondition(DeviceMap DeviceID)
     {
         if (DeviceID != DeviceMap::C0 && DeviceID != DeviceMap::END) {
@@ -104,7 +106,10 @@ class SpatialEdgeRouter
         }
     }
 
-    bool GetState(DeviceMap DeviceID)
+    // What state ? state of the spatial router
+    // Returns true when the device edge matching the DeviceID is a monitored edge condition
+    // else false..
+    [[nodiscard]] bool GetState(DeviceMap DeviceID) const
     {
         if (DeviceID != DeviceMap::C0 && DeviceID != DeviceMap::END) {
             return (ActiveMask & (1U << static_cast<uint8_t>(DeviceID - 1))) != 0;
@@ -113,12 +118,13 @@ class SpatialEdgeRouter
         return false;
     }
 
-    uint8_t GetActiveMask() { return ActiveMask; }
+    [[nodiscard]] uint8_t GetActiveMask() const { return ActiveMask; }
 
     void Reset() { ActiveMask = 0; }
 
     void SyncConditions(int32_t Margin_ = SpatialConfig::EdgeTriggerMargin);
 
+    // X Y Point evaluation for edge conditions.
     [[nodiscard]] inline DeviceMap Evaluate(int X, int Y) const
     {
         if (!ActiveMask)
@@ -151,7 +157,77 @@ class SpatialEdgeRouter
             return DeviceMap::L1;
 
         return DeviceMap::C0;
-    };
+    }
+
+    // Window boundary evaluation that outputs which edge a window border overlaps
+    // Designed to handle 2 edges as the maximum amount of edges a window can overlap
+    // Starts with a quick reject if completely inside desktop virtual bounds
+    [[nodiscard]] inline DeviceMap EvaluateWindow(const RECT& WindowRect) const
+    {
+        if (!ActiveMask)
+            return DeviceMap::C0;
+
+        if (WindowRect.left >= VirtualBounds.left && WindowRect.right <= VirtualBounds.right &&
+            WindowRect.top >= VirtualBounds.top && WindowRect.bottom <= VirtualBounds.bottom) {
+            return DeviceMap::C0;
+        }
+
+        const bool Left   = (WindowRect.left < VirtualBounds.left) && BitState(DeviceMap::L1);
+        const bool Right  = (WindowRect.right > VirtualBounds.right) && BitState(DeviceMap::R1);
+        const bool Top    = (WindowRect.top < VirtualBounds.top) && BitState(DeviceMap::U1);
+        const bool Bottom = (WindowRect.bottom > VirtualBounds.bottom) && BitState(DeviceMap::D1);
+
+        if (Top && Right && BitState(DeviceMap::RU1))
+            return DeviceMap::RU1;
+        if (Top && Left && BitState(DeviceMap::LU1))
+            return DeviceMap::LU1;
+        if (Bottom && Right && BitState(DeviceMap::RD1))
+            return DeviceMap::RD1;
+        if (Bottom && Left && BitState(DeviceMap::LD1))
+            return DeviceMap::LD1;
+
+        if (Right)
+            return DeviceMap::R1;
+        if (Left)
+            return DeviceMap::L1;
+        if (Bottom)
+            return DeviceMap::D1;
+        if (Top)
+            return DeviceMap::U1;
+
+        return DeviceMap::C0;
+    }
+
+    // Virtual bounds is what u get from multiple monitors in one merged layout
+    [[nodiscard]] inline const RECT& GetVirtualBounds() const { return VirtualBounds; }
+
+    [[nodiscard]] inline int32_t GetVirtualWidth() const
+    {
+        return VirtualBounds.right - VirtualBounds.left;
+    }
+    [[nodiscard]] inline int32_t GetVirtualHeight() const
+    {
+        return VirtualBounds.bottom - VirtualBounds.top;
+    }
+
+    static void EncodeEdgePosition(
+        DeviceMap   Edge,
+        const RECT& WindowPosition,
+        uint32_t    ResWidth,
+        uint32_t    ResHeight,
+        int16_t&    RatioX,
+        int16_t&    RatioY
+    );
+
+    static void DecodeEdgePosition(
+        DeviceMap Edge,
+        int16_t   RatioX,
+        int16_t   RatioY,
+        uint32_t  ResWidth,
+        uint32_t  ResHeight,
+        int&      TargetX,
+        int&      TargetY
+    );
 };
 
 #endif // !SPATIAL_ROUTER
