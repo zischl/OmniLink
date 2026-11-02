@@ -54,11 +54,11 @@ struct OmniSystemLink
     // Composed Feature Modules
     OmniSpatialRouter    SpatialRouter;
     SystemCaptureStreams CaptureStreams;
-    SystemAudioLink      Audio;
-    SystemClipboardLink  Clipboard;
-    SystemInputLink      Input{OmniRouter, SpatialRouter};
-    SystemScreenLink     Screen;
-    SystemWindowLink     Window;
+    SystemAudioLink      AudioLinkModule;
+    SystemClipboardLink  ClipboardLinkModule;
+    SystemInputLink      InputLinkModule{OmniRouter, SpatialRouter};
+    SystemScreenLink     ScreenLinkModule;
+    SystemWindowLink     WindowLinkModule;
 
     OmniSystemLink(OmniGraphicsContext& GraphicsContext);
     ~OmniSystemLink();
@@ -94,7 +94,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return Screen.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return ScreenLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetWindowLinkState(
@@ -106,7 +106,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return Window.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return WindowLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetInputLinkState(
@@ -118,7 +118,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return Input.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return InputLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetAudioLinkState(
@@ -130,7 +130,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return Audio.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return AudioLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetClipboardLinkState(
@@ -142,7 +142,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return Clipboard.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return ClipboardLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     /**
@@ -152,39 +152,39 @@ struct OmniSystemLink
      * The memory layout of SystemLink and inline substitution should guarantee this.
      */
 
-    inline void ToggleEdgeProbe() { Input.ToggleEdgeProbe(); }
-    inline void ToggleInputFilter() { Input.ToggleInputFilter(); }
+    inline void ToggleEdgeProbe() { InputLinkModule.ToggleEdgeProbe(); }
+    inline void ToggleInputFilter() { InputLinkModule.ToggleInputFilter(); }
     inline void BindIOLinkSession(DeviceMap DeviceID)
     {
         auto Ctx = GetContext();
-        Input.BindIOLinkSession(Ctx, DeviceID);
+        InputLinkModule.BindIOLinkSession(Ctx, DeviceID);
     }
     inline void UnbindIOLinkSession(DeviceMap DeviceID)
     {
         auto Ctx = GetContext();
-        Input.UnbindIOLinkSession(Ctx, DeviceID);
+        InputLinkModule.UnbindIOLinkSession(Ctx, DeviceID);
     }
 
     inline void TransmitClipboard(const std::string& Text)
     {
-        Clipboard.TransmitClipboard(Text);
+        ClipboardLinkModule.TransmitClipboard(Text);
     }
     inline void TransmitClipboardManifest(const ClipboardManifest& Manifest)
     {
-        Clipboard.TransmitClipboardManifest(Manifest);
+        ClipboardLinkModule.TransmitClipboardManifest(Manifest);
     }
 
     inline std::vector<uint8_t>
     ReceiveClipboardData(const ClipboardManifest& Manifest, UINT Format = 0)
     {
-        return Clipboard.ReceiveClipboardData(Manifest, Format);
+        return ClipboardLinkModule.ReceiveClipboardData(Manifest, Format);
     }
 
     inline void
     HandleStreamWindowDrag(const OmniWinDragPacket& Packet, DeviceMap DeviceID = DeviceMap::C0)
     {
         auto Ctx = GetContext();
-        Window.HandleStreamWindowDrag(Ctx, Packet, DeviceID);
+        WindowLinkModule.HandleStreamWindowDrag(Ctx, Packet, DeviceID);
     }
 
     void HandleStreamWindowResize(const OmniWinResizePacket Packet);
@@ -198,7 +198,6 @@ struct OmniSystemLink
         auto Ctx = GetContext();
         CaptureStreams.HandleStreamControlPacket(Ctx, Packet, SenderDevice);
     }
-
 
     inline OmniNet::PoolConfig SetupStreamRenderWindow(
         SubStreamID      SubStreamID,
@@ -230,14 +229,17 @@ struct OmniSystemLink
     inline bool RecallWindow(HWND SourceHwnd, bool CenterOnDesktop = true)
     {
         auto Ctx = GetContext();
-        return Window.RecallWindow(Ctx, SourceHwnd, CenterOnDesktop);
+        return WindowLinkModule.RecallWindow(Ctx, SourceHwnd, CenterOnDesktop);
     }
 
     inline size_t RecallAllStreamingWindows()
     {
         auto Ctx = GetContext();
-        return Window.RecallAllStreamingWindows(Ctx);
+        return WindowLinkModule.RecallAllStreamingWindows(Ctx);
     }
 
-    inline void CenterWindowOnDesktop(HWND TargetHwnd) { Window.CenterWindowOnDesktop(TargetHwnd); }
+    inline void CenterWindowOnDesktop(HWND TargetHwnd)
+    {
+        WindowLinkModule.CenterWindowOnDesktop(TargetHwnd);
+    }
 };

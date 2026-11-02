@@ -115,7 +115,7 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
         OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
 
         std::unordered_map<SubStreamID, StreamWindow*>* WindowContext =
-            SysLink ? &SysLink->StreamWindowRegistry : nullptr;
+            SysLink ? &SysLink->CaptureStreams.StreamWindowRegistry : nullptr;
 
         HandleFrame(WindowContext, Buffer, BufferSize);
         break;
@@ -153,7 +153,10 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
             return;
 
         const auto* Packet = reinterpret_cast<const OmniEdgeCrossPacket*>(Buffer);
-        SysLink->InputSynth.ProcEdgeCross(DeviceID, *Packet);
+        SysLink->InputLinkModule.InputSynth.ProcEdgeCross(DeviceID, *Packet);
+        if (Packet->Buttons & MOUSEEVENTF_LEFTDOWN) {
+            SysLink->WindowLinkModule.HandleReturningWindow(DeviceID);
+        }
 
         break;
     }
@@ -164,14 +167,14 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
             return;
 
         const auto* Packet = reinterpret_cast<const OmniEdgeRelayPacket*>(Buffer);
-        SysLink->InputSynth.ProcEdgeRelayCross(DeviceID, *Packet);
+        SysLink->InputLinkModule.InputSynth.ProcEdgeRelayCross(DeviceID, *Packet);
 
         break;
     }
     case OmniNet::PacketType::ProcEdgeRecall: {
         OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
 
-        SysLink->InputSynth.ProcEdgeRecall(DeviceID);
+        SysLink->InputLinkModule.InputSynth.ProcEdgeRecall(DeviceID);
 
         break;
     }
@@ -273,7 +276,9 @@ void OmniLink::OmniMain(HINSTANCE hInst, int nCmdS)
     Logger::log("Instance Discovery Initialization Complete");
 
     SystemLink.SetupSystemLink(hInstance, nCmdShow, hwnd);
-    SystemLink.OnClipboardStreamEvent = [this](const ClipboardStreamEvent& Event) {
+    SystemLink.ClipboardLinkModule.OnClipboardStreamEvent = [this](
+                                                                const ClipboardStreamEvent& Event
+                                                            ) {
         Notification Notif{
             Event, "ClipboardStream", Notification::EventLayout::BOTTOM_RIGHT, 30.0f, true, nullptr
         };
@@ -417,17 +422,19 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     switch (uMsg) {
     case WM_CLIPBOARDUPDATE:
         if (Omni) {
-            Omni->SystemLink.ClipboardLink.OnClipboardUpdate();
+            Omni->SystemLink.ClipboardLinkModule.ClipboardLink.OnClipboardUpdate();
         }
         return 0;
     case WM_RENDERFORMAT:
         if (Omni) {
-            Omni->SystemLink.ClipboardLink.OnPasteRequest(static_cast<UINT>(wParam));
+            Omni->SystemLink.ClipboardLinkModule.ClipboardLink.OnPasteRequest(
+                static_cast<UINT>(wParam)
+            );
         }
         return 0;
     case WM_DESTROYCLIPBOARD:
         if (Omni) {
-            Omni->SystemLink.ClipboardLink.OnRequestInvalidation();
+            Omni->SystemLink.ClipboardLinkModule.ClipboardLink.OnRequestInvalidation();
         }
         return 0;
     case WM_TRAYICON:
@@ -476,8 +483,9 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         SetCursor(LoadCursor(NULL, IDC_ARROW));
         return true;
     case WM_INPUT:
-        if (Omni && Omni->SystemLink.InputLink.InputProc != nullptr) {
-            (Omni->SystemLink.InputLink.*(Omni->SystemLink.InputLink.InputProc))(lParam);
+        if (Omni && Omni->SystemLink.InputLinkModule.InputLink.InputProc != nullptr) {
+            (Omni->SystemLink.InputLinkModule.InputLink.*
+             (Omni->SystemLink.InputLinkModule.InputLink.InputProc))(lParam);
         }
         break;
     case WM_NCCREATE:
@@ -486,7 +494,7 @@ LRESULT CALLBACK OmniLink::WProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         break;
     case WM_DISPLAYCHANGE:
         if (Omni) {
-            Omni->SystemLink.InputLink.ConditionManager.SyncConditions();
+            Omni->SystemLink.SpatialRouter.SyncConditions();
         }
         break;
     }

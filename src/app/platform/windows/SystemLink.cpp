@@ -12,11 +12,11 @@ OmniSystemLink::~OmniSystemLink() {}
 
 void OmniSystemLink::SetupSystemLink(HINSTANCE hInstance_, int nCmdShow_, HWND WindowID_)
 {
-    hInstance                 = hInstance_;
-    nCmdShow                  = nCmdShow_;
-    WindowID                  = WindowID_;
-    Clipboard.ActiveInstances = ActiveInstances;
-    Input.Setup(WindowID_);
+    hInstance                           = hInstance_;
+    nCmdShow                            = nCmdShow_;
+    WindowID                            = WindowID_;
+    ClipboardLinkModule.ActiveInstances = ActiveInstances;
+    InputLinkModule.Setup(WindowID_);
     OmniRouter.SetResolution(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     Logger::log(
         "SetupSystemLink: Initialized OmniRouter resolution to {}x{}",
@@ -35,8 +35,8 @@ void OmniSystemLink::HandleStreamWindowResize(const OmniWinResizePacket Packet)
         return;
     }
 
-    auto IterSourceWindows = Window.SubStream2HwndRegistry.find(StreamID);
-    if (IterSourceWindows != Window.SubStream2HwndRegistry.end()) {
+    auto IterSourceWindows = WindowLinkModule.SubStream2HwndRegistry.find(StreamID);
+    if (IterSourceWindows != WindowLinkModule.SubStream2HwndRegistry.end()) {
         HWND SourceHwnd = IterSourceWindows->second;
 
         if (IsWindow(SourceHwnd)) {
@@ -93,8 +93,9 @@ static void EnsureWindowFocusLocal(HWND TargetHwnd)
 void OmniSystemLink::HandleStreamWindowMouse(const OmniWinMousePacket& Packet)
 {
     auto IterStreamHwnd =
-        Window.SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
-    if (IterStreamHwnd != Window.SubStream2HwndRegistry.end() && IsWindow(IterStreamHwnd->second)) {
+        WindowLinkModule.SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
+    if (IterStreamHwnd != WindowLinkModule.SubStream2HwndRegistry.end() &&
+        IsWindow(IterStreamHwnd->second)) {
         HWND TargetHwnd = IterStreamHwnd->second;
 
         RECT    WinRect{};
@@ -138,8 +139,8 @@ void OmniSystemLink::HandleStreamWindowMouse(const OmniWinMousePacket& Packet)
                     )) {
                     if (HitResult == HTCAPTION) {
                         const SubStreamID StreamID = static_cast<SubStreamID>(Packet.SubStreamID);
-                        auto IterDevice            = Window.SubStream2DeviceRegistry.find(StreamID);
-                        if (IterDevice != Window.SubStream2DeviceRegistry.end()) {
+                        auto IterDevice = WindowLinkModule.SubStream2DeviceRegistry.find(StreamID);
+                        if (IterDevice != WindowLinkModule.SubStream2DeviceRegistry.end()) {
                             DeviceMap TargetDevice = IterDevice->second;
                             auto*     NetSession   = OmniRouter.GetWindowSession(TargetDevice);
                             if (NetSession) {
@@ -189,8 +190,9 @@ void OmniSystemLink::HandleStreamWindowMouse(const OmniWinMousePacket& Packet)
 void OmniSystemLink::HandleStreamWindowKey(const OmniWinKeyPacket& Packet)
 {
     auto IterStreamHwnd =
-        Window.SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
-    if (IterStreamHwnd != Window.SubStream2HwndRegistry.end() && IsWindow(IterStreamHwnd->second)) {
+        WindowLinkModule.SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
+    if (IterStreamHwnd != WindowLinkModule.SubStream2HwndRegistry.end() &&
+        IsWindow(IterStreamHwnd->second)) {
         EnsureWindowFocusLocal(IterStreamHwnd->second);
     }
 
