@@ -1,38 +1,28 @@
 #pragma once
 
-#include "AudioCap.hpp"
-#include "AudioRender.hpp"
-#include "CaptureController.hpp"
-#include "ClipBoardLink.h"
-#include "ClipboardTypes.hpp"
-#include "IOLink.hpp"
-#include "IOLinkContext.hpp"
+#include "AudioLink.h"
+#include "CaptureStreams.h"
+#include "ClipboardLink.h"
+#include "InputLink.h"
 #include "OmniEnums.hpp"
 #include "OmniGraphicsContext.hpp"
 #include "OmniInstances.h"
 #include "OmniPackets.hpp"
 #include "OmniRouterContext.hpp"
-#include "OmniTCPStream.h"
-#include "StreamWindow.hpp"
-#include "WindowDragCap.hpp"
-#include "WindowOperationTypes.hpp"
+#include "ScreenLink.h"
+#include "SystemLinkContext.h"
+#include "WindowLink.h"
 
+#include <Windows.h>
 #include <algorithm>
 #include <climits>
 #include <cstdint>
-#include <map>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <unordered_set>
-#include <utility>
+#include <unordered_map>
 #include <vector>
-
-#include <Windows.h>
-#include <shellapi.h>
-#include <wrl/client.h>
-
-using Microsoft::WRL::ComPtr;
 
 template <uint32_t MTU> class OmniNetSession;
 class OmniNetSubStream;
@@ -52,186 +42,202 @@ struct OmniSystemLink
     // Active Instances borrowed from InstanceRegistry
     ActiveInstanceContainer* ActiveInstances = nullptr;
 
-    // Feature Class Instances for main 5 Feature
-    OmniRouter        OmniRouter;
-    OmniStreamer      Streamer;
-    OmniDragLink      DragLink;
-    InputLinkContext  InputLinkCtx{OmniRouter};
-    OmniInputLink     InputLink{InputLinkCtx};
-    OmniInputFilter   InputFilter{InputLinkCtx};
-    OmniSynth         InputSynth{InputLink, InputLinkCtx};
-    OmniClipboardLink ClipboardLink;
-    OmniAudioLink     AudioLink;
-
-    // D3D Device and Context for Capture Streams
-    OmniGraphicsContext&        GraphicsContext;
-    ComPtr<ID3D11Device>        StreamingDevice  = nullptr;
-    ComPtr<ID3D11DeviceContext> StreamingContext = nullptr;
-
-    // StreamWindow Container and SubStream to StreamWindow / StreamWindowID lookup
-    std::unordered_map<SubStreamID, StreamWindow*>          StreamWindowRegistry;
-    std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
-
-    // Map/Reverse Map Hwnd with Sub Streams for the DragDetection in WindowLink
-    // FYI the first 2 are for the source window handles
-    std::unordered_map<HWND, SubStreamID>      Hwnd2SubStreamRegistry;
-    std::unordered_map<SubStreamID, HWND>      SubStream2HwndRegistry;
-    std::unordered_map<SubStreamID, DeviceMap> SubStream2DeviceRegistry;
-
-    // Windows crossing from back and forth.
-    std::unordered_map<DeviceMap, HWND> ActiveReturningWindows;
-    std::unordered_set<HWND>            ReturningSourceWindows;
-
-    // Context used by streamer windows including pointers to system link and related net session.
-    // Additionally includes last window position and the last position transmitted via stream.
-    // LastMoveMsgTime is for stream window drag move event smoothing to avoid flooding.
-    struct WindowStreamContext
-    {
-        OmniSystemLink*          SysLink         = nullptr;
-        OmniNetSession<OmniMTU>* Session         = nullptr;
-        DeviceMap                DeviceID        = DeviceMap::C0;
-        SubStreamID              WindowKey       = 0;
-        HWND                     WindowHwnd      = NULL;
-        int                      LastX           = INT_MIN;
-        int                      LastY           = INT_MIN;
-        int                      LastSentX       = INT_MIN;
-        int                      LastSentY       = INT_MIN;
-        DWORD                    LastMoveMsgTime = 0;
-        EdgeSpatiality           SpatialState    = EdgeSpatiality::Local;
-    };
-
-    std::unordered_map<SubStreamID, std::unique_ptr<WindowStreamContext>> StreamContexts;
+    // Core Router & Graphics Context
+    OmniRouter           OmniRouter;
+    OmniGraphicsContext& GraphicsContext;
 
     // SubStream request, release, and configuration callbacks.
     std::function<SubStreamID(DeviceMap, FeatureTypes)>                     RequestSubStream;
     std::function<void(DeviceMap, SubStreamID, bool)>                       ReleaseSubStream;
     std::function<void(DeviceMap, SubStreamID, const OmniNet::PoolConfig&)> ConfigureSubStream;
 
-    // AudioStreams and renderers
-    std::array<std::atomic<OmniNetSubStream*>, DeviceMap::END> ActiveAudioStreams{};
-    std::atomic<uint32_t>                                      AudioStreamCount{0};
-    std::map<SubStreamID, std::unique_ptr<AudioRender>>        AudioRenderers;
-
-    // ClipboardLink Subscribers listed in atomic bitmask, TCP streams, event callbacks
-    std::atomic<uint16_t>                                        ActiveClipboardSubscriptions{0};
-    std::mutex                                                   ClipboardStreamsMutex;
-    std::unordered_map<uint32_t, std::shared_ptr<OmniTCPStream>> ActiveClipboardStreams;
-    std::function<void(const ClipboardStreamEvent&)>             OnClipboardStreamEvent;
+    // Composed Feature Modules
+    SystemCaptureStreams CaptureStreams;
+    SystemAudioLink      Audio;
+    SystemClipboardLink  Clipboard;
+    SystemInputLink      Input{OmniRouter};
+    SystemScreenLink     Screen;
+    SystemWindowLink     Window;
 
     OmniSystemLink(OmniGraphicsContext& GraphicsContext);
     ~OmniSystemLink();
 
     void SetupSystemLink(HINSTANCE hInstance, int nCmdShow, HWND WindowID);
 
-    // Base function to create a DXGI/WGC capture stream.
-    OmniStreamer::StreamID AddCaptureStream(
-        OmniNetSubStream*   SubStream,
-        DeviceMap           DeviceID,
-        CaptureMode         Mode,
-        const StreamConfig& Config = {}
-    );
-
-    // Sends a Window Resize Event packet over the network.. the end..
-    void TransmitWindowResizeEvent(
-        SubStreamID WindowKey, DeviceMap DeviceID, uint32_t NewWidth, uint32_t NewHeight
-    );
-
-    // Sends a stream control packet over the network
-    void TransmitStreamControlEvent(
-        SubStreamID StreamKey, DeviceMap DeviceID, StreamControl Command, uint32_t Param = 0
-    );
-
-    // Processes stream control packets received from the peer
-    void HandleStreamControlPacket(
-        const OmniStreamControlPacket& Packet, DeviceMap SenderDevice = DeviceMap::C0
-    );
-
-    // Callback fired when WinForge finishes initializing its decoder
-    void OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID);
-
-    // Requests an IDR keyframe from the remote sender
-    void RequestStreamIDR(SubStreamID WindowKey, DeviceMap DeviceID);
-
-    // For the given SubStream and DeviceID, boot up and setup a DXGI screen capture stream
-    // Populates the StreamLookup Registries
-    OmniStreamer::StreamID StartScreenCaptureStream(SubStreamID SubStreamID, DeviceMap DeviceID);
-
-    // Removes screen capture stream, cleans up stream lookup mappings
-    void StopScreenCaptureStream(SubStreamID SubStreamID);
-
-    // For the given SubStream, DeviceID and window HWND handle, boot up and setup a capture stream
-    // Populates the StreamLookup Registries
-    OmniStreamer::StreamID
-    StartWindowCaptureStream(SubStreamID SubStreamID, DeviceMap DeviceID, HWND Hwnd);
-
-    // Removes window capture stream, cleans up stream lookup mappings
-    void StopWindowCaptureStream(SubStreamID SubStreamID);
-
-    // Base function to create an async WinForge stream window.
-    StreamWindow*
-    CreateStreamWindow(const WindowCreationData& WindowData, int ShowCmd = SW_SHOWNORMAL);
-
-    // Handles the OnClose event of a stream window, closes the sub stream, destroys the window.
-    // FYI it's delegating work to a thread to let the window proc msg end to safely deconstruct.
-    void OnStreamWindowClose(SubStreamID WindowKey, DeviceMap DeviceID);
-
-    // Processes Window Drag Events, routing to Source controller/Host or Client StreamWindow
-    void
-    HandleStreamWindowDrag(const OmniWinDragPacket& Packet, DeviceMap DeviceID = DeviceMap::C0);
-
-    // Handles drag events on the Host for the captured application window of a given DeviceID.
-    // Excpects normalized ratios to 0-65535 range for target X and Y coords.
-    // why ? it's more efficient that way and not dependant on fragile resolution shit.
-    void HandleStreamSourceDrag(const OmniWinDragPacket& Packet, DeviceMap DeviceID, HWND Hwnd);
-
-    // Handles drag events on the Client for the stream render window of a given DeviceID
-    // Again... Excpects normalized ratios to 0-65535 range for target X and Y coords
-    // why ? it's more efficient that way and not dependant on fragile resolution shit.
-    void HandleStreamClientDrag(const OmniWinDragPacket& Packet, DeviceMap DeviceID);
-
-    // Processes Window Resize Events for both ends, simply looks up the correct HWND and resizes
-    void HandleStreamWindowResize(const OmniWinResizePacket Packet);
-
-    // Per-drag state for the DragLink move/end handlers. Owned by the OnDragMove/OnDragEnd
-    // Callbacks wired in SetWindowLinkState.
-    // Remember to Reset at the start of each new drag via OnDragMove future me!.
-    struct WindowDragState
+    inline SystemLinkContext GetContext()
     {
-        EdgeSpatiality SpatialState  = EdgeSpatiality::Local;
-        DeviceMap      ActiveEdge    = DeviceMap::C0;
-        uint16_t       WindowID      = 0;
-        int            GripX         = 0;
-        int            GripY         = 0;
-        uint32_t       ResW          = 0;
-        uint32_t       ResH          = 0;
-        RECT           LastWindowPos = {};
-    };
-    WindowDragState DragState;
+        return SystemLinkContext{
+            WindowID,
+            hInstance,
+            ActiveInstances,
+            OmniRouter,
+            GraphicsContext,
+            CaptureStreams,
+            RequestSubStream,
+            ReleaseSubStream,
+            ConfigureSubStream
+        };
+    }
 
-    // Called by DragLink.OnDragMove on each tick
-    // Resolves the active edge, maintains the Begin/Move/Cancel state machine
-    // Also.. sends the appropriate WinDrag network packets.
-    void HandleWindowDragMove(HWND Hwnd, const RECT& WindowPos, POINT CursorPos);
+    // Feature Lifecycle Handlers
 
-    // Called by DragLink.OnDragEnd on mouse release
-    // sends the final Drop packet if the drag was in transit to a remote edge
-    // if this window was returning from a remote edge, recall it in-place
-    // Also.. yes.. resets drag state for the next drag
-    void HandleWindowDragEnd(HWND Hwnd);
+    inline OmniNet::PoolConfig SetScreenLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
+    )
+    {
+        auto Ctx = GetContext();
+        return Screen.SetState(this, Ctx, DeviceID, Route, Action, SubStreamID, Context);
+    }
 
-    // Processes Window Mouse Events, routing either to the specific target HWND (WindowLink)
-    // or falling back to full-desktop KVM (ScreenLink)
+    inline OmniNet::PoolConfig SetWindowLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
+    )
+    {
+        auto Ctx = GetContext();
+        return Window.SetState(this, Ctx, DeviceID, Route, Action, SubStreamID, Context);
+    }
+
+    inline OmniNet::PoolConfig SetInputLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
+    )
+    {
+        auto Ctx = GetContext();
+        return Input.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+    }
+
+    inline OmniNet::PoolConfig SetAudioLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
+    )
+    {
+        auto Ctx = GetContext();
+        return Audio.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+    }
+
+    inline OmniNet::PoolConfig SetClipboardLinkState(
+        DeviceMap          DeviceID,
+        FeatureActionRoute Route,
+        FeatureAction      Action,
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
+    )
+    {
+        auto Ctx = GetContext();
+        return Clipboard.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+    }
+
+    /**
+     * @brief Below are the Inlined Forwarders for External Callers.
+     *
+     * No indirections or function call overhead, why?
+     * The memory layout of SystemLink and inline substitution should guarantee this.
+     */
+
+    inline void ToggleEdgeProbe() { Input.ToggleEdgeProbe(); }
+    inline void ToggleInputFilter() { Input.ToggleInputFilter(); }
+    inline void BindIOLinkSession(DeviceMap DeviceID)
+    {
+        auto Ctx = GetContext();
+        Input.BindIOLinkSession(Ctx, DeviceID);
+    }
+    inline void UnbindIOLinkSession(DeviceMap DeviceID)
+    {
+        auto Ctx = GetContext();
+        Input.UnbindIOLinkSession(Ctx, DeviceID);
+    }
+
+    inline void TransmitClipboard(const std::string& Text)
+    {
+        Clipboard.ActiveInstances = ActiveInstances;
+        Clipboard.TransmitClipboard(Text);
+    }
+    inline void TransmitClipboardManifest(const ClipboardManifest& Manifest)
+    {
+        Clipboard.ActiveInstances = ActiveInstances;
+        Clipboard.TransmitClipboardManifest(Manifest);
+    }
+
+    inline std::vector<uint8_t>
+    ReceiveClipboardData(const ClipboardManifest& Manifest, UINT Format = 0)
+    {
+        Clipboard.ActiveInstances = ActiveInstances;
+        return Clipboard.ReceiveClipboardData(Manifest, Format);
+    }
+
+    inline void
+    HandleStreamWindowDrag(const OmniWinDragPacket& Packet, DeviceMap DeviceID = DeviceMap::C0)
+    {
+        auto Ctx = GetContext();
+        Window.HandleStreamWindowDrag(Ctx, Packet, DeviceID);
+    }
+
+    void HandleStreamWindowResize(const OmniWinResizePacket Packet);
     void HandleStreamWindowMouse(const OmniWinMousePacket& Packet);
-
-    // Processes Window Key Events, routing either to the specific target HWND (WindowLink)
-    // or falling back to full-desktop KVM (ScreenLink)
     void HandleStreamWindowKey(const OmniWinKeyPacket& Packet);
 
-    // Creates a Stream Window to receive a capture stream over the network.
-    // Additionally sets up window event handling such as OnInput, OnResize and OnWindowClose.
-    // Returns the StreamWindow's populated frame buffer PoolConfig
-    // Frame bytes are expected to be written to the pool after which gets decoded and rendered
-    OmniNet::PoolConfig SetupStreamRenderWindow(
+    inline void HandleStreamControlPacket(
+        const OmniStreamControlPacket& Packet, DeviceMap SenderDevice = DeviceMap::C0
+    )
+    {
+        auto Ctx = GetContext();
+        CaptureStreams.HandleStreamControlPacket(Ctx, Packet, SenderDevice);
+    }
+
+    inline void TransmitWindowResizeEvent(
+        SubStreamID WindowKey, DeviceMap DeviceID, uint32_t Width, uint32_t Height
+    )
+    {
+        auto Ctx = GetContext();
+        CaptureStreams.TransmitWindowResizeEvent(Ctx, WindowKey, DeviceID, Width, Height);
+    }
+
+    inline void TransmitStreamControlEvent(
+        SubStreamID StreamKey, DeviceMap DeviceID, StreamControl Command, uint32_t Param = 0
+    )
+    {
+        auto Ctx = GetContext();
+        CaptureStreams.TransmitStreamControlEvent(Ctx, StreamKey, DeviceID, Command, Param);
+    }
+
+    inline void RequestStreamIDR(SubStreamID WindowKey, DeviceMap DeviceID)
+    {
+        auto Ctx = GetContext();
+        CaptureStreams.RequestStreamIDR(Ctx, WindowKey, DeviceID);
+    }
+
+    inline void OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID)
+    {
+        CaptureStreams.OnStreamWindowReady(WindowKey, DeviceID);
+    }
+
+    inline void OnStreamWindowClose(SubStreamID WindowKey, DeviceMap DeviceID)
+    {
+        auto Ctx = GetContext();
+        CaptureStreams.OnStreamWindowClose(Ctx, WindowKey, DeviceID);
+    }
+
+    inline StreamWindow*
+    CreateStreamWindow(const WindowCreationData& WindowData, int ShowCmd = SW_SHOWNORMAL)
+    {
+        return CaptureStreams.CreateStreamWindow(WindowData, ShowCmd, hInstance);
+    }
+
+    inline OmniNet::PoolConfig SetupStreamRenderWindow(
         SubStreamID      SubStreamID,
         DeviceMap        DeviceID,
         uint32_t         Width   = 0,
@@ -240,87 +246,35 @@ struct OmniSystemLink
         int16_t          Y       = 0,
         int              ShowCmd = SW_SHOW,
         std::string_view Title   = "Stream Window"
-    );
+    )
+    {
+        auto Ctx = GetContext();
+        return CaptureStreams.SetupStreamRenderWindow(
+            this, Ctx, SubStreamID, DeviceID, Width, Height, X, Y, ShowCmd, Title
+        );
+    }
 
-    void DestroyStreamRenderWindow(SubStreamID SubStreamID);
+    inline void DestroyStreamRenderWindow(SubStreamID SubStreamID)
+    {
+        CaptureStreams.DestroyStreamRenderWindow(SubStreamID);
+    }
 
-    OmniNet::PoolConfig GetStreamWindowPoolConfig(SubStreamID SubStreamID);
+    inline OmniNet::PoolConfig GetStreamWindowPoolConfig(SubStreamID SubStreamID)
+    {
+        return CaptureStreams.GetStreamWindowPoolConfig(SubStreamID);
+    }
 
-    // Callback for WindowLink stream source window
-    // Called upon a DragLink trigger when an edge crossing drag event begins, Drops, Cancels
-    // Although move is handled here it's not called, unused for now
-    SubStreamID HandleWindowDragEvent(HWND Hwnd, DeviceMap TargetDevice, WinDragAction Action);
+    inline bool RecallWindow(HWND SourceHwnd, bool CenterOnDesktop = true)
+    {
+        auto Ctx = GetContext();
+        return Window.RecallWindow(Ctx, SourceHwnd, CenterOnDesktop);
+    }
 
-    // Centers a window on the desktop given the target HWND, self explanatory..
-    void CenterWindowOnDesktop(HWND TargetHwnd);
+    inline size_t RecallAllStreamingWindows()
+    {
+        auto Ctx = GetContext();
+        return Window.RecallAllStreamingWindows(Ctx);
+    }
 
-    // Recalls a specific streamed window back to the host desktop
-    // Notifying Client to destroy its stream render window and..
-    // Stops capture stream on Host, releases SubStream on Host
-    // Finally.. Restores source window on Host desktop and centers if CenterOnDesktop is true
-    bool RecallWindow(HWND SourceHwnd, bool CenterOnDesktop = true);
-
-    // Recalls all active streamed windows back to the host desktop
-    // Just.. a loop on RecallWindow
-    size_t RecallAllStreamingWindows();
-
-    // Toggles edge crossing detection for the cursor.
-    void ToggleEdgeProbe();
-
-    // Registers/Unregisters a device in the OmniRouter for InputLink
-    void BindIOLinkSession(DeviceMap DeviceID);
-    void UnbindIOLinkSession(DeviceMap DeviceID);
-
-    // Blocks input pass throught to the callers device, but I did include a breakout
-    void ToggleInputFilter();
-
-    OmniNet::PoolConfig SetScreenLinkState(
-        DeviceMap          DeviceID,
-        FeatureActionRoute Route,
-        FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
-    );
-
-    OmniNet::PoolConfig SetWindowLinkState(
-        DeviceMap          DeviceID,
-        FeatureActionRoute Route,
-        FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
-    );
-
-    // Register/Unregister the edge cross condition for this device and bind/Unbind the net session.
-    // Setup Edge Probe and Input Shields if not active.. or... remove.
-    OmniNet::PoolConfig SetInputLinkState(
-        DeviceMap          DeviceID,
-        FeatureActionRoute Route,
-        FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
-    );
-
-    OmniNet::PoolConfig SetAudioLinkState(
-        DeviceMap          DeviceID,
-        FeatureActionRoute Route,
-        FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
-    );
-
-    // By default ClipboardLink is a Duplex route feature, meaning toggling is simple.
-    // Uses bitmasking for toggling, stops monitoring if no instance is subscribed to the clipboard
-    // On deactivation additionally ends all the tcp streams in ActiveClipboardStreams
-    // Activation requires TransmitClipboard, TransmitClipboardManifest, and ReceiveClipboardData
-    // callbacks to be set.
-    OmniNet::PoolConfig SetClipboardLinkState(
-        DeviceMap          DeviceID,
-        FeatureActionRoute Route,
-        FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
-    );
-
-    void TransmitClipboard(const std::string& Text);
-    void TransmitClipboardManifest(const ClipboardManifest& Manifest);
+    inline void CenterWindowOnDesktop(HWND TargetHwnd) { Window.CenterWindowOnDesktop(TargetHwnd); }
 };

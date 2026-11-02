@@ -13,9 +13,9 @@ cmake_policy(SET CMP0104 NEW)
 
 # Enables full AVX2 vectorizer
 if(MSVC)
-  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX2>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX2>)
 else()
-  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-mavx2>)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-mavx2>)
 endif()
 
 # Gimme CUDA
@@ -28,6 +28,7 @@ set(CMAKE_CUDA_ARCHITECTURES
     90
     100
     120)
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
 
 # Automatic Shader GLOB
 set(SHADER_DIR
@@ -35,22 +36,22 @@ set(SHADER_DIR
 file(GLOB HLSL_SHADERS "${SHADER_DIR}/*.hlsl")
 
 foreach(SHADER_PATH ${HLSL_SHADERS})
-  get_filename_component(SHADER_NAME ${SHADER_PATH} NAME_WE)
+    get_filename_component(SHADER_NAME ${SHADER_PATH} NAME_WE)
 
-  set(PROFILE "cs_5_0")
-  set(PROFILE_MAIN "CSMain")
-  if(${SHADER_NAME} MATCHES "[Vv]ertex" OR ${SHADER_NAME} MATCHES "_vs")
-    set(PROFILE "vs_5_0")
-    set(PROFILE_MAIN "VSMain")
-  elseif(${SHADER_NAME} MATCHES "[Pp]ixel" OR ${SHADER_NAME} MATCHES "_ps")
-    set(PROFILE "ps_5_0")
-    set(PROFILE_MAIN "PSMain")
-  endif()
+    set(PROFILE "cs_5_0")
+    set(PROFILE_MAIN "CSMain")
+    if(${SHADER_NAME} MATCHES "[Vv]ertex" OR ${SHADER_NAME} MATCHES "_vs")
+        set(PROFILE "vs_5_0")
+        set(PROFILE_MAIN "VSMain")
+    elseif(${SHADER_NAME} MATCHES "[Pp]ixel" OR ${SHADER_NAME} MATCHES "_ps")
+        set(PROFILE "ps_5_0")
+        set(PROFILE_MAIN "PSMain")
+    endif()
 
-  set(OUTPUT_CSO "${CMAKE_CURRENT_BINARY_DIR}/${SHADER_NAME}.cso")
-  list(APPEND SHADER_OUTPUTS ${OUTPUT_CSO})
+    set(OUTPUT_CSO "${CMAKE_CURRENT_BINARY_DIR}/${SHADER_NAME}.cso")
+    list(APPEND SHADER_OUTPUTS ${OUTPUT_CSO})
 
-  add_custom_command(
+    add_custom_command(
     OUTPUT ${OUTPUT_CSO}
     COMMAND
       fxc /T ${PROFILE} /E ${PROFILE_MAIN} /Fo ${OUTPUT_CSO} /Fc
@@ -122,7 +123,7 @@ set(COMMON_SOURCES
 set(TEST_SOURCES unit_tests/dummies/DummyInstances.h)
 
 if(WIN32)
-  set(PLATFORM_SOURCES
+    set(PLATFORM_SOURCES
       src/net/platform/windows/OmniNetContext.cpp
       src/net/platform/windows/SubStream.cpp
       src/net/platform/windows/OmniTCPStream.cpp
@@ -136,12 +137,18 @@ if(WIN32)
       src/window/platform/windows/WinForge.cpp
       src/window/platform/windows/WindowDragCap.cpp
       src/app/platform/windows/SystemLink.cpp
+      src/app/platform/windows/AudioLink.cpp
+      src/app/platform/windows/ClipboardLink.cpp
+      src/app/platform/windows/InputLink.cpp
+      src/app/platform/windows/ScreenLink.cpp
+      src/app/platform/windows/CaptureStreams.cpp
+      src/app/platform/windows/WindowLink.cpp
       src/clipboard/platform/windows/ClipBoardLink.cpp
       src/misc/platform/windows/system_probe.cpp
       src/app/platform/windows/OmniLink.cpp
       src/render/platform/windows/IconLoader.cpp)
 elseif(UNIX)
-  set(PLATFORM_SOURCES
+    set(PLATFORM_SOURCES
       src/net/platform/linux/SessionHandler.cpp
       src/net/platform/linux/OmniTCPStream.cpp
       src/capture/platform/linux/PipeWireCap.cpp
@@ -157,12 +164,12 @@ endif()
 
 # Targets.....
 if(WIN32)
-  add_executable(
+    add_executable(
     main WIN32
     src/app/platform/windows/main.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
     ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
 else()
-  add_executable(
+    add_executable(
     main src/app/platform/linux/main.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
          ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
 endif()
@@ -185,10 +192,10 @@ set(UNIT_TEST_SOURCES
     unit_tests/QryptTest.cpp)
 
 if(WIN32)
-  add_executable(tests ${IMGUI_SOURCES} ${UNIT_TEST_SOURCES} ${COMMON_SOURCES}
+    add_executable(tests ${IMGUI_SOURCES} ${UNIT_TEST_SOURCES} ${COMMON_SOURCES}
                        ${PLATFORM_SOURCES} ${TEST_SOURCES})
 else()
-  add_executable(tests ${UNIT_TEST_SOURCES} ${COMMON_SOURCES}
+    add_executable(tests ${UNIT_TEST_SOURCES} ${COMMON_SOURCES}
                        ${PLATFORM_SOURCES} ${TEST_SOURCES})
 endif()
 
@@ -198,10 +205,18 @@ set_target_properties(
              CUDA_SEPARABLE_COMPILATION ON
              CUDA_STANDARD 14)
 
+if(WIN32)
+    add_executable(
+    gui_sandbox WIN32
+    scratch/gui_sandbox.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
+    ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
+    set_target_properties(gui_sandbox PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+    add_dependencies(gui_sandbox CompileShaders)
+endif()
 
 if(MSVC)
-  set_target_properties(main PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
-  set_target_properties(tests PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
+    set_target_properties(main PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+    set_target_properties(tests PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
 endif()
 
 add_dependencies(main CompileShaders)
@@ -264,7 +279,7 @@ target_include_directories(
           ${CMAKE_CURRENT_SOURCE_DIR}/unit_tests)
 
 if(WIN32)
-  target_include_directories(
+    target_include_directories(
     main
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
@@ -275,7 +290,7 @@ if(WIN32)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
-  target_include_directories(
+    target_include_directories(
     tests
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
@@ -287,7 +302,7 @@ if(WIN32)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
 elseif(UNIX)
-  target_include_directories(
+    target_include_directories(
     main
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/linux
@@ -297,7 +312,7 @@ elseif(UNIX)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/clipboard/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/window/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/unix)
-  target_include_directories(
+    target_include_directories(
     tests
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/linux
@@ -324,10 +339,10 @@ target_compile_definitions(
 
 # Build architecture
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  set(architecture x64)
+    set(architecture x64)
 else()
-  set(architecture x86)
-  # set(LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/x86/)
+    set(architecture x86)
+    # set(LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/x86/)
 endif()
 
 target_link_directories(
@@ -359,19 +374,19 @@ add_custom_command(
 # I don't wanna manually copy compile commands to root each time I generate for
 # nvim. The End.
 if(CMAKE_EXPORT_COMPILE_COMMANDS)
-  if(CMAKE_HOST_WIN32)
-    file(
+    if(CMAKE_HOST_WIN32)
+        file(
       WRITE "${CMAKE_SOURCE_DIR}/.clangd"
       "CompileFlags:
   CompilationDatabase: \"${CMAKE_BINARY_DIR}\"
 ")
-  else()
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/compile_commands.json")
-      execute_process(
+    else()
+        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/compile_commands.json")
+            execute_process(
         COMMAND
           ${CMAKE_COMMAND} -E create_symlink
           "${CMAKE_BINARY_DIR}/compile_commands.json"
           "${CMAKE_SOURCE_DIR}/compile_commands.json")
+        endif()
     endif()
-  endif()
 endif()
