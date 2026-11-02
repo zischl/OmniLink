@@ -187,9 +187,26 @@ struct OmniSystemLink
         WindowLinkModule.HandleStreamWindowDrag(Ctx, Packet, DeviceID);
     }
 
-    void HandleStreamWindowResize(const OmniWinResizePacket Packet);
-    void HandleStreamWindowMouse(const OmniWinMousePacket& Packet);
-    void HandleStreamWindowKey(const OmniWinKeyPacket& Packet);
+    inline void HandleStreamWindowResize(const OmniWinResizePacket Packet)
+    {
+        if (!WindowLinkModule.HandleStreamWindowResize(Packet)) {
+            CaptureStreams.HandleStreamWindowResize(Packet);
+        }
+    }
+
+    inline void HandleStreamWindowMouse(const OmniWinMousePacket& Packet)
+    {
+        auto Ctx = GetContext();
+        if (!WindowLinkModule.HandleStreamWindowMouse(Ctx, Packet)) {
+            CaptureStreams.HandleStreamWindowMouse(Packet);
+        }
+    }
+
+    inline void HandleStreamWindowKey(const OmniWinKeyPacket& Packet)
+    {
+        WindowLinkModule.HandleStreamWindowKey(Packet);
+        CaptureStreams.HandleStreamWindowKey(Packet);
+    }
 
     inline void HandleStreamControlPacket(
         const OmniStreamControlPacket& Packet, DeviceMap SenderDevice = DeviceMap::C0

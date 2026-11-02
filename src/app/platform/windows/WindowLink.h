@@ -91,6 +91,15 @@ struct SystemWindowLink
         SystemLinkContext& Ctx, HWND Hwnd, DeviceMap TargetDevice, WinDragAction Action
     );
 
+    // Handles incoming window resize event for source windows on the host
+    bool HandleStreamWindowResize(const OmniWinResizePacket& Packet);
+
+    // Handles incoming window mouse event for source windows on the host
+    bool HandleStreamWindowMouse(SystemLinkContext& Ctx, const OmniWinMousePacket& Packet);
+
+    // Handles incoming window key event for source windows on the host
+    void HandleStreamWindowKey(const OmniWinKeyPacket& Packet);
+
     // Handles the window drag grab when cursor returns from client to host with left mouse down
     void HandleReturningWindow(DeviceMap DeviceID);
 
