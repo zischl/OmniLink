@@ -7,35 +7,12 @@
 #include <functional>
 #include <thread>
 
-// Encodes local window position into a normalized ratio entry position values.
-// Outputs RatioX and RatioY. Takes in WindowPosition and local resolution.
-void EncodeEdgePosition(
-    DeviceMap   Edge,
-    const RECT& WindowPosition,
-    uint32_t    ResWidth,
-    uint32_t    ResHeight,
-    int16_t&    RatioX,
-    int16_t&    RatioY
-);
-
-// Decodes normalized ratio back into screen coordinates for windoww positioning.
-// Outputs TargetX and TargetY. Takes in RatioX and RatioY and local resolution.
-void DecodeEdgePosition(
-    DeviceMap Edge,
-    int16_t   RatioX,
-    int16_t   RatioY,
-    uint32_t  ResWidth,
-    uint32_t  ResHeight,
-    int&      TargetX,
-    int&      TargetY
-);
-
 // Window drag detection module. Monitors system-wide drag events via WinEvent hook
 // and reports raw window/cursor position each poll tick.
 class OmniDragLink
 {
   public:
-    OmniDragLink() = default;
+    OmniDragLink();
     ~OmniDragLink();
 
     // Simply toggles window move hook install/uninstall

@@ -1,8 +1,12 @@
 #include "WindowDragCap.hpp"
 #include "OmniLogger.hpp"
-#include <algorithm>
 
 OmniDragLink* OmniDragLink::Instance = nullptr;
+
+OmniDragLink::OmniDragLink()
+{
+    Instance = this;
+}
 
 OmniDragLink::~OmniDragLink()
 {
@@ -35,141 +39,6 @@ void OmniDragLink::WindowMoveListener(bool State)
     }
 }
 
-void EncodeEdgePosition(
-    DeviceMap   Edge,
-    const RECT& WindowPosition,
-    uint32_t    ResWidth,
-    uint32_t    ResHeight,
-    int16_t&    RatioX,
-    int16_t&    RatioY
-)
-{
-    if (ResWidth == 0 || ResHeight == 0) {
-        RatioX = static_cast<int16_t>(WindowPosition.left);
-        RatioY = static_cast<int16_t>(WindowPosition.top);
-        return;
-    }
-
-    switch (Edge) {
-    case DeviceMap::R1: {
-        RatioX          = static_cast<int16_t>(WindowPosition.left - static_cast<int>(ResWidth));
-        int64_t ScaledY = (static_cast<int64_t>(WindowPosition.top) * 65535LL) / ResHeight;
-        RatioY          = static_cast<int16_t>(std::clamp<int64_t>(ScaledY, 0, 65535));
-        break;
-    }
-    case DeviceMap::L1: {
-        RatioX          = static_cast<int16_t>(WindowPosition.left);
-        int64_t ScaledY = (static_cast<int64_t>(WindowPosition.top) * 65535LL) / ResHeight;
-        RatioY          = static_cast<int16_t>(std::clamp<int64_t>(ScaledY, 0, 65535));
-        break;
-    }
-    case DeviceMap::D1: {
-        int64_t ScaledX = (static_cast<int64_t>(WindowPosition.left) * 65535LL) / ResWidth;
-        RatioX          = static_cast<int16_t>(std::clamp<int64_t>(ScaledX, 0, 65535));
-        RatioY          = static_cast<int16_t>(WindowPosition.top - static_cast<int>(ResHeight));
-        break;
-    }
-    case DeviceMap::U1: {
-        int64_t ScaledX = (static_cast<int64_t>(WindowPosition.left) * 65535LL) / ResWidth;
-        RatioX          = static_cast<int16_t>(std::clamp<int64_t>(ScaledX, 0, 65535));
-        RatioY          = static_cast<int16_t>(WindowPosition.top);
-        break;
-    }
-    case DeviceMap::RU1: {
-        RatioX = static_cast<int16_t>(WindowPosition.left - static_cast<int>(ResWidth));
-        RatioY = static_cast<int16_t>(WindowPosition.top);
-        break;
-    }
-    case DeviceMap::LU1: {
-        RatioX = static_cast<int16_t>(WindowPosition.left);
-        RatioY = static_cast<int16_t>(WindowPosition.top);
-        break;
-    }
-    case DeviceMap::RD1: {
-        RatioX = static_cast<int16_t>(WindowPosition.left - static_cast<int>(ResWidth));
-        RatioY = static_cast<int16_t>(WindowPosition.top - static_cast<int>(ResHeight));
-        break;
-    }
-    case DeviceMap::LD1: {
-        RatioX = static_cast<int16_t>(WindowPosition.left);
-        RatioY = static_cast<int16_t>(WindowPosition.top - static_cast<int>(ResHeight));
-        break;
-    }
-    default:
-        RatioX = static_cast<int16_t>(WindowPosition.left);
-        RatioY = static_cast<int16_t>(WindowPosition.top);
-        break;
-    }
-}
-
-void DecodeEdgePosition(
-    DeviceMap Edge,
-    int16_t   RatioX,
-    int16_t   RatioY,
-    uint32_t  ResWidth,
-    uint32_t  ResHeight,
-    int&      TargetX,
-    int&      TargetY
-)
-{
-    if (ResWidth == 0 || ResHeight == 0) {
-        TargetX = RatioX;
-        TargetY = RatioY;
-        return;
-    }
-
-    switch (Edge) {
-    case DeviceMap::R1: {
-        TargetX          = RatioX;
-        uint16_t URatioY = static_cast<uint16_t>(RatioY);
-        TargetY = static_cast<int>((static_cast<uint64_t>(URatioY) * ResHeight) / 65535ULL);
-        break;
-    }
-    case DeviceMap::L1: {
-        TargetX          = static_cast<int>(ResWidth) + RatioX;
-        uint16_t URatioY = static_cast<uint16_t>(RatioY);
-        TargetY = static_cast<int>((static_cast<uint64_t>(URatioY) * ResHeight) / 65535ULL);
-        break;
-    }
-    case DeviceMap::D1: {
-        uint16_t URatioX = static_cast<uint16_t>(RatioX);
-        TargetX          = static_cast<int>((static_cast<uint64_t>(URatioX) * ResWidth) / 65535ULL);
-        TargetY          = RatioY;
-        break;
-    }
-    case DeviceMap::U1: {
-        uint16_t URatioX = static_cast<uint16_t>(RatioX);
-        TargetX          = static_cast<int>((static_cast<uint64_t>(URatioX) * ResWidth) / 65535ULL);
-        TargetY          = static_cast<int>(ResHeight) + RatioY;
-        break;
-    }
-    case DeviceMap::RU1: {
-        TargetX = RatioX;
-        TargetY = static_cast<int>(ResHeight) + RatioY;
-        break;
-    }
-    case DeviceMap::LU1: {
-        TargetX = static_cast<int>(ResWidth) + RatioX;
-        TargetY = static_cast<int>(ResHeight) + RatioY;
-        break;
-    }
-    case DeviceMap::RD1: {
-        TargetX = RatioX;
-        TargetY = RatioY;
-        break;
-    }
-    case DeviceMap::LD1: {
-        TargetX = static_cast<int>(ResWidth) + RatioX;
-        TargetY = RatioY;
-        break;
-    }
-    default:
-        TargetX = RatioX;
-        TargetY = RatioY;
-        break;
-    }
-}
-
 void CALLBACK OmniDragLink::WinMvEventProc(
     HWINEVENTHOOK HWinEventHook,
     DWORD         Event,
@@ -185,20 +54,30 @@ void CALLBACK OmniDragLink::WinMvEventProc(
     (void)IDEventThread;
     (void)DWMSEventTime;
 
-    if (IDObject != OBJID_WINDOW || Hwnd == NULL || !Instance)
+    if (IDObject != OBJID_WINDOW) {
+        Logger::log("WinMvEventProc Object ID is not OBJID_WINDOW.");
         return;
+    }
+    if (Hwnd == NULL) {
+        Logger::log("WinMvEventProc Window handle (HWND) is NULL.");
+        return;
+    }
+    if (!Instance) {
+        Logger::log("WinMvEventProc Instance pointer is null.");
+        return;
+    }
 
     DWORD WindowPID = 0;
     GetWindowThreadProcessId(Hwnd, &WindowPID);
-    if (WindowPID == GetCurrentProcessId())
+    if (WindowPID == GetCurrentProcessId()) {
+        Logger::log("WinMvEventProc Window belongs to the current process (PID matched).");
         return;
-
-    if (!IsWindow(Hwnd) || !IsWindowVisible(Hwnd) || IsIconic(Hwnd))
-        return;
+    }
 
     if (Event == EVENT_SYSTEM_MOVESIZESTART) {
         if (Instance->WindowExclusionCheck && Instance->WindowExclusionCheck(Hwnd))
             return;
+
         Instance->StartDragTracking(Hwnd);
     } else if (Event == EVENT_SYSTEM_MOVESIZEEND) {
         Instance->StopDragTracking();
