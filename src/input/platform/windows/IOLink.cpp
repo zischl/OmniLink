@@ -112,7 +112,8 @@ LRESULT OmniInputFilter::MouseProc(int NCode, WPARAM WParam, LPARAM LParam)
     return CallNextHookEx(nullptr, NCode, WParam, LParam);
 }
 
-OmniInputLink::OmniInputLink(InputLinkContext& Ctx) : IOCtx(Ctx), CaptureHWND(nullptr)
+OmniInputLink::OmniInputLink(InputLinkContext& Ctx, OmniSpatialRouter& Router)
+    : IOCtx(Ctx), SpatialRouter(Router), CaptureHWND(nullptr)
 {
     POINT Pos = {};
     GetCursorPos(&Pos);
@@ -124,7 +125,7 @@ OmniInputLink::OmniInputLink(InputLinkContext& Ctx) : IOCtx(Ctx), CaptureHWND(nu
     Device::MonitorRes MonRes = Device::GetMonitorResolution();
     IOCtx.Router.SetResolution(MonRes.Width, MonRes.Height);
 
-    ConditionManager.SyncConditions();
+    SpatialRouter.SyncConditions();
 
     FocusEventListener(true);
 }
@@ -177,12 +178,12 @@ void CALLBACK OmniInputLink::WinFocusEventProc(
     }
 }
 
-uint8_t OmniInputLink::ComputeRelativeSpartialGrid(DeviceMap DeviceID, uint8_t EdgeMask)
+uint8_t OmniInputLink::ComputeRelativeSpatialGrid(DeviceMap DeviceID, uint8_t EdgeMask)
 {
     uint8_t RelativeEdgeMask = 0;
     while (EdgeMask) {
         DeviceMap RelativeID =
-            ComputeRelativeSpartialID(DeviceID, static_cast<DeviceMap>(std::countr_zero(EdgeMask)));
+            ComputeRelativeSpatialID(DeviceID, static_cast<DeviceMap>(std::countr_zero(EdgeMask)));
         RelativeEdgeMask |= (1U << RelativeID);
         EdgeMask &= static_cast<uint8_t>(EdgeMask - 1);
     }
@@ -226,7 +227,7 @@ void OmniInputLink::ResetEdgeRelayMask()
 
     while (ActiveMask) {
         auto DeviceID = static_cast<DeviceMap>(std::countr_zero(ActiveMask) + 1);
-        RemoveEdgeCondition(DeviceID);
+        SpatialRouter.RemoveEdgeCondition(DeviceID);
         ActiveMask &= static_cast<uint8_t>(ActiveMask - 1);
     }
 
@@ -237,16 +238,16 @@ void OmniInputLink::SetEdgeRelayMask(DeviceMap RemoteID, uint8_t EdgeMask)
 {
     ResetEdgeRelayMask();
 
-    DeviceMap ReverseID = ComputeRelativeSpartialID(RemoteID, DeviceMap::C0);
+    DeviceMap ReverseID = ComputeRelativeSpatialID(RemoteID, DeviceMap::C0);
 
     while (EdgeMask) {
         DeviceMap DeviceID = static_cast<DeviceMap>(std::countr_zero(EdgeMask) + 1);
         DeviceMap RelativeID =
-            ComputeRelativeSpartialID(ReverseID, static_cast<DeviceMap>(DeviceID));
+            ComputeRelativeSpatialID(ReverseID, static_cast<DeviceMap>(DeviceID));
 
         if (RelativeID != DeviceMap::END && RelativeID != DeviceMap::C0) {
             AddRelayMask(RelativeID);
-            AddEdgeCondition(RelativeID);
+            SpatialRouter.AddEdgeCondition(RelativeID);
         }
 
         EdgeMask &= static_cast<uint8_t>(EdgeMask - 1);
@@ -260,7 +261,7 @@ bool OmniInputLink::GetEdgeRelayState(DeviceMap DeviceID)
 
 uint8_t OmniInputLink::GetEdgeRelayMask(DeviceMap TargetID)
 {
-    uint8_t EdgeMask = ConditionManager.GetActiveMask();
+    uint8_t EdgeMask = SpatialRouter.GetActiveMask();
 
     return EdgeMask & ~(1U << (static_cast<uint8_t>(TargetID) - 1));
 }
@@ -297,7 +298,7 @@ void OmniInputLink::CreateEdgeProbe()
                 MouseX = Pos.x;
                 MouseY = Pos.y;
 
-                DeviceMap DeviceID = ConditionManager.Evaluate(MouseX, MouseY);
+                DeviceMap DeviceID = SpatialRouter.Evaluate(MouseX, MouseY);
 
                 if (DeviceID != DeviceMap::C0) {
 
@@ -423,16 +424,6 @@ void OmniInputLink::CreateEdgeProbe()
             }
         }
     });
-}
-
-void OmniInputLink::AddEdgeCondition(DeviceMap Index)
-{
-    ConditionManager.AddEdgeCondition(static_cast<DeviceMap>(Index));
-}
-
-void OmniInputLink::RemoveEdgeCondition(DeviceMap DeviceID)
-{
-    ConditionManager.RemoveEdgeCondition(DeviceID);
 }
 
 void OmniInputLink::SetCaptureHIDMode(ModeHID TargetMode)
@@ -705,8 +696,8 @@ void OmniSynth::ProcEdgeCross(DeviceMap DeviceID, const OmniEdgeCrossPacket& Pac
 void OmniSynth::ProcEdgeRelayCross(DeviceMap DeviceID, const OmniEdgeRelayPacket& Packet)
 {
 
-    DeviceMap ReverseID = ComputeRelativeSpartialID(DeviceID, DeviceMap::C0);
-    DeviceMap TargetID  = ComputeRelativeSpartialID(ReverseID, Packet.RelayEdge);
+    DeviceMap ReverseID = ComputeRelativeSpatialID(DeviceID, DeviceMap::C0);
+    DeviceMap TargetID  = ComputeRelativeSpatialID(ReverseID, Packet.RelayEdge);
 
     auto* NetSession = IOContext.Router.GetSession(TargetID);
     if (NetSession) {

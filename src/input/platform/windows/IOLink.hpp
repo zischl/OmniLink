@@ -72,27 +72,24 @@ class OmniInputFilter
 class OmniInputLink
 {
   public:
-    explicit OmniInputLink(InputLinkContext& Ctx);
+    explicit OmniInputLink(InputLinkContext& Ctx, OmniSpatialRouter& Router);
     ~OmniInputLink();
 
-    inline void SetupInputLink(HWND CaptureWndHandle)
-    {
-        CaptureHWND = CaptureWndHandle;
-    }
+    inline void SetupInputLink(HWND CaptureWndHandle) { CaptureHWND = CaptureWndHandle; }
 
     // Mouse cursor position tracked locally for edge detection and delta math.
     int MouseX = 0;
     int MouseY = 0;
 
-    SpatialEdgeRouter ConditionManager;
+    OmniSpatialRouter& SpatialRouter;
 
     std::atomic<DeviceMap> CursorOwner{DeviceMap::C0};
     std::atomic<uint8_t>   ActiveEdgeRelayMask{0};
     std::atomic<bool>      InputStateHID{false};
 
-    uint8_t ComputeRelativeSpartialGrid(DeviceMap DeviceID, uint8_t EdgeMask);
+    uint8_t ComputeRelativeSpatialGrid(DeviceMap DeviceID, uint8_t EdgeMask);
 
-    // The Edge Probe system worls alongside the SpatialEdgeRouter with support for multiple
+    // The Edge Probe system worls alongside the OmniSpatialRouter with support for multiple
     // monitors. Based on registered directions and the user's display resolution monitors cursor
     // edge hits. Calculates scaled X and Y ratio from user resolution and Cursor X Y pos..
     // Transmits OmniEdgeCrossPacket to transfer cursor ownership and awaits return
@@ -113,9 +110,6 @@ class OmniInputLink
     // Again.. Do Not Give This Guy C0 or END.
     // TargetID minus one due to the EdgeRelays can never be C0 or END.
     uint8_t GetEdgeRelayMask(DeviceMap TargetID);
-
-    void AddEdgeCondition(DeviceMap Index);
-    void RemoveEdgeCondition(DeviceMap Index);
 
     void (OmniInputLink::*InputProc)(LPARAM& LParam) = nullptr;
 
