@@ -1,5 +1,5 @@
-#include "AudioLink.h"
-#include "OmniInstances.h"
+#include "AudioLink.hpp"
+#include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "SessionHandler.hpp"
 #include "SubStream.hpp"

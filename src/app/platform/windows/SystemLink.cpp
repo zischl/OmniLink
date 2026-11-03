@@ -1,4 +1,4 @@
-#include "SystemLink.h"
+#include "SystemLink.hpp"
 #include "OmniLogger.hpp"
 
 OmniSystemLink::OmniSystemLink(OmniGraphicsContext& GraphicsContext)

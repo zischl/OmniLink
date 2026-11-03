@@ -10,9 +10,9 @@
 #include "IconLoader.hpp"
 #include "OmniAPI.hpp"
 #include "OmniColors.hpp"
-#include "OmniCore.h"
+#include "OmniCore.hpp"
 #include "OmniEnums.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniPackets.hpp"
 #include "UIEvents.hpp"
 

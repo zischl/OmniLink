@@ -16,7 +16,7 @@
 #include "NetUtils.hpp"
 #include "OmniDiscovery.hpp"
 #include "OmniEnums.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "PlatformIntrinsics.hpp"
 #include "system_probe_impl.hpp"

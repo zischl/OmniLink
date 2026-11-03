@@ -1,7 +1,7 @@
 #include "IOLink.hpp"
 #include "IOLinkContext.hpp"
 #include "OmniEnums.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "OmniRouterContext.hpp"
 #include "OmniTypes.hpp"

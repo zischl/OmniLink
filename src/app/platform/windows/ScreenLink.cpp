@@ -1,6 +1,6 @@
-#include "ScreenLink.h"
-#include "CaptureStreams.h"
-#include "OmniInstances.h"
+#include "ScreenLink.hpp"
+#include "CaptureStreams.hpp"
+#include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "OmniRouterContext.hpp"
 

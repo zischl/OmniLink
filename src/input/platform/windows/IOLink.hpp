@@ -3,7 +3,7 @@
 #include "Helper.hpp"
 #include "IOLinkContext.hpp"
 #include "OmniEnums.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "SpatialRouter.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN

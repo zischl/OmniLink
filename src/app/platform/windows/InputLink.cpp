@@ -1,5 +1,5 @@
-#include "InputLink.h"
-#include "OmniInstances.h"
+#include "InputLink.hpp"
+#include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "OmniRouterContext.hpp"
 #include "SessionHandler.hpp"

@@ -1,18 +1,18 @@
 #pragma once
 
-#include "AudioLink.h"
-#include "CaptureStreams.h"
-#include "ClipboardLink.h"
-#include "InputLink.h"
+#include "AudioLink.hpp"
+#include "CaptureStreams.hpp"
+#include "ClipboardLink.hpp"
+#include "InputLink.hpp"
 #include "OmniEnums.hpp"
 #include "OmniGraphicsContext.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniPackets.hpp"
 #include "OmniRouterContext.hpp"
-#include "ScreenLink.h"
+#include "ScreenLink.hpp"
 #include "SpatialRouter.hpp"
-#include "SystemLinkContext.h"
-#include "WindowLink.h"
+#include "SystemLinkContext.hpp"
+#include "WindowLink.hpp"
 
 #include <Windows.h>
 #include <algorithm>

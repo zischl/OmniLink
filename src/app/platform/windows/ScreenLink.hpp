@@ -3,7 +3,7 @@
 #include "CaptureController.hpp"
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
-#include "SystemLinkContext.h"
+#include "SystemLinkContext.hpp"
 
 struct SystemScreenLink
 {

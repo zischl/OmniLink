@@ -4,7 +4,7 @@
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
 #include "StreamWindow.hpp"
-#include "SystemLinkContext.h"
+#include "SystemLinkContext.hpp"
 #include "WindowOperationTypes.hpp"
 
 #include <Windows.h>

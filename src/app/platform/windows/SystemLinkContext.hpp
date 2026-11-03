@@ -1,7 +1,7 @@
 #pragma once
 
 #include "OmniEnums.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniPackets.hpp"
 #include "SessionTypes.hpp"
 

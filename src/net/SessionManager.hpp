@@ -3,7 +3,7 @@
 
 #pragma once
 #include "OmniConfig.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "SessionHandler.hpp"
 

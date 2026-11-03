@@ -2,7 +2,7 @@
 #define OMNIAPI_H
 
 #pragma once
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniPackets.hpp"
 #include <chrono>
 #include <iostream>

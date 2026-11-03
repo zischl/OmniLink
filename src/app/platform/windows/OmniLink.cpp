@@ -6,7 +6,7 @@
 #include "OmniDiscovery.hpp"
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
-#include "SystemLink.h"
+#include "SystemLink.hpp"
 #include "WinForge.hpp"
 #include "WindowOperationTypes.hpp"
 #include <OmniLink.hpp>

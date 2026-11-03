@@ -1,14 +1,14 @@
-#include "WindowLink.h"
-#include "CaptureStreams.h"
+#include "WindowLink.hpp"
+#include "CaptureStreams.hpp"
 #include "IOLinkContext.hpp"
 #include "OmniConfig.hpp"
-#include "OmniInstances.h"
+#include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "OmniRouterContext.hpp"
 #include "SessionHandler.hpp"
 #include "SpatialRouter.hpp"
 #include "SubStream.hpp"
-#include "SystemLink.h"
+#include "SystemLink.hpp"
 #include "WinForge.hpp"
 
 #include <dwmapi.h>

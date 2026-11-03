@@ -13,7 +13,7 @@
 
 #include "resource.h"
 
-#include "OmniCore.h"
+#include "OmniCore.hpp"
 #include "OmniGUI.hpp"
 
 #include <Windows.h>

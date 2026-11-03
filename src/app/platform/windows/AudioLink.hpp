@@ -4,7 +4,7 @@
 #include "AudioRender.hpp"
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
-#include "SystemLinkContext.h"
+#include "SystemLinkContext.hpp"
 
 #include <array>
 #include <atomic>

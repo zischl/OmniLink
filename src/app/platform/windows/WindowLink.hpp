@@ -3,7 +3,7 @@
 #include "CaptureController.hpp"
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
-#include "SystemLinkContext.h"
+#include "SystemLinkContext.hpp"
 #include "WindowDragCap.hpp"
 #include "WindowOperationTypes.hpp"
 

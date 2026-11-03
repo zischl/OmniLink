@@ -4,7 +4,7 @@
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
 #include "OmniTCPStream.h"
-#include "SystemLinkContext.h"
+#include "SystemLinkContext.hpp"
 #include "clipboard/platform/windows/ClipBoardLink.h"
 
 #include <Windows.h>

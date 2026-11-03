@@ -4,7 +4,7 @@
 #include "IOLinkContext.hpp"
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
-#include "SystemLinkContext.h"
+#include "SystemLinkContext.hpp"
 
 class OmniRouter;
 
