@@ -38,7 +38,7 @@ alignas(64) constexpr std::array<std::array<DeviceMap, 8>, 8> RelativeDeviceMapL
 // In a 3x3 grid this function lets one slot to see how another slot sees the grid
 // Note: TargetID being C0 is to check local instance position from another slot, meaning reverse.
 // Meaning... for Instance A, Instance B is L1 and to B ? A is R1 and so on
-constexpr DeviceMap ComputeRelativeSpartialID(DeviceMap DeviceID, DeviceMap TargetID)
+constexpr DeviceMap ComputeRelativeSpatialID(DeviceMap DeviceID, DeviceMap TargetID)
 {
     if (DeviceID >= END || TargetID >= END)
         return END;

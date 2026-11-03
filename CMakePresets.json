@@ -1,26 +1,21 @@
 {
-  "version":  3,
-   "configurePresets":  [
+  "version": 3,
+  "configurePresets": [
     {
-      "toolset":  {
-        "strategy":  "external",
-         "value":  "host=x64"
+      "displayName": "Default",
+      "binaryDir": "${sourceDir}/build/Default",
+      "name": "Default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
       },
-       "displayName":  "Default",
-       "binaryDir":  "${sourceDir}/build/Default",
-       "name":  "Default",
-       "architecture":  {
-        "strategy":  "external",
-         "value":  "x64"
-      },
-       "generator":  "Ninja"
+      "generator": "Ninja"
     }
   ],
-   "buildPresets":  [
+  "buildPresets": [
     {
-      "displayName":  "Default",
-       "name":  "Default",
-       "configurePreset":  "Default"
+      "displayName": "Default",
+      "name": "Default",
+      "configurePreset": "Default"
     }
   ]
 }

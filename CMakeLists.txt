@@ -70,7 +70,7 @@ file(GLOB IMGUI_CORE_SOURCES
 set(IMGUI_SOURCES ${IMGUI_CORE_SOURCES})
 
 if(WIN32)
-  list(
+    list(
     APPEND
     IMGUI_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_win32.h"
@@ -79,7 +79,7 @@ if(WIN32)
     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_dx11.cpp"
   )
 elseif(UNIX)
-  list(
+    list(
     APPEND
     IMGUI_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/external/include/imgui/backends/imgui_impl_vulkan.h"
@@ -165,12 +165,12 @@ endif()
 # Targets.....
 if(WIN32)
     add_executable(
-    main WIN32
+    OmniLink WIN32
     src/app/platform/windows/main.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
     ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
 else()
     add_executable(
-    main src/app/platform/linux/main.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
+    OmniLink src/app/platform/linux/main.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
          ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
 endif()
 
@@ -200,31 +200,23 @@ else()
 endif()
 
 set_target_properties(
-  main tests
+  OmniLink tests
   PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE
              CUDA_SEPARABLE_COMPILATION ON
              CUDA_STANDARD 14)
 
-if(WIN32)
-    add_executable(
-    gui_sandbox WIN32
-    scratch/gui_sandbox.cpp ${IMGUI_SOURCES} ${RESOURCE_FILES}
-    ${COMMON_SOURCES} ${PLATFORM_SOURCES} ${TEST_SOURCES})
-    set_target_properties(gui_sandbox PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
-    add_dependencies(gui_sandbox CompileShaders)
-endif()
 
 if(MSVC)
-    set_target_properties(main PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
+    set_target_properties(OmniLink PROPERTIES LINK_FLAGS "/SUBSYSTEM:WINDOWS")
     set_target_properties(tests PROPERTIES LINK_FLAGS "/SUBSYSTEM:CONSOLE")
 endif()
 
-add_dependencies(main CompileShaders)
+add_dependencies(OmniLink CompileShaders)
 add_dependencies(tests CompileShaders)
 
 # Surely this is self explanatory
 target_include_directories(
-  main
+  OmniLink
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
           ${monocypher_SOURCE_DIR}/src
           ${CMAKE_CURRENT_SOURCE_DIR}/external/include
@@ -280,7 +272,7 @@ target_include_directories(
 
 if(WIN32)
     target_include_directories(
-    main
+    OmniLink
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/windows
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/windows
@@ -303,7 +295,7 @@ if(WIN32)
             ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/platform/windows)
 elseif(UNIX)
     target_include_directories(
-    main
+    OmniLink
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/net/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/capture/platform/linux
             ${CMAKE_CURRENT_SOURCE_DIR}/src/render/platform/linux
@@ -326,7 +318,7 @@ endif()
 
 # Yup... Still about Targets
 target_compile_definitions(
-  main
+  OmniLink
   PUBLIC $<$<CONFIG:Debug>:OMNI_BUILD_DEBUG>
          $<$<CONFIG:Release>:OMNI_BUILD_RELEASE>
   PRIVATE WIN32_LEAN_AND_MEAN)
@@ -346,7 +338,7 @@ else()
 endif()
 
 target_link_directories(
-  main PRIVATE
+  OmniLink PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/$<CONFIG>/${architecture}/
   ${CMAKE_CURRENT_SOURCE_DIR}/external/lib/Universal/${architecture}/)
 
@@ -360,10 +352,10 @@ set(DLL_PATH
     "${CMAKE_CURRENT_SOURCE_DIR}/external/dll/$<CONFIG>/${architecture}")
 
 add_custom_command(
-  TARGET main
+  TARGET OmniLink
   POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${DLL_PATH}"
-          $<TARGET_FILE_DIR:main>)
+          $<TARGET_FILE_DIR:OmniLink>)
 
 add_custom_command(
   TARGET tests
