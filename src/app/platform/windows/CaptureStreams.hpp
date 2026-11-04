@@ -5,6 +5,7 @@
 #include "OmniPackets.hpp"
 #include "StreamWindow.hpp"
 #include "SystemLinkContext.hpp"
+#include "WinForge.hpp"
 #include "WindowOperationTypes.hpp"
 
 #include <Windows.h>
@@ -31,34 +32,16 @@ struct SystemCaptureStreams
     ComPtr<ID3D11Device>        StreamingDevice  = nullptr;
     ComPtr<ID3D11DeviceContext> StreamingContext = nullptr;
 
-    // StreamWindow Container and SubStream to StreamWindow / StreamWindowID lookup
-    std::unordered_map<SubStreamID, StreamWindow*>          StreamWindowRegistry;
-    std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
-
-    // Context used by streamer windows including pointers to system link and related net session.
-    // Additionally includes last window position and the last position transmitted via stream.
-    // LastMoveMsgTime is for stream window drag move event smoothing to avoid flooding.
-    struct WindowStreamContext
-    {
-        SystemCaptureStreams*                             Streams       = nullptr;
-        OmniNetSession<OmniMTU>*                          Session       = nullptr;
-        OmniSpatialRouter*                                SpatialRouter = nullptr;
-        OmniRouter*                                       Router        = nullptr;
-        std::function<void(DeviceMap, SubStreamID, bool)> ReleaseSubStream;
-        DeviceMap                                         DeviceID        = DeviceMap::C0;
-        SubStreamID                                       WindowKey       = 0;
-        HWND                                              WindowHwnd      = NULL;
-        int                                               LastX           = INT_MIN;
-        int                                               LastY           = INT_MIN;
-        int                                               LastSentX       = INT_MIN;
-        int                                               LastSentY       = INT_MIN;
-        DWORD                                             LastMoveMsgTime = 0;
-        EdgeSpatiality                                    SpatialState    = EdgeSpatiality::Local;
-    };
-
-    std::unordered_map<SubStreamID, std::unique_ptr<WindowStreamContext>> StreamContexts;
-
     ~SystemCaptureStreams();
+
+    // Accessors for Registry Containers
+    StreamWindow*          FindStreamWindow(SubStreamID ID) const;
+    OmniStreamer::StreamID FindStreamerID(SubStreamID ID) const;
+    bool                   ContainsStreamWindow(SubStreamID ID) const;
+
+    void RegisterStreamerID(SubStreamID ID, OmniStreamer::StreamID StreamID);
+    void UnregisterStreamerID(SubStreamID ID);
+    void RemoveCaptureStream(SubStreamID ID);
 
     // Base function to create a DXGI/WGC capture stream.
     OmniStreamer::StreamID AddCaptureStream(
@@ -125,18 +108,23 @@ struct SystemCaptureStreams
     // Returns the StreamWindow's populated frame buffer PoolConfig
     // Frame bytes are expected to be written to the pool after which gets decoded and rendered
     OmniNet::PoolConfig SetupStreamRenderWindow(
-        SystemLinkContext& Ctx,
-        SubStreamID        SubStreamID,
-        DeviceMap          DeviceID,
-        uint32_t           Width   = 0,
-        uint32_t           Height  = 0,
-        int16_t            X       = 0,
-        int16_t            Y       = 0,
-        int                ShowCmd = SW_SHOW,
-        std::string_view   Title   = "Stream Window"
+        SystemLinkContext&             Ctx,
+        SubStreamID                    SubStreamID,
+        DeviceMap                      DeviceID,
+        uint32_t                       Width         = 0,
+        uint32_t                       Height        = 0,
+        int16_t                        X             = 0,
+        int16_t                        Y             = 0,
+        int                            ShowCmd       = SW_SHOW,
+        std::string_view               Title         = "Stream Window",
+        const OmniWindowEventHandlers* EventHandlers = nullptr
     );
 
     void DestroyStreamRenderWindow(SubStreamID SubStreamID);
 
     OmniNet::PoolConfig GetStreamWindowPoolConfig(SubStreamID SubStreamID);
+
+  private:
+    std::unordered_map<SubStreamID, StreamWindow*>          StreamWindowRegistry;
+    std::unordered_map<SubStreamID, OmniStreamer::StreamID> StreamerIDRegistry;
 };

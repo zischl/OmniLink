@@ -20,7 +20,6 @@ struct SystemScreenLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
+        SubStreamID        SubStreamID = 0
     );
 };

@@ -110,16 +110,6 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
     DeviceMap DeviceID = static_cast<DeviceMap>(SessionCtx->UniqueKey);
 
     switch (BufferHeader) {
-    case OmniNet::PacketType::ChunkEnd: {
-        // This route is now deprecated due to capture streams using SubStreams
-        OmniSystemLink* SysLink = reinterpret_cast<OmniSystemLink*>(SessionCtx->UserContext);
-
-        std::unordered_map<SubStreamID, StreamWindow*>* WindowContext =
-            SysLink ? &SysLink->CaptureStreams.StreamWindowRegistry : nullptr;
-
-        HandleFrame(WindowContext, Buffer, BufferSize);
-        break;
-    }
     case OmniNet::Command: {
         HandleCommand(Buffer, BufferSize, DeviceID);
         break;
@@ -211,6 +201,10 @@ void NetworkPacketHandler(char* Buffer, uint32_t BufferSize, uint8_t BufferHeade
     }
     case OmniNet::PacketType::ProcClipboard: {
         HandleClipboard(Buffer, BufferSize);
+        break;
+    }
+    case OmniNet::PacketType::ChunkEnd: {
+        // This route is now deprecated due to capture streams using SubStreams
         break;
     }
     }

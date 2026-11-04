@@ -89,60 +89,55 @@ struct OmniSystemLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
+        SubStreamID        SubStreamID = 0
     )
     {
         auto Ctx = GetContext();
-        return ScreenLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return ScreenLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
     }
 
     inline OmniNet::PoolConfig SetWindowLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
+        SubStreamID        SubStreamID = 0
     )
     {
         auto Ctx = GetContext();
-        return WindowLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return WindowLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
     }
 
     inline OmniNet::PoolConfig SetInputLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
+        SubStreamID        SubStreamID = 0
     )
     {
         auto Ctx = GetContext();
-        return InputLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return InputLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
     }
 
     inline OmniNet::PoolConfig SetAudioLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
+        SubStreamID        SubStreamID = 0
     )
     {
         auto Ctx = GetContext();
-        return AudioLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return AudioLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
     }
 
     inline OmniNet::PoolConfig SetClipboardLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0,
-        void*              Context     = nullptr
+        SubStreamID        SubStreamID = 0
     )
     {
         auto Ctx = GetContext();
-        return ClipboardLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
+        return ClipboardLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
     }
 
     /**

@@ -23,11 +23,11 @@ OmniStreamer::StreamID SystemScreenLink::StartScreenCaptureStream(
     OmniStreamer::StreamID CaptureStreamID = Ctx.CaptureStreams.AddCaptureStream(
         Ctx.GraphicsContext, Entry->SubStream, DeviceID, CaptureMode::DXGI, Config
     );
-    if (CaptureStreamID == 0) {
+    if (CaptureStreamID == OmniStreamer::InvalidStreamID) {
         return 0;
     }
 
-    Ctx.CaptureStreams.StreamerIDRegistry[SubStreamID] = CaptureStreamID;
+    Ctx.CaptureStreams.RegisterStreamerID(SubStreamID, CaptureStreamID);
 
     Logger::log(
         "ScreenCapture started for SubStreamID={:d}, StreamID={:d}", SubStreamID, CaptureStreamID
@@ -37,11 +37,7 @@ OmniStreamer::StreamID SystemScreenLink::StartScreenCaptureStream(
 
 void SystemScreenLink::StopScreenCaptureStream(SystemLinkContext& Ctx, SubStreamID SubStreamID)
 {
-    auto IterStreamID = Ctx.CaptureStreams.StreamerIDRegistry.find(SubStreamID);
-    if (IterStreamID != Ctx.CaptureStreams.StreamerIDRegistry.end()) {
-        Ctx.CaptureStreams.Streamer.RemoveStream(IterStreamID->second);
-        Ctx.CaptureStreams.StreamerIDRegistry.erase(IterStreamID);
-    }
+    Ctx.CaptureStreams.RemoveCaptureStream(SubStreamID);
 }
 
 OmniNet::PoolConfig SystemScreenLink::SetState(
@@ -49,11 +45,9 @@ OmniNet::PoolConfig SystemScreenLink::SetState(
     DeviceMap          DeviceID,
     FeatureActionRoute Route,
     FeatureAction      Action,
-    SubStreamID        SubStreamID,
-    void*              Context
+    SubStreamID        SubStreamID
 )
 {
-    (void)Context;
     if (Route == FeatureActionRoute::Outbound) {
         if (Action == FeatureAction::Activate) {
             StartScreenCaptureStream(Ctx, SubStreamID, DeviceID);
@@ -63,8 +57,8 @@ OmniNet::PoolConfig SystemScreenLink::SetState(
             } else if (Ctx.ActiveInstances && Ctx.ActiveInstances->contains(DeviceID)) {
                 auto& Instance   = Ctx.ActiveInstances->at(DeviceID);
                 auto  SubStreams = Instance.GetSubStreams(FeatureTypes::ScreenLink);
-                for (uint16_t SubStreamID : SubStreams) {
-                    StopScreenCaptureStream(Ctx, SubStreamID);
+                for (uint16_t StreamID : SubStreams) {
+                    StopScreenCaptureStream(Ctx, StreamID);
                 }
             }
         }
