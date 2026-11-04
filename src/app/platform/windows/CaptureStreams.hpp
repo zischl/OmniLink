@@ -86,7 +86,9 @@ struct SystemCaptureStreams
     );
 
     // Callback fired when WinForge finishes initializing its decoder
-    void OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID);
+    void OnStreamWindowReady(
+        OmniNetSession<OmniMTU>* Session, SubStreamID WindowKey, DeviceMap DeviceID
+    );
 
     // Requests an IDR keyframe from the remote sender
     void

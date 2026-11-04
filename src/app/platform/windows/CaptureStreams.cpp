@@ -92,10 +92,23 @@ void SystemCaptureStreams::TransmitWindowResize(
     );
 }
 
-void SystemCaptureStreams::OnStreamWindowReady(SubStreamID WindowKey, DeviceMap DeviceID)
+void SystemCaptureStreams::OnStreamWindowReady(
+    OmniNetSession<OmniMTU>* NetSession, SubStreamID WindowKey, DeviceMap DeviceID
+)
 {
+    OmniStreamControlPacket Packet{};
+    Packet.StreamKey = WindowKey;
+    Packet.Command   = StreamControl::Ready;
+
+    OmniNet::OmniHeader Header{};
+    Header.PacketType = OmniNet::PacketType::ProcStreamControl;
+    Header.Target     = 0;
+    Header.Flags      = 0;
+
+    NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinResizePacket), Header);
+
     Logger::log(
-        "Stream Window ready for WindowKey={:d}, DeviceID={:d}",
+        "Stream Control status Ready sent to WindowKey={:d}, TargetDevice={:d}",
         WindowKey,
         static_cast<int>(DeviceID)
     );
@@ -238,7 +251,9 @@ static void StreamWindowOnDecoderReady(void* Ctx)
             StreamContext->WindowHwnd = IterStreamWindows->second->GetHwnd();
         }
     }
-    StreamContext->Streams->OnStreamWindowReady(StreamContext->WindowKey, StreamContext->DeviceID);
+    StreamContext->Streams->OnStreamWindowReady(
+        StreamContext->Session, StreamContext->WindowKey, StreamContext->DeviceID
+    );
 }
 
 static void StreamWindowOnWindowClose(void* Ctx)
