@@ -1,25 +1,10 @@
-#include "CaptureStreams.hpp"
+#include "StreamSessions.hpp"
 #include "IOLinkContext.hpp"
 #include "OmniRouterContext.hpp"
 #include "SpatialRouter.hpp"
 #include "WindowLink.hpp"
 
 #include <dwmapi.h>
-
-// Processes Window Drag Events, routing to Source or Stream Window drag handler
-void SystemWindowLink::HandleStreamWindowDrag(
-    SystemLinkContext& Ctx, const OmniWinDragPacket& Packet, DeviceMap SenderDevice
-)
-{
-    DeviceMap DeviceID = (SenderDevice != DeviceMap::C0) ? SenderDevice : Packet.Edge;
-
-    auto IterSource = SubStream2HwndRegistry.find(Packet.WindowID);
-    if (IterSource != SubStream2HwndRegistry.end() && IterSource->second) {
-        HandleStreamSourceDrag(Ctx, Packet, DeviceID, IterSource->second);
-    } else {
-        HandleStreamClientDrag(Ctx, Packet, DeviceID);
-    }
-}
 
 // Handles drag events on the Host for the captured application window of a given DeviceID.
 // Excpects normalized ratios to 0-65535 range for target X and Y coords.
@@ -83,7 +68,7 @@ void SystemWindowLink::HandleStreamClientDrag(
 
     switch (Packet.Action) {
     case WinDragAction::Begin: {
-        StreamWindow* Window = Ctx.CaptureStreams.FindStreamWindow(Packet.WindowID);
+        StreamWindow* Window = Ctx.StreamSessions.FindStreamWindow(Packet.WindowID);
         if (!Window) {
             OmniNet::PoolConfig PoolConfig = SetupClientStreamRenderWindow(
                 Ctx,
@@ -121,7 +106,7 @@ void SystemWindowLink::HandleStreamClientDrag(
         break;
     }
     case WinDragAction::Move: {
-        StreamWindow* Window = Ctx.CaptureStreams.FindStreamWindow(Packet.WindowID);
+        StreamWindow* Window = Ctx.StreamSessions.FindStreamWindow(Packet.WindowID);
         if (!Window) {
             return;
         }
@@ -134,7 +119,7 @@ void SystemWindowLink::HandleStreamClientDrag(
         break;
     }
     case WinDragAction::Drop: {
-        StreamWindow* Window = Ctx.CaptureStreams.FindStreamWindow(Packet.WindowID);
+        StreamWindow* Window = Ctx.StreamSessions.FindStreamWindow(Packet.WindowID);
         if (!Window) {
             return;
         }
@@ -150,7 +135,7 @@ void SystemWindowLink::HandleStreamClientDrag(
     }
     case WinDragAction::Cancel: {
         WindowStreamEntries.erase(Packet.WindowID);
-        Ctx.CaptureStreams.DestroyStreamRenderWindow(Packet.WindowID);
+        Ctx.StreamSessions.DestroyStreamRenderWindow(Packet.WindowID);
         if (Ctx.ReleaseSubStream) {
             Ctx.ReleaseSubStream(DeviceID, Packet.WindowID, false);
         }

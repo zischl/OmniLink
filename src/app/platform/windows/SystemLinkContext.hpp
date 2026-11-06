@@ -12,7 +12,7 @@
 class OmniRouter;
 class OmniSpatialRouter;
 struct OmniGraphicsContext;
-struct SystemCaptureStreams;
+struct SystemStreamSessions;
 
 // System context for all feature links
 struct SystemLinkContext
@@ -23,7 +23,7 @@ struct SystemLinkContext
     OmniRouter&              Router;
     OmniSpatialRouter&       SpatialRouter;
     OmniGraphicsContext&     GraphicsContext;
-    SystemCaptureStreams&    CaptureStreams;
+    SystemStreamSessions&    StreamSessions;
 
     std::function<SubStreamID(DeviceMap, FeatureTypes)>&                     RequestSubStream;
     std::function<void(DeviceMap, SubStreamID, bool)>&                       ReleaseSubStream;

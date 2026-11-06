@@ -1,4 +1,4 @@
-#include "CaptureStreams.hpp"
+#include "StreamSessions.hpp"
 #include "OmniConfig.hpp"
 #include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
@@ -12,51 +12,110 @@
 #include <codecvt>
 #include <dwmapi.h>
 
-SystemCaptureStreams::~SystemCaptureStreams()
+SystemStreamSessions::~SystemStreamSessions()
 {
     for (auto& [StreamID, Window] : StreamWindowRegistry) {
         delete Window;
     }
     StreamWindowRegistry.clear();
+    SessionRegistry.clear();
 }
 
-StreamWindow* SystemCaptureStreams::FindStreamWindow(SubStreamID ID) const
+const StreamSessionEntry* SystemStreamSessions::GetSession(SubStreamID ID) const
+{
+    auto Iter = SessionRegistry.find(ID);
+    return (Iter != SessionRegistry.end()) ? &Iter->second : nullptr;
+}
+
+StreamSessionEntry* SystemStreamSessions::GetSession(SubStreamID ID)
+{
+    auto Iter = SessionRegistry.find(ID);
+    return (Iter != SessionRegistry.end()) ? &Iter->second : nullptr;
+}
+
+bool SystemStreamSessions::IsSourceWindow(SubStreamID ID) const
+{
+    const auto* Entry = GetSession(ID);
+    return Entry && Entry->Role == SessionRole::Source;
+}
+
+bool SystemStreamSessions::IsStreamWindow(SubStreamID ID) const
+{
+    const auto* Entry = GetSession(ID);
+    return Entry && Entry->Role == SessionRole::Stream;
+}
+
+void SystemStreamSessions::RegisterSourceSession(
+    SubStreamID            ID,
+    DeviceMap              DeviceID,
+    FeatureTypes           Feature,
+    OmniStreamer::StreamID StreamID,
+    HWND                   SourceHwnd
+)
+{
+    StreamSessionEntry Entry{};
+    Entry.Role             = SessionRole::Source;
+    Entry.Feature          = Feature;
+    Entry.DeviceID         = DeviceID;
+    Entry.SourceHwnd       = SourceHwnd;
+    Entry.CaptureStreamID  = StreamID;
+    SessionRegistry[ID]    = Entry;
+    StreamerIDRegistry[ID] = StreamID;
+}
+
+void SystemStreamSessions::RegisterStreamSession(
+    SubStreamID   ID,
+    DeviceMap     DeviceID,
+    FeatureTypes  Feature,
+    StreamWindow* Window,
+    void*         FeatureContext
+)
+{
+    StreamSessionEntry Entry{};
+    Entry.Role               = SessionRole::Stream;
+    Entry.Feature            = Feature;
+    Entry.DeviceID           = DeviceID;
+    Entry.RenderWindow       = Window;
+    Entry.RenderHwnd         = Window ? Window->GetHwnd() : NULL;
+    Entry.FeatureContext     = FeatureContext;
+    SessionRegistry[ID]      = Entry;
+    StreamWindowRegistry[ID] = Window;
+}
+
+void SystemStreamSessions::UnregisterSession(SubStreamID ID)
+{
+    SessionRegistry.erase(ID);
+    StreamWindowRegistry.erase(ID);
+    StreamerIDRegistry.erase(ID);
+}
+
+StreamWindow* SystemStreamSessions::GetStreamWindow(SubStreamID ID) const
 {
     auto Iter = StreamWindowRegistry.find(ID);
     return (Iter != StreamWindowRegistry.end()) ? Iter->second : nullptr;
 }
 
-OmniStreamer::StreamID SystemCaptureStreams::FindStreamerID(SubStreamID ID) const
+OmniStreamer::StreamID SystemStreamSessions::GetStreamerID(SubStreamID ID) const
 {
     auto Iter = StreamerIDRegistry.find(ID);
     return (Iter != StreamerIDRegistry.end()) ? Iter->second : 0;
 }
 
-bool SystemCaptureStreams::ContainsStreamWindow(SubStreamID ID) const
+bool SystemStreamSessions::ContainsStreamWindow(SubStreamID ID) const
 {
     return StreamWindowRegistry.contains(ID);
 }
 
-void SystemCaptureStreams::RegisterStreamerID(SubStreamID ID, OmniStreamer::StreamID StreamID)
-{
-    StreamerIDRegistry[ID] = StreamID;
-}
-
-void SystemCaptureStreams::UnregisterStreamerID(SubStreamID ID)
-{
-    StreamerIDRegistry.erase(ID);
-}
-
-void SystemCaptureStreams::RemoveCaptureStream(SubStreamID ID)
+void SystemStreamSessions::DestroyCaptureStream(SubStreamID ID)
 {
     auto IterStreamID = StreamerIDRegistry.find(ID);
     if (IterStreamID != StreamerIDRegistry.end()) {
         Streamer.RemoveStream(IterStreamID->second);
-        StreamerIDRegistry.erase(IterStreamID);
     }
+    UnregisterSession(ID);
 }
 
-OmniStreamer::StreamID SystemCaptureStreams::AddCaptureStream(
+OmniStreamer::StreamID SystemStreamSessions::AddCaptureStream(
     OmniGraphicsContext& GraphicsContext,
     OmniNetSubStream*    SubStream,
     DeviceMap            DeviceID,
@@ -95,85 +154,7 @@ OmniStreamer::StreamID SystemCaptureStreams::AddCaptureStream(
     );
 }
 
-void SystemCaptureStreams::TransmitWindowResize(
-    OmniNetSession<OmniMTU>* NetSession,
-    SubStreamID              WindowKey,
-    DeviceMap                DeviceID,
-    uint32_t                 Width,
-    uint32_t                 Height
-)
-{
-    if (!NetSession) {
-        return;
-    }
-
-    OmniWinResizePacket Packet{};
-    Packet.WindowKey = WindowKey;
-    Packet.Width     = static_cast<uint16_t>(Width);
-    Packet.Height    = static_cast<uint16_t>(Height);
-
-    OmniNet::OmniHeader Header{};
-    Header.PacketType = OmniNet::PacketType::ProcWinResize;
-    Header.Target     = 0;
-    Header.Flags      = 0;
-
-    NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinResizePacket), Header);
-
-    Logger::log(
-        "WindowResizeEvent sent to WindowKey={:d}, TargetDevice={:d}, NewSize={}x{}",
-        WindowKey,
-        static_cast<int>(DeviceID),
-        Width,
-        Height
-    );
-}
-
-void SystemCaptureStreams::OnStreamWindowReady(
-    OmniNetSession<OmniMTU>* NetSession, SubStreamID WindowKey, DeviceMap DeviceID
-)
-{
-    OmniStreamControlPacket Packet{};
-    Packet.StreamKey = WindowKey;
-    Packet.Command   = StreamControl::Ready;
-
-    OmniNet::OmniHeader Header{};
-    Header.PacketType = OmniNet::PacketType::ProcStreamControl;
-    Header.Target     = 0;
-    Header.Flags      = 0;
-
-    NetSession->SessionSend(reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinResizePacket), Header);
-
-    Logger::log(
-        "Stream Control status Ready sent to WindowKey={:d}, TargetDevice={:d}",
-        WindowKey,
-        static_cast<int>(DeviceID)
-    );
-}
-
-void SystemCaptureStreams::RequestStreamIDR(
-    OmniNetSession<OmniMTU>* NetSession, SubStreamID WindowKey, DeviceMap DeviceID
-)
-{
-    if (!NetSession) {
-        return;
-    }
-
-    OmniStreamControlPacket Packet{};
-    Packet.StreamKey = WindowKey;
-    Packet.Command   = StreamControl::RequestIDR;
-    Packet.Param     = 0;
-
-    OmniNet::OmniHeader Header{};
-    Header.PacketType = OmniNet::PacketType::ProcStreamControl;
-    Header.Target     = 0;
-    Header.Flags      = 0;
-
-    NetSession->SessionSend(
-        reinterpret_cast<CHAR*>(&Packet), sizeof(OmniStreamControlPacket), Header
-    );
-}
-
-StreamWindow* SystemCaptureStreams::CreateStreamWindow(
+StreamWindow* SystemStreamSessions::CreateStreamWindow(
     const WindowCreationData& WindowData, int ShowCmd, HINSTANCE hInstance
 )
 {
@@ -194,21 +175,7 @@ StreamWindow* SystemCaptureStreams::CreateStreamWindow(
     return Window;
 }
 
-void SystemCaptureStreams::OnStreamWindowClose(
-    std::function<void(DeviceMap, SubStreamID, bool)> ReleaseSubStream,
-    SubStreamID                                       WindowKey,
-    DeviceMap                                         DeviceID
-)
-{
-    std::thread([this, ReleaseSubStream, WindowKey, DeviceID]() {
-        if (ReleaseSubStream) {
-            ReleaseSubStream(DeviceID, WindowKey, true);
-        }
-        DestroyStreamRenderWindow(WindowKey);
-    }).detach();
-}
-
-OmniNet::PoolConfig SystemCaptureStreams::SetupStreamRenderWindow(
+OmniNet::PoolConfig SystemStreamSessions::SetupStreamRenderWindow(
     SystemLinkContext&             Ctx,
     SubStreamID                    SubStreamID,
     DeviceMap                      DeviceID,
@@ -218,7 +185,8 @@ OmniNet::PoolConfig SystemCaptureStreams::SetupStreamRenderWindow(
     int16_t                        Y,
     int                            ShowCmd,
     std::string_view               Title,
-    const OmniWindowEventHandlers* CustomHandlers
+    const OmniWindowEventHandlers* CustomHandlers,
+    FeatureTypes                   Feature
 )
 {
     WindowCreationData WGC{Title};
@@ -244,7 +212,13 @@ OmniNet::PoolConfig SystemCaptureStreams::SetupStreamRenderWindow(
 
     OmniNet::PoolConfig Config{};
     if (Window) {
-        StreamWindowRegistry[SubStreamID] = Window;
+        RegisterStreamSession(
+            SubStreamID,
+            DeviceID,
+            Feature,
+            Window,
+            CustomHandlers ? CustomHandlers->Context : nullptr
+        );
 
         HWND WindowHwnd = Window->GetHwnd();
         if (X != 0 || Y != 0) {
@@ -267,17 +241,17 @@ OmniNet::PoolConfig SystemCaptureStreams::SetupStreamRenderWindow(
     return Config;
 }
 
-void SystemCaptureStreams::DestroyStreamRenderWindow(SubStreamID SubStreamID)
+void SystemStreamSessions::DestroyStreamRenderWindow(SubStreamID SubStreamID)
 {
     auto IterStreamWindows = StreamWindowRegistry.find(SubStreamID);
     if (IterStreamWindows != StreamWindowRegistry.end()) {
         delete IterStreamWindows->second;
-        StreamWindowRegistry.erase(IterStreamWindows);
     }
+    UnregisterSession(SubStreamID);
     Logger::log("StreamWindow destroyed for SubStreamID={:d}", SubStreamID);
 }
 
-OmniNet::PoolConfig SystemCaptureStreams::GetStreamWindowPoolConfig(SubStreamID SubStreamID)
+OmniNet::PoolConfig SystemStreamSessions::GetStreamWindowPoolConfig(SubStreamID SubStreamID)
 {
     auto IterStreamWindows = StreamWindowRegistry.find(SubStreamID);
     if (IterStreamWindows != StreamWindowRegistry.end() && IterStreamWindows->second) {
@@ -294,17 +268,16 @@ OmniNet::PoolConfig SystemCaptureStreams::GetStreamWindowPoolConfig(SubStreamID 
     return OmniNet::PoolConfig{};
 }
 
-void SystemCaptureStreams::HandleStreamWindowResize(const OmniWinResizePacket Packet)
+void SystemStreamSessions::ResizeStreamWindow(SubStreamID ID, uint32_t Width, uint32_t Height)
 {
-    const SubStreamID StreamID  = Packet.WindowKey;
-    const uint32_t    NewWidth  = Packet.Width;
-    const uint32_t    NewHeight = Packet.Height;
+    const uint32_t NewWidth  = Width;
+    const uint32_t NewHeight = Height;
 
     if (NewWidth == 0 || NewHeight == 0) {
         return;
     }
 
-    auto IterStreamWindows = StreamWindowRegistry.find(StreamID);
+    auto IterStreamWindows = StreamWindowRegistry.find(ID);
     if (IterStreamWindows != StreamWindowRegistry.end() && IterStreamWindows->second) {
         StreamWindow* Window     = IterStreamWindows->second;
         HWND          StreamHwnd = Window->GetHwnd();
@@ -333,41 +306,27 @@ void SystemCaptureStreams::HandleStreamWindowResize(const OmniWinResizePacket Pa
     }
 }
 
-void SystemCaptureStreams::HandleStreamWindowMouse(const OmniWinMousePacket& Packet)
-{
-    // Fallback for capture streams without mapped HWND (e.g. ScreenLink)
-    OmniMousePacket FallbackPacket{};
-    FallbackPacket.dX      = Packet.NormalizedX;
-    FallbackPacket.dY      = Packet.NormalizedY;
-    FallbackPacket.Buttons = Packet.Buttons;
-    FallbackPacket.Wheel   = Packet.Wheel;
-    FallbackPacket.Flags   = OMNI_MOUSE_ABSOLUTE;
-    OmniSynth::ProcMouse(FallbackPacket);
-}
-
-void SystemCaptureStreams::HandleStreamWindowKey(const OmniWinKeyPacket& Packet)
-{
-    OmniKeyPacket KeyPacket{};
-    KeyPacket.VkCode    = Packet.VkCode;
-    KeyPacket.ScanCode  = Packet.ScanCode;
-    KeyPacket.Flags     = Packet.Flags;
-    KeyPacket.ExtraInfo = OMNI_INPUT_COOKIE;
-    OmniSynth::ProcKey(KeyPacket);
-}
-
-void SystemCaptureStreams::HandleStreamControlPacket(
+void SystemStreamSessions::HandleStreamControlPacket(
     SystemLinkContext& Ctx, const OmniStreamControlPacket& Packet, DeviceMap SenderDevice
 )
 {
-    const SubStreamID StreamKey = Packet.StreamKey;
+    const SubStreamID      StreamKey  = Packet.StreamKey;
+    OmniStreamer::StreamID StreamerID = GetStreamerID(StreamKey);
+    if (StreamerID == 0) {
+        const auto* Entry = GetSession(StreamKey);
+        if (Entry && Entry->Role == SessionRole::Source) {
+            StreamerID = Entry->CaptureStreamID;
+        }
+    }
+
+    if (StreamerID == 0) {
+        return;
+    }
 
     switch (Packet.Command) {
     case StreamControl::Ready: {
-        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
-        if (IterStreamID != StreamerIDRegistry.end()) {
-            Streamer.SetStreamState(IterStreamID->second, StreamState::Active);
-            Logger::log("Streamer activated wwith IDR keyframe for SubStreamID={:d}", StreamKey);
-        }
+        Streamer.SetStreamState(StreamerID, StreamState::Active);
+        Logger::log("Streamer activated with IDR keyframe for SubStreamID={:d}", StreamKey);
         break;
     }
 
@@ -377,10 +336,7 @@ void SystemCaptureStreams::HandleStreamControlPacket(
             StreamKey,
             static_cast<int>(SenderDevice)
         );
-        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
-        if (IterStreamID != StreamerIDRegistry.end()) {
-            Streamer.RequestKeyframe(IterStreamID->second);
-        }
+        Streamer.RequestKeyframe(StreamerID);
         break;
     }
 
@@ -390,10 +346,7 @@ void SystemCaptureStreams::HandleStreamControlPacket(
             StreamKey,
             static_cast<int>(SenderDevice)
         );
-        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
-        if (IterStreamID != StreamerIDRegistry.end()) {
-            Streamer.SetStreamState(IterStreamID->second, StreamState::Paused);
-        }
+        Streamer.SetStreamState(StreamerID, StreamState::Paused);
         break;
     }
 
@@ -403,10 +356,7 @@ void SystemCaptureStreams::HandleStreamControlPacket(
             StreamKey,
             static_cast<int>(SenderDevice)
         );
-        auto IterStreamID = StreamerIDRegistry.find(StreamKey);
-        if (IterStreamID != StreamerIDRegistry.end()) {
-            Streamer.SetStreamState(IterStreamID->second, StreamState::Active);
-        }
+        Streamer.SetStreamState(StreamerID, StreamState::Active);
         break;
     }
     }

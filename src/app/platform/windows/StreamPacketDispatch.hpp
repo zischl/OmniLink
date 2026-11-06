@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CaptureStreams.hpp"
+#include "StreamSessions.hpp"
 #include "OmniEnums.hpp"
 #include "OmniPackets.hpp"
 #include "SessionHandler.hpp"
