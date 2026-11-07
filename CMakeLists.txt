@@ -141,7 +141,7 @@ if(WIN32)
       src/app/platform/windows/ClipboardLink.cpp
       src/app/platform/windows/InputLink.cpp
       src/app/platform/windows/ScreenLink.cpp
-      src/app/platform/windows/CaptureStreams.cpp
+      src/app/platform/windows/StreamSessions.cpp
       src/app/platform/windows/WindowLink.cpp
       src/clipboard/platform/windows/ClipBoardLink.cpp
       src/misc/platform/windows/system_probe.cpp

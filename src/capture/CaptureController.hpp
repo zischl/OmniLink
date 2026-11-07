@@ -11,23 +11,28 @@
 enum CaptureMode { DXGI, WGC, WGC_Window };
 
 using EncodeStreamTypes = std::variant<
-    EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>,    OmniNetSubStream>,
-    EncodeStream<ScreenCaptureWGC,  BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>,
-    EncodeStream<WindowCaptureWGC,  BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>;
+    EncodeStream<ScreenCaptureDXGI, BufferedNvencSession<StaticNvencSession>, OmniNetSubStream>,
+    EncodeStream<ScreenCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>,
+    EncodeStream<WindowCaptureWGC, BufferedNvencSession<CachedPoolNvencSession>, OmniNetSubStream>>;
 #elif defined(__linux__)
 
 enum CaptureMode { PW, X11_SHM };
 
-using EncodeStreamTypes = std::variant<EncodeStream<ScreenCapturePW, NvencSession, OmniNetSubStream>>;
+using EncodeStreamTypes =
+    std::variant<EncodeStream<ScreenCapturePW, NvencSession, OmniNetSubStream>>;
 #endif
 
 struct OmniStreamer
 {
-    using StreamID = size_t;
+    // StreamID, 0 is reserved as an invalid/sentinel ID
+    using StreamID                            = size_t;
+    static constexpr StreamID InvalidStreamID = 0;
 
   private:
     std::unordered_map<size_t, EncodeStreamTypes> Streams;
-    size_t StreamCount = 0;
+
+    // Count must start with 1 as 0 is invalid
+    size_t StreamCount = 1;
 
   public:
     NVENCODER NvEncodeAPI;
@@ -43,7 +48,10 @@ struct OmniStreamer
     );
 #elif defined(__linux__)
     StreamID AddStream(
-        OmniNetSubStream* SubStream, DeviceMap TargetID, CaptureMode Mode, const StreamConfig& Config = {}
+        OmniNetSubStream*   SubStream,
+        DeviceMap           TargetID,
+        CaptureMode         Mode,
+        const StreamConfig& Config = {}
     );
 #endif
 

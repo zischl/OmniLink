@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AudioLink.hpp"
-#include "CaptureStreams.hpp"
 #include "ClipboardLink.hpp"
 #include "InputLink.hpp"
 #include "OmniEnums.hpp"
@@ -11,6 +10,7 @@
 #include "OmniRouterContext.hpp"
 #include "ScreenLink.hpp"
 #include "SpatialRouter.hpp"
+#include "StreamSessions.hpp"
 #include "SystemLinkContext.hpp"
 #include "WindowLink.hpp"
 
@@ -53,7 +53,7 @@ struct OmniSystemLink
 
     // Composed Feature Modules
     OmniSpatialRouter    SpatialRouter;
-    SystemCaptureStreams CaptureStreams;
+    SystemStreamSessions StreamSessions;
     SystemAudioLink      AudioLinkModule;
     SystemClipboardLink  ClipboardLinkModule;
     SystemInputLink      InputLinkModule{OmniRouter, SpatialRouter};
@@ -76,7 +76,7 @@ struct OmniSystemLink
             OmniRouter,
             SpatialRouter,
             GraphicsContext,
-            CaptureStreams,
+            StreamSessions,
             RequestSubStream,
             ReleaseSubStream,
             ConfigureSubStream
@@ -89,55 +89,60 @@ struct OmniSystemLink
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
     )
     {
         auto Ctx = GetContext();
-        return ScreenLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
+        return ScreenLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetWindowLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
     )
     {
         auto Ctx = GetContext();
-        return WindowLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
+        return WindowLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetInputLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
     )
     {
         auto Ctx = GetContext();
-        return InputLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
+        return InputLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetAudioLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
     )
     {
         auto Ctx = GetContext();
-        return AudioLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
+        return AudioLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     inline OmniNet::PoolConfig SetClipboardLinkState(
         DeviceMap          DeviceID,
         FeatureActionRoute Route,
         FeatureAction      Action,
-        SubStreamID        SubStreamID = 0
+        SubStreamID        SubStreamID = 0,
+        void*              Context     = nullptr
     )
     {
         auto Ctx = GetContext();
-        return ClipboardLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID);
+        return ClipboardLinkModule.SetState(Ctx, DeviceID, Route, Action, SubStreamID, Context);
     }
 
     /**
@@ -178,29 +183,62 @@ struct OmniSystemLink
     inline void
     HandleStreamWindowDrag(const OmniWinDragPacket& Packet, DeviceMap DeviceID = DeviceMap::C0)
     {
-        auto Ctx = GetContext();
-        WindowLinkModule.HandleStreamWindowDrag(Ctx, Packet, DeviceID);
+        auto        Ctx   = GetContext();
+        const auto* Entry = StreamSessions.GetSession(Packet.WindowID);
+
+        if (Entry && Entry->Role == SessionRole::Source) {
+            WindowLinkModule.HandleStreamSourceDrag(Ctx, Packet, DeviceID, Entry->SourceHwnd);
+        } else {
+            WindowLinkModule.HandleStreamClientDrag(Ctx, Packet, DeviceID);
+        }
     }
 
     inline void HandleStreamWindowResize(const OmniWinResizePacket Packet)
     {
-        if (!WindowLinkModule.HandleStreamWindowResize(Packet)) {
-            CaptureStreams.HandleStreamWindowResize(Packet);
+        const auto* Entry = StreamSessions.GetSession(Packet.WindowKey);
+        if (!Entry) {
+            return;
+        }
+
+        if (Entry->Role == SessionRole::Source) {
+            WindowLinkModule.HandleStreamWindowResize(Packet);
+        } else if (Entry->Role == SessionRole::Stream) {
+            StreamSessions.ResizeStreamWindow(Packet.WindowKey, Packet.Width, Packet.Height);
         }
     }
 
     inline void HandleStreamWindowMouse(const OmniWinMousePacket& Packet)
     {
-        auto Ctx = GetContext();
-        if (!WindowLinkModule.HandleStreamWindowMouse(Ctx, Packet)) {
-            CaptureStreams.HandleStreamWindowMouse(Packet);
+        auto        Ctx   = GetContext();
+        const auto* Entry = StreamSessions.GetSession(static_cast<SubStreamID>(Packet.SubStreamID));
+        if (!Entry) {
+            return;
+        }
+
+        if (Entry->Role == SessionRole::Source) {
+            if (Entry->Feature == FeatureTypes::WindowLink) {
+                WindowLinkModule.HandleStreamWindowMouse(Ctx, Packet);
+            } else if (Entry->Feature == FeatureTypes::ScreenLink) {
+                ScreenLinkModule.HandleScreenMouse(Packet);
+            }
         }
     }
 
     inline void HandleStreamWindowKey(const OmniWinKeyPacket& Packet)
     {
-        WindowLinkModule.HandleStreamWindowKey(Packet);
-        CaptureStreams.HandleStreamWindowKey(Packet);
+        auto        Ctx   = GetContext();
+        const auto* Entry = StreamSessions.GetSession(static_cast<SubStreamID>(Packet.SubStreamID));
+        if (!Entry) {
+            return;
+        }
+
+        if (Entry->Role == SessionRole::Source) {
+            if (Entry->Feature == FeatureTypes::WindowLink) {
+                WindowLinkModule.HandleStreamWindowKey(Packet);
+            } else if (Entry->Feature == FeatureTypes::ScreenLink) {
+                ScreenLinkModule.HandleScreenKey(Packet);
+            }
+        }
     }
 
     inline void HandleStreamControlPacket(
@@ -208,7 +246,7 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        CaptureStreams.HandleStreamControlPacket(Ctx, Packet, SenderDevice);
+        StreamSessions.HandleStreamControlPacket(Ctx, Packet, SenderDevice);
     }
 
     inline OmniNet::PoolConfig SetupStreamRenderWindow(
@@ -223,19 +261,19 @@ struct OmniSystemLink
     )
     {
         auto Ctx = GetContext();
-        return CaptureStreams.SetupStreamRenderWindow(
+        return StreamSessions.SetupStreamRenderWindow(
             Ctx, SubStreamID, DeviceID, Width, Height, X, Y, ShowCmd, Title
         );
     }
 
     inline void DestroyStreamRenderWindow(SubStreamID SubStreamID)
     {
-        CaptureStreams.DestroyStreamRenderWindow(SubStreamID);
+        StreamSessions.DestroyStreamRenderWindow(SubStreamID);
     }
 
     inline OmniNet::PoolConfig GetStreamWindowPoolConfig(SubStreamID SubStreamID)
     {
-        return CaptureStreams.GetStreamWindowPoolConfig(SubStreamID);
+        return StreamSessions.GetStreamWindowPoolConfig(SubStreamID);
     }
 
     inline bool RecallWindow(HWND SourceHwnd, bool CenterOnDesktop = true)

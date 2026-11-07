@@ -1,19 +1,76 @@
 #include "WindowLink.hpp"
-#include "CaptureStreams.hpp"
-#include "IOLinkContext.hpp"
 #include "OmniConfig.hpp"
 #include "OmniInstances.hpp"
 #include "OmniLogger.hpp"
 #include "OmniRouterContext.hpp"
-#include "SessionHandler.hpp"
 #include "SpatialRouter.hpp"
+#include "StreamPacketDispatch.hpp"
+#include "StreamPacketHandlers.cpp"
+#include "StreamSessions.hpp"
+#include "StreamWindowEventHandlers.cpp"
 #include "SubStream.hpp"
-#include "SystemLink.hpp"
-#include "WinForge.hpp"
 
-#include <dwmapi.h>
+// Creates the WinForge render window on Client and attaches the forwarders
+OmniNet::PoolConfig SystemWindowLink::SetupClientStreamRenderWindow(
+    SystemLinkContext& Ctx,
+    SubStreamID        SubStreamID,
+    DeviceMap          DeviceID,
+    uint32_t           Width,
+    uint32_t           Height,
+    int16_t            TargetX,
+    int16_t            TargetY
+)
+{
+    OmniNetSession<OmniMTU>* NetSession = nullptr;
+    if (Ctx.ActiveInstances && Ctx.ActiveInstances->contains(DeviceID)) {
+        NetSession = Ctx.ActiveInstances->at(DeviceID).InstanceSession.get();
+    }
 
-static void EnsureWindowFocus(HWND TargetHwnd)
+    auto Entry = std::make_unique<WindowStreamEntry>(WindowStreamEntry{
+        .Session          = NetSession,
+        .SpatialRouter    = &Ctx.SpatialRouter,
+        .Router           = &Ctx.Router,
+        .ReleaseSubStream = Ctx.ReleaseSubStream,
+        .DeviceID         = DeviceID,
+        .WindowKey        = SubStreamID,
+        .WindowHwnd       = NULL
+    });
+
+    WindowStreamEntry* RawEntry = Entry.get();
+
+    OmniWindowEventHandlers EventHandler{};
+    EventHandler.Context             = RawEntry;
+    EventHandler.OnMouseInput        = StreamWindowOnMouseInput;
+    EventHandler.OnKeyInput          = StreamWindowOnKeyInput;
+    EventHandler.OnResize            = StreamWindowOnResize;
+    EventHandler.OnDecoderReady      = StreamWindowOnDecoderReady;
+    EventHandler.OnWindowClose       = StreamWindowOnWindowClose;
+    EventHandler.OnWindowDragMove    = StreamWindowOnWindowDragMove;
+    EventHandler.OnWindowDragRelease = StreamWindowOnWindowDragRelease;
+
+    OmniNet::PoolConfig PoolConfig = Ctx.StreamSessions.SetupStreamRenderWindow(
+        Ctx,
+        SubStreamID,
+        DeviceID,
+        Width,
+        Height,
+        TargetX,
+        TargetY,
+        SW_SHOW,
+        "Stream Window",
+        &EventHandler,
+        FeatureTypes::WindowLink
+    );
+
+    StreamWindow* Window = Ctx.StreamSessions.FindStreamWindow(SubStreamID);
+    if (Window) {
+        RawEntry->WindowHwnd = Window->GetHwnd();
+    }
+    WindowStreamEntries[SubStreamID] = std::move(Entry);
+    return PoolConfig;
+}
+
+void SystemWindowLink::EnsureWindowFocus(HWND TargetHwnd)
 {
     if (!TargetHwnd || !IsWindow(TargetHwnd))
         return;
@@ -35,6 +92,188 @@ static void EnsureWindowFocus(HWND TargetHwnd)
         BringWindowToTop(TargetHwnd);
         SetForegroundWindow(TargetHwnd);
         SetFocus(TargetHwnd);
+    }
+}
+
+void SystemWindowLink::CenterWindowOnDesktop(HWND TargetHwnd)
+{
+    if (!TargetHwnd || !IsWindow(TargetHwnd)) {
+        return;
+    }
+
+    RECT Rect{};
+    if (GetWindowRect(TargetHwnd, &Rect)) {
+        int WinW = Rect.right - Rect.left;
+        int WinH = Rect.bottom - Rect.top;
+
+        int ScreenW = GetSystemMetrics(SM_CXSCREEN);
+        int ScreenH = GetSystemMetrics(SM_CYSCREEN);
+        int CenterX = (std::max)(0, (ScreenW - WinW) / 2);
+        int CenterY = (std::max)(0, (ScreenH - WinH) / 2);
+
+        SetWindowPos(
+            TargetHwnd, NULL, CenterX, CenterY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+        );
+    }
+}
+
+// State Machine Transitions
+void SystemWindowLink::OnLocalDragStart(HWND Hwnd, const RECT& WindowPos, POINT CursorPos)
+{
+    DragSession.Phase      = DragPhase::LocalHover;
+    DragSession.SourceHwnd = Hwnd;
+    DragSession.GripX      = CursorPos.x - WindowPos.left;
+    DragSession.GripY      = CursorPos.y - WindowPos.top;
+    DragSession.LastPos    = WindowPos;
+}
+
+bool SystemWindowLink::OnEdgeCrossBegin(
+    SystemLinkContext& Ctx, HWND Hwnd, DeviceMap TargetEdge, const RECT& WindowPos
+)
+{
+    SubStreamID StreamID = HandleWindowDragEvent(Ctx, Hwnd, TargetEdge, WinDragAction::Begin);
+    if (StreamID == 0) {
+        return false;
+    }
+
+    DragSession.Phase      = DragPhase::Crossing;
+    DragSession.StreamID   = StreamID;
+    DragSession.TargetEdge = TargetEdge;
+
+    auto* NetSession = Ctx.Router.GetWindowSession(TargetEdge);
+    if (NetSession) {
+        const int WindowWidth  = WindowPos.right - WindowPos.left;
+        const int WindowHeight = WindowPos.bottom - WindowPos.top;
+
+        int16_t RatioX = 0;
+        int16_t RatioY = 0;
+        OmniSpatialRouter::EncodeEdgePosition(
+            TargetEdge, WindowPos, DragSession.ResW, DragSession.ResH, RatioX, RatioY
+        );
+
+        StreamPackets::TransmitDragPacket(
+            NetSession,
+            WinDragAction::Begin,
+            StreamID,
+            TargetEdge,
+            RatioX,
+            RatioY,
+            static_cast<uint16_t>(WindowWidth),
+            static_cast<uint16_t>(WindowHeight),
+            static_cast<int16_t>(DragSession.GripX),
+            static_cast<int16_t>(DragSession.GripY)
+        );
+    }
+    return true;
+}
+
+void SystemWindowLink::OnCrossCancel(SystemLinkContext& Ctx, HWND Hwnd)
+{
+    auto* Session = Ctx.Router.GetWindowSession(DragSession.TargetEdge);
+    if (Session) {
+        StreamPackets::TransmitDragPacket(
+            Session, WinDragAction::Cancel, DragSession.StreamID, DragSession.TargetEdge, 0, 0, 0, 0
+        );
+    }
+    HandleWindowDragEvent(Ctx, Hwnd, DragSession.TargetEdge, WinDragAction::Cancel);
+    DragSession = {};
+}
+
+void SystemWindowLink::OnRemoteDrop(SystemLinkContext& Ctx, HWND Hwnd)
+{
+    RECT FinalPos = DragSession.LastPos;
+    GetWindowRect(Hwnd, &FinalPos);
+    const int WinW = FinalPos.right - FinalPos.left;
+    const int WinH = FinalPos.bottom - FinalPos.top;
+
+    int16_t RatioX = 0;
+    int16_t RatioY = 0;
+    OmniSpatialRouter::EncodeEdgePosition(
+        DragSession.TargetEdge, FinalPos, DragSession.ResW, DragSession.ResH, RatioX, RatioY
+    );
+
+    auto* NetSession = Ctx.Router.GetWindowSession(DragSession.TargetEdge);
+    if (NetSession) {
+        StreamPackets::TransmitDragPacket(
+            NetSession,
+            WinDragAction::Drop,
+            DragSession.StreamID,
+            DragSession.TargetEdge,
+            RatioX,
+            RatioY,
+            static_cast<uint16_t>(WinW),
+            static_cast<uint16_t>(WinH),
+            static_cast<int16_t>(DragSession.GripX),
+            static_cast<int16_t>(DragSession.GripY)
+        );
+    }
+
+    HandleWindowDragEvent(Ctx, Hwnd, DragSession.TargetEdge, WinDragAction::Drop);
+    DragSession.Phase = DragPhase::Remote;
+}
+
+void SystemWindowLink::OnReturnBegin(DeviceMap DeviceID, HWND SourceHwnd, int TargetX, int TargetY)
+{
+    DragSession.Phase      = DragPhase::Returning;
+    DragSession.TargetEdge = DeviceID;
+    DragSession.SourceHwnd = SourceHwnd;
+
+    SetWindowPos(
+        SourceHwnd, HWND_TOP, TargetX, TargetY, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW
+    );
+}
+
+void SystemWindowLink::OnReturnDrop(DeviceMap DeviceID, HWND SourceHwnd)
+{
+    (void)DeviceID;
+    CenterWindowOnDesktop(SourceHwnd);
+    DragSession = {};
+}
+
+bool SystemWindowLink::TryInitiateDragFromCaptionTest(
+    SystemLinkContext& Ctx, SubStreamID StreamID, HWND TargetHwnd, POINT CursorPoint, RECT WinRect
+)
+{
+    UINT Dpi = GetDpiForWindow(TargetHwnd);
+    if (Dpi == 0)
+        Dpi = 96;
+    int MaxHeaderHeight = MulDiv(64, Dpi, 96);
+
+    if ((CursorPoint.y - WinRect.top) <= MaxHeaderHeight) {
+        DWORD_PTR HitResult = HTCLIENT;
+        if (SendMessageTimeoutW(
+                TargetHwnd,
+                WM_NCHITTEST,
+                0,
+                MAKELPARAM(CursorPoint.x, CursorPoint.y),
+                SMTO_ABORTIFHUNG | SMTO_NORMAL,
+                25,
+                &HitResult
+            )) {
+            if (HitResult == HTCAPTION) {
+                auto IterDevice = SubStream2DeviceRegistry.find(StreamID);
+                if (IterDevice != SubStream2DeviceRegistry.end()) {
+                    DeviceMap TargetDevice = IterDevice->second;
+                    auto*     NetSession   = Ctx.Router.GetWindowSession(TargetDevice);
+                    if (NetSession) {
+                        StreamPackets::TransmitDragPacket(
+                            NetSession, WinDragAction::Begin, StreamID, TargetDevice, 0, 0, 0, 0
+                        );
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void SystemWindowLink::HandleReturningWindow(DeviceMap DeviceID)
+{
+    if (DragSession.Phase == DragPhase::Returning && DragSession.TargetEdge == DeviceID &&
+        DragSession.SourceHwnd && IsWindow(DragSession.SourceHwnd)) {
+        HWND ReturningHwnd = DragSession.SourceHwnd;
+        PostMessage(ReturningHwnd, WM_SYSCOMMAND, 0xF012, 0);
     }
 }
 
@@ -60,7 +299,9 @@ OmniStreamer::StreamID SystemWindowLink::StartWindowCaptureStream(
     Config.Height   = static_cast<uint32_t>(rect.bottom - rect.top);
     Config.OnResize = [this, &Ctx, DeviceID, SubStreamID](uint32_t Width, uint32_t Height) {
         auto* NetSession = Ctx.Router.GetWindowSession(DeviceID);
-        Ctx.CaptureStreams.TransmitWindowResize(NetSession, SubStreamID, DeviceID, Width, Height);
+        StreamPackets::TransmitResizePacket(
+            NetSession, SubStreamID, static_cast<uint16_t>(Width), static_cast<uint16_t>(Height)
+        );
     };
     Config.OnClose = [this, &Ctx, DeviceID, SubStreamID]() {
         Logger::log(
@@ -76,10 +317,10 @@ OmniStreamer::StreamID SystemWindowLink::StartWindowCaptureStream(
         }).detach();
     };
 
-    OmniStreamer::StreamID CaptureStreamID = Ctx.CaptureStreams.AddCaptureStream(
+    OmniStreamer::StreamID CaptureStreamID = Ctx.StreamSessions.AddCaptureStream(
         Ctx.GraphicsContext, Entry->SubStream, DeviceID, CaptureMode::WGC_Window, Config
     );
-    if (CaptureStreamID == 0) {
+    if (CaptureStreamID == OmniStreamer::InvalidStreamID) {
         Logger::log(
             "Failed to add a capture stream for HWND={:p}"
             "SubStreamID={:d}",
@@ -89,10 +330,12 @@ OmniStreamer::StreamID SystemWindowLink::StartWindowCaptureStream(
         return 0;
     }
 
-    Ctx.CaptureStreams.StreamerIDRegistry[SubStreamID] = CaptureStreamID;
-    Hwnd2SubStreamRegistry[Hwnd]                       = SubStreamID;
-    SubStream2HwndRegistry[SubStreamID]                = Hwnd;
-    SubStream2DeviceRegistry[SubStreamID]              = DeviceID;
+    Ctx.StreamSessions.RegisterSourceRoute(
+        SubStreamID, DeviceID, FeatureTypes::WindowLink, CaptureStreamID, Hwnd
+    );
+    Hwnd2SubStreamRegistry[Hwnd]          = SubStreamID;
+    SubStream2HwndRegistry[SubStreamID]   = Hwnd;
+    SubStream2DeviceRegistry[SubStreamID] = DeviceID;
 
     Logger::log(
         "WindowCapture started for SubStreamID={:d}, HWND={:p}, StreamID={:d}",
@@ -105,11 +348,7 @@ OmniStreamer::StreamID SystemWindowLink::StartWindowCaptureStream(
 
 void SystemWindowLink::StopWindowCaptureStream(SystemLinkContext& Ctx, SubStreamID SubStreamID)
 {
-    auto IterStreamID = Ctx.CaptureStreams.StreamerIDRegistry.find(SubStreamID);
-    if (IterStreamID != Ctx.CaptureStreams.StreamerIDRegistry.end()) {
-        Ctx.CaptureStreams.Streamer.RemoveStream(IterStreamID->second);
-        Ctx.CaptureStreams.StreamerIDRegistry.erase(IterStreamID);
-    }
+    Ctx.StreamSessions.DestroyCaptureStream(SubStreamID);
 
     auto IterHwnd = SubStream2HwndRegistry.find(SubStreamID);
     if (IterHwnd != SubStream2HwndRegistry.end()) {
@@ -120,28 +359,6 @@ void SystemWindowLink::StopWindowCaptureStream(SystemLinkContext& Ctx, SubStream
     SubStream2DeviceRegistry.erase(SubStreamID);
 
     Logger::log("WindowCapture stopped for SubStreamID={:d}", SubStreamID);
-}
-
-void SystemWindowLink::CenterWindowOnDesktop(HWND TargetHwnd)
-{
-    if (!TargetHwnd || !IsWindow(TargetHwnd)) {
-        return;
-    }
-
-    RECT Rect{};
-    if (GetWindowRect(TargetHwnd, &Rect)) {
-        int WinW = Rect.right - Rect.left;
-        int WinH = Rect.bottom - Rect.top;
-
-        int ScreenW = GetSystemMetrics(SM_CXSCREEN);
-        int ScreenH = GetSystemMetrics(SM_CYSCREEN);
-        int CenterX = (std::max)(0, (ScreenW - WinW) / 2);
-        int CenterY = (std::max)(0, (ScreenH - WinH) / 2);
-
-        SetWindowPos(
-            TargetHwnd, NULL, CenterX, CenterY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-        );
-    }
 }
 
 SubStreamID SystemWindowLink::HandleWindowDragEvent(
@@ -193,7 +410,6 @@ SubStreamID SystemWindowLink::HandleWindowDragEvent(
     }
 
     case WinDragAction::Move:
-        // This'll never happen for now
         break;
 
     case WinDragAction::Drop:
@@ -221,174 +437,6 @@ SubStreamID SystemWindowLink::HandleWindowDragEvent(
     }
 }
 
-void SystemWindowLink::HandleStreamWindowDrag(
-    SystemLinkContext& Ctx, const OmniWinDragPacket& Packet, DeviceMap SenderDevice
-)
-{
-    DeviceMap DeviceID = (SenderDevice != DeviceMap::C0) ? SenderDevice : Packet.Edge;
-
-    auto IterSource = SubStream2HwndRegistry.find(Packet.WindowID);
-    if (IterSource != SubStream2HwndRegistry.end() && IterSource->second) {
-        HandleStreamSourceDrag(Ctx, Packet, DeviceID, IterSource->second);
-    } else {
-        HandleStreamClientDrag(Ctx, Packet, DeviceID);
-    }
-}
-
-void SystemWindowLink::HandleStreamSourceDrag(
-    SystemLinkContext& Ctx, const OmniWinDragPacket& Packet, DeviceMap DeviceID, HWND SourceHwnd
-)
-{
-    if (!SourceHwnd || !IsWindow(SourceHwnd)) {
-        return;
-    }
-
-    switch (Packet.Action) {
-    case WinDragAction::Move: {
-        ActiveReturningWindows[DeviceID] = SourceHwnd;
-        ReturningSourceWindows.insert(SourceHwnd);
-
-        uint32_t LocalResW = Ctx.Router.ResWidth.load(std::memory_order_relaxed);
-        uint32_t LocalResH = Ctx.Router.ResHeight.load(std::memory_order_relaxed);
-        if (LocalResW == 0)
-            LocalResW = GetSystemMetrics(SM_CXSCREEN);
-        if (LocalResH == 0)
-            LocalResH = GetSystemMetrics(SM_CYSCREEN);
-
-        int TargetX = 0, TargetY = 0;
-        OmniSpatialRouter::DecodeEdgePosition(
-            Packet.Edge, Packet.WindowX, Packet.WindowY, LocalResW, LocalResH, TargetX, TargetY
-        );
-
-        SetWindowPos(
-            SourceHwnd,
-            HWND_TOP,
-            TargetX,
-            TargetY,
-            0,
-            0,
-            SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW
-        );
-        break;
-    }
-    case WinDragAction::Drop: {
-        ActiveReturningWindows.erase(DeviceID);
-        ReturningSourceWindows.erase(SourceHwnd);
-        CenterWindowOnDesktop(SourceHwnd);
-        break;
-    }
-    case WinDragAction::Cancel: {
-        ActiveReturningWindows.erase(DeviceID);
-        ReturningSourceWindows.erase(SourceHwnd);
-        RecallWindow(Ctx, SourceHwnd);
-        break;
-    }
-    default:
-        break;
-    }
-}
-
-void SystemWindowLink::HandleStreamClientDrag(
-    SystemLinkContext& Ctx, const OmniWinDragPacket& Packet, DeviceMap DeviceID
-)
-{
-    uint32_t LocalResW = Ctx.Router.ResWidth.load(std::memory_order_relaxed);
-    uint32_t LocalResH = Ctx.Router.ResHeight.load(std::memory_order_relaxed);
-    if (LocalResW == 0)
-        LocalResW = GetSystemMetrics(SM_CXSCREEN);
-    if (LocalResH == 0)
-        LocalResH = GetSystemMetrics(SM_CYSCREEN);
-
-    int TargetX = 0, TargetY = 0;
-    OmniSpatialRouter::DecodeEdgePosition(
-        Packet.Edge, Packet.WindowX, Packet.WindowY, LocalResW, LocalResH, TargetX, TargetY
-    );
-
-    switch (Packet.Action) {
-    case WinDragAction::Begin: {
-        auto IterStreamWindows = Ctx.CaptureStreams.StreamWindowRegistry.find(Packet.WindowID);
-        if (IterStreamWindows == Ctx.CaptureStreams.StreamWindowRegistry.end() ||
-            !IterStreamWindows->second) {
-            OmniNet::PoolConfig PoolConfig = Ctx.CaptureStreams.SetupStreamRenderWindow(
-                Ctx,
-                Packet.WindowID,
-                DeviceID,
-                Packet.WindowWidth,
-                Packet.WindowHeight,
-                static_cast<int16_t>(TargetX),
-                static_cast<int16_t>(TargetY),
-                SW_SHOW
-            );
-            if (Ctx.ConfigureSubStream && PoolConfig.Data != nullptr) {
-                Ctx.ConfigureSubStream(DeviceID, Packet.WindowID, PoolConfig);
-            }
-            return;
-        }
-
-        StreamWindow* Window     = IterStreamWindows->second;
-        HWND          TargetHwnd = Window->GetHwnd();
-        if (TargetHwnd && IsWindow(TargetHwnd)) {
-            if (Packet.WindowWidth == 0 && Packet.WindowHeight == 0) {
-                ReleaseCapture();
-                PostMessage(TargetHwnd, WM_SYSCOMMAND, 0xF012, 0);
-            } else {
-                Window->UpdateDimensions(Packet.WindowWidth, Packet.WindowHeight);
-                SetWindowPos(
-                    TargetHwnd,
-                    NULL,
-                    TargetX,
-                    TargetY,
-                    Packet.WindowWidth,
-                    Packet.WindowHeight,
-                    SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW
-                );
-            }
-        }
-        break;
-    }
-    case WinDragAction::Move: {
-        auto IterStreamWindows = Ctx.CaptureStreams.StreamWindowRegistry.find(Packet.WindowID);
-        if (IterStreamWindows == Ctx.CaptureStreams.StreamWindowRegistry.end() ||
-            !IterStreamWindows->second) {
-            return;
-        }
-        HWND TargetHwnd = IterStreamWindows->second->GetHwnd();
-        if (TargetHwnd && IsWindow(TargetHwnd)) {
-            SetWindowPos(
-                TargetHwnd, NULL, TargetX, TargetY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
-            );
-        }
-        break;
-    }
-    case WinDragAction::Drop: {
-        auto IterStreamWindow = Ctx.CaptureStreams.StreamWindowRegistry.find(Packet.WindowID);
-        if (IterStreamWindow == Ctx.CaptureStreams.StreamWindowRegistry.end() ||
-            !IterStreamWindow->second) {
-            return;
-        }
-        StreamWindow* Window     = IterStreamWindow->second;
-        HWND          TargetHwnd = Window->GetHwnd();
-        if (TargetHwnd && IsWindow(TargetHwnd)) {
-            if (Packet.WindowWidth > 0 && Packet.WindowHeight > 0) {
-                Window->UpdateDimensions(Packet.WindowWidth, Packet.WindowHeight);
-            }
-            SetWindowPos(TargetHwnd, NULL, TargetX, TargetY, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
-            SetForegroundWindow(TargetHwnd);
-        }
-        break;
-    }
-    case WinDragAction::Cancel: {
-        Ctx.CaptureStreams.DestroyStreamRenderWindow(Packet.WindowID);
-        if (Ctx.ReleaseSubStream) {
-            Ctx.ReleaseSubStream(DeviceID, Packet.WindowID, false);
-        }
-        break;
-    }
-    default:
-        break;
-    }
-}
-
 bool SystemWindowLink::RecallWindow(SystemLinkContext& Ctx, HWND SourceHwnd, bool CenterOnDesktop)
 {
     if (!SourceHwnd || !IsWindow(SourceHwnd)) {
@@ -410,18 +458,8 @@ bool SystemWindowLink::RecallWindow(SystemLinkContext& Ctx, HWND SourceHwnd, boo
     if (TargetDevice != DeviceMap::C0) {
         auto* NetSession = Ctx.Router.GetWindowSession(TargetDevice);
         if (NetSession) {
-            OmniWinDragPacket CancelPacket{};
-            CancelPacket.Action   = WinDragAction::Cancel;
-            CancelPacket.WindowID = StreamID;
-            CancelPacket.Edge     = TargetDevice;
-
-            OmniNet::OmniHeader Header;
-            Header.Target     = 0;
-            Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-            Header.Flags      = 0;
-
-            NetSession->SessionSend(
-                reinterpret_cast<CHAR*>(&CancelPacket), sizeof(OmniWinDragPacket), Header
+            StreamPackets::TransmitDragPacket(
+                NetSession, WinDragAction::Cancel, StreamID, TargetDevice, 0, 0, 0, 0
             );
         }
     }
@@ -431,11 +469,6 @@ bool SystemWindowLink::RecallWindow(SystemLinkContext& Ctx, HWND SourceHwnd, boo
     if (Ctx.ReleaseSubStream && TargetDevice != DeviceMap::C0) {
         Ctx.ReleaseSubStream(TargetDevice, StreamID, true);
     }
-
-    if (TargetDevice != DeviceMap::C0) {
-        ActiveReturningWindows.erase(TargetDevice);
-    }
-    ReturningSourceWindows.erase(SourceHwnd);
 
     ShowWindow(SourceHwnd, SW_RESTORE);
     if (CenterOnDesktop) {
@@ -449,6 +482,8 @@ bool SystemWindowLink::RecallWindow(SystemLinkContext& Ctx, HWND SourceHwnd, boo
         StreamID,
         CenterOnDesktop
     );
+
+    DragSession = {};
     return true;
 }
 
@@ -479,20 +514,18 @@ void SystemWindowLink::HandleWindowDragMove(
     SystemLinkContext& Ctx, HWND Hwnd, const RECT& WindowPos, POINT CursorPos
 )
 {
-    // Latch grip offset while the window is still local (may update each tick until edge cross)
-    if (DragState.SpatialState == EdgeSpatiality::Local) {
-        DragState.GripX = CursorPos.x - WindowPos.left;
-        DragState.GripY = CursorPos.y - WindowPos.top;
+    if (DragSession.Phase == DragPhase::Idle || DragSession.Phase == DragPhase::LocalHover) {
+        OnLocalDragStart(Hwnd, WindowPos, CursorPos);
     }
 
-    DragState.LastWindowPos = WindowPos;
+    DragSession.LastPos = WindowPos;
 
-    DragState.ResW = Ctx.Router.ResWidth.load(std::memory_order_relaxed);
-    DragState.ResH = Ctx.Router.ResHeight.load(std::memory_order_relaxed);
-    if (DragState.ResW == 0)
-        DragState.ResW = GetSystemMetrics(SM_CXSCREEN);
-    if (DragState.ResH == 0)
-        DragState.ResH = GetSystemMetrics(SM_CYSCREEN);
+    DragSession.ResW = Ctx.Router.ResWidth.load(std::memory_order_relaxed);
+    DragSession.ResH = Ctx.Router.ResHeight.load(std::memory_order_relaxed);
+    if (DragSession.ResW == 0)
+        DragSession.ResW = GetSystemMetrics(SM_CXSCREEN);
+    if (DragSession.ResH == 0)
+        DragSession.ResH = GetSystemMetrics(SM_CYSCREEN);
 
     DeviceMap ActiveEdge = Ctx.SpatialRouter.EvaluateWindow(WindowPos);
 
@@ -502,7 +535,7 @@ void SystemWindowLink::HandleWindowDragMove(
     const bool ModifierHeld = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) ||
                               ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
 
-    if (DragState.SpatialState == EdgeSpatiality::Local && !ModifierHeld) {
+    if (DragSession.Phase == DragPhase::LocalHover && !ModifierHeld) {
         ActiveEdge = DeviceMap::C0;
         NetSession = nullptr;
     }
@@ -511,270 +544,44 @@ void SystemWindowLink::HandleWindowDragMove(
     const int WindowHeight = WindowPos.bottom - WindowPos.top;
 
     if (ActiveEdge != DeviceMap::C0 && NetSession) {
-        int16_t RatioX = 0;
-        int16_t RatioY = 0;
-        OmniSpatialRouter::EncodeEdgePosition(
-            ActiveEdge, WindowPos, DragState.ResW, DragState.ResH, RatioX, RatioY
-        );
-
-        OmniNet::OmniHeader Header;
-        Header.Target     = 0;
-        Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-        Header.Flags      = 0;
-
-        OmniWinDragPacket Packet = {};
-        Packet.Edge              = ActiveEdge;
-        Packet.WindowX           = RatioX;
-        Packet.WindowY           = RatioY;
-        Packet.WindowWidth       = static_cast<uint16_t>(WindowWidth);
-        Packet.WindowHeight      = static_cast<uint16_t>(WindowHeight);
-        Packet.CursorGripX       = static_cast<int16_t>(DragState.GripX);
-        Packet.CursorGripY       = static_cast<int16_t>(DragState.GripY);
-
-        if (DragState.SpatialState == EdgeSpatiality::Local) {
-            SubStreamID StreamID =
-                HandleWindowDragEvent(Ctx, Hwnd, ActiveEdge, WinDragAction::Begin);
-            if (StreamID == 0) {
-                return;
-            }
-            DragState.WindowID     = StreamID;
-            DragState.ActiveEdge   = ActiveEdge;
-            DragState.SpatialState = EdgeSpatiality::InTransit;
-
-            Packet.Action   = WinDragAction::Begin;
-            Packet.WindowID = StreamID;
-            NetSession->SessionSend(
-                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
+        if (DragSession.Phase == DragPhase::LocalHover) {
+            OnEdgeCrossBegin(Ctx, Hwnd, ActiveEdge, WindowPos);
+        } else if (DragSession.Phase == DragPhase::Crossing) {
+            int16_t RatioX = 0;
+            int16_t RatioY = 0;
+            OmniSpatialRouter::EncodeEdgePosition(
+                ActiveEdge, WindowPos, DragSession.ResW, DragSession.ResH, RatioX, RatioY
             );
-        } else {
-            Packet.Action   = WinDragAction::Move;
-            Packet.WindowID = DragState.WindowID;
-            NetSession->SessionSend(
-                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
+
+            StreamPackets::TransmitDragPacket(
+                NetSession,
+                WinDragAction::Move,
+                DragSession.StreamID,
+                ActiveEdge,
+                RatioX,
+                RatioY,
+                static_cast<uint16_t>(WindowWidth),
+                static_cast<uint16_t>(WindowHeight),
+                static_cast<int16_t>(DragSession.GripX),
+                static_cast<int16_t>(DragSession.GripY)
             );
         }
-    } else if (DragState.SpatialState == EdgeSpatiality::InTransit) {
-        auto* Session = Ctx.Router.GetWindowSession(DragState.ActiveEdge);
-        if (Session) {
-            OmniNet::OmniHeader Header;
-            Header.Target     = 0;
-            Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-            Header.Flags      = 0;
-
-            OmniWinDragPacket Packet = {};
-            Packet.Action            = WinDragAction::Cancel;
-            Packet.Edge              = DragState.ActiveEdge;
-            Packet.WindowID          = DragState.WindowID;
-            Session->SessionSend(
-                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
-            );
-        }
-        HandleWindowDragEvent(Ctx, Hwnd, DragState.ActiveEdge, WinDragAction::Cancel);
-        DragState.WindowID     = 0;
-        DragState.ActiveEdge   = DeviceMap::C0;
-        DragState.SpatialState = EdgeSpatiality::Local;
+    } else if (DragSession.Phase == DragPhase::Crossing) {
+        OnCrossCancel(Ctx, Hwnd);
     }
 }
 
 void SystemWindowLink::HandleWindowDragEnd(SystemLinkContext& Ctx, HWND Hwnd)
 {
-    if (DragState.SpatialState == EdgeSpatiality::InTransit) {
-        RECT FinalPos = DragState.LastWindowPos;
-        GetWindowRect(Hwnd, &FinalPos);
-        const int WinW = FinalPos.right - FinalPos.left;
-        const int WinH = FinalPos.bottom - FinalPos.top;
-
-        int16_t RatioX = 0;
-        int16_t RatioY = 0;
-        OmniSpatialRouter::EncodeEdgePosition(
-            DragState.ActiveEdge, FinalPos, DragState.ResW, DragState.ResH, RatioX, RatioY
-        );
-
-        auto* NetSession = Ctx.Router.GetWindowSession(DragState.ActiveEdge);
-        if (NetSession) {
-            OmniNet::OmniHeader Header;
-            Header.Target     = 0;
-            Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-            Header.Flags      = 0;
-
-            OmniWinDragPacket Packet = {};
-            Packet.Action            = WinDragAction::Drop;
-            Packet.Edge              = DragState.ActiveEdge;
-            Packet.WindowX           = RatioX;
-            Packet.WindowY           = RatioY;
-            Packet.WindowWidth       = static_cast<uint16_t>(WinW);
-            Packet.WindowHeight      = static_cast<uint16_t>(WinH);
-            Packet.CursorGripX       = static_cast<int16_t>(DragState.GripX);
-            Packet.CursorGripY       = static_cast<int16_t>(DragState.GripY);
-            Packet.WindowID          = DragState.WindowID;
-            NetSession->SessionSend(
-                reinterpret_cast<CHAR*>(&Packet), sizeof(OmniWinDragPacket), Header
-            );
-        }
-
-        HandleWindowDragEvent(Ctx, Hwnd, DragState.ActiveEdge, WinDragAction::Drop);
+    if (DragSession.Phase == DragPhase::Crossing) {
+        OnRemoteDrop(Ctx, Hwnd);
     }
 
-    DragState = {};
+    const bool WasReturning = (DragSession.Phase == DragPhase::Returning);
+    DragSession             = {};
 
-    if (ReturningSourceWindows.contains(Hwnd)) {
-        ReturningSourceWindows.erase(Hwnd);
+    if (WasReturning) {
         RecallWindow(Ctx, Hwnd, false);
-    }
-}
-
-bool SystemWindowLink::HandleStreamWindowResize(const OmniWinResizePacket& Packet)
-{
-    const SubStreamID StreamID  = Packet.WindowKey;
-    const uint32_t    NewWidth  = Packet.Width;
-    const uint32_t    NewHeight = Packet.Height;
-
-    if (NewWidth == 0 || NewHeight == 0) {
-        return true;
-    }
-
-    auto IterSourceWindows = SubStream2HwndRegistry.find(StreamID);
-    if (IterSourceWindows != SubStream2HwndRegistry.end()) {
-        HWND SourceHwnd = IterSourceWindows->second;
-
-        if (IsWindow(SourceHwnd)) {
-            RECT CurrentRect{};
-            if (GetWindowRect(SourceHwnd, &CurrentRect)) {
-                uint32_t CurrentWidth = static_cast<uint32_t>(CurrentRect.right - CurrentRect.left);
-                uint32_t CurrentHeight =
-                    static_cast<uint32_t>(CurrentRect.bottom - CurrentRect.top);
-                if (CurrentWidth == NewWidth && CurrentHeight == NewHeight) {
-                    return true;
-                }
-            }
-            SetWindowPos(
-                SourceHwnd,
-                nullptr,
-                0,
-                0,
-                static_cast<int>(NewWidth),
-                static_cast<int>(NewHeight),
-                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
-            );
-        }
-        return true;
-    }
-
-    return false;
-}
-
-bool SystemWindowLink::HandleStreamWindowMouse(
-    SystemLinkContext& Ctx, const OmniWinMousePacket& Packet
-)
-{
-    auto IterStreamHwnd = SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
-    if (IterStreamHwnd != SubStream2HwndRegistry.end() && IsWindow(IterStreamHwnd->second)) {
-        HWND TargetHwnd = IterStreamHwnd->second;
-
-        RECT    WinRect{};
-        HRESULT hr = DwmGetWindowAttribute(
-            TargetHwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &WinRect, sizeof(WinRect)
-        );
-        if (FAILED(hr)) {
-            GetWindowRect(TargetHwnd, &WinRect);
-        }
-
-        LONG WinW = WinRect.right - WinRect.left;
-        LONG WinH = WinRect.bottom - WinRect.top;
-        if (WinW <= 0 || WinH <= 0)
-            return true;
-
-        POINT CursorPoint = {
-            WinRect.left +
-                static_cast<LONG>((static_cast<uint64_t>(Packet.NormalizedX) * WinW) / 65535ULL),
-            WinRect.top +
-                static_cast<LONG>((static_cast<uint64_t>(Packet.NormalizedY) * WinH) / 65535ULL)
-        };
-
-        SetCursorPos(CursorPoint.x, CursorPoint.y);
-
-        if (Packet.Buttons & MOUSEEVENTF_LEFTDOWN) {
-            UINT Dpi = GetDpiForWindow(TargetHwnd);
-            if (Dpi == 0)
-                Dpi = 96;
-            int MaxHeaderHeight = MulDiv(64, Dpi, 96);
-
-            if ((CursorPoint.y - WinRect.top) <= MaxHeaderHeight) {
-                DWORD_PTR HitResult = HTCLIENT;
-                if (SendMessageTimeoutW(
-                        TargetHwnd,
-                        WM_NCHITTEST,
-                        0,
-                        MAKELPARAM(CursorPoint.x, CursorPoint.y),
-                        SMTO_ABORTIFHUNG | SMTO_NORMAL,
-                        25,
-                        &HitResult
-                    )) {
-                    if (HitResult == HTCAPTION) {
-                        const SubStreamID StreamID   = static_cast<SubStreamID>(Packet.SubStreamID);
-                        auto              IterDevice = SubStream2DeviceRegistry.find(StreamID);
-                        if (IterDevice != SubStream2DeviceRegistry.end()) {
-                            DeviceMap TargetDevice = IterDevice->second;
-                            auto*     NetSession   = Ctx.Router.GetWindowSession(TargetDevice);
-                            if (NetSession) {
-                                OmniWinDragPacket DragPacket{};
-                                DragPacket.Action   = WinDragAction::Begin;
-                                DragPacket.WindowID = StreamID;
-                                DragPacket.Edge     = TargetDevice;
-
-                                OmniNet::OmniHeader Header;
-                                Header.Target     = 0;
-                                Header.PacketType = OmniNet::PacketType::ProcWinDrag;
-                                Header.Flags      = 0;
-
-                                NetSession->SessionSend(
-                                    reinterpret_cast<CHAR*>(&DragPacket),
-                                    sizeof(OmniWinDragPacket),
-                                    Header
-                                );
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        constexpr uint16_t MOUSE_DOWN_MASK = MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_RIGHTDOWN |
-                                             MOUSEEVENTF_MIDDLEDOWN | MOUSEEVENTF_XDOWN;
-        if (Packet.Buttons & MOUSE_DOWN_MASK) {
-            EnsureWindowFocus(TargetHwnd);
-        }
-
-        if (Packet.Buttons | Packet.Wheel) {
-            INPUT ButtonInput{};
-            ButtonInput.type           = INPUT_MOUSE;
-            ButtonInput.mi.mouseData   = Packet.Wheel;
-            ButtonInput.mi.dwFlags     = Packet.Buttons;
-            ButtonInput.mi.dwExtraInfo = OMNI_INPUT_COOKIE;
-            SendInput(1, &ButtonInput, sizeof(INPUT));
-        }
-        return true;
-    }
-
-    return false;
-}
-
-void SystemWindowLink::HandleStreamWindowKey(const OmniWinKeyPacket& Packet)
-{
-    auto IterStreamHwnd = SubStream2HwndRegistry.find(static_cast<SubStreamID>(Packet.SubStreamID));
-    if (IterStreamHwnd != SubStream2HwndRegistry.end() && IsWindow(IterStreamHwnd->second)) {
-        EnsureWindowFocus(IterStreamHwnd->second);
-    }
-}
-void SystemWindowLink::HandleReturningWindow(DeviceMap DeviceID)
-{
-    auto IterReturners = ActiveReturningWindows.find(DeviceID);
-    if (IterReturners != ActiveReturningWindows.end() && IterReturners->second &&
-        IsWindow(IterReturners->second)) {
-        HWND ReturningHwnd = IterReturners->second;
-        ActiveReturningWindows.erase(IterReturners);
-        PostMessage(ReturningHwnd, WM_SYSCOMMAND, 0xF012, 0);
     }
 }
 
@@ -814,10 +621,6 @@ OmniNet::PoolConfig SystemWindowLink::SetState(
                 DragLink.WindowMoveListener(true);
 
                 Logger::log("WindowLink enabled for DeviceID {:d}", static_cast<int>(DeviceID));
-            } else {
-                StartWindowCaptureStream(
-                    Ctx, SubStreamID, DeviceID, reinterpret_cast<HWND>(Context)
-                );
             }
         } else {
             if (SubStreamID == 0) {
@@ -850,12 +653,14 @@ OmniNet::PoolConfig SystemWindowLink::SetState(
             );
         } else {
             if (SubStreamID != 0) {
-                Ctx.CaptureStreams.DestroyStreamRenderWindow(SubStreamID);
+                WindowStreamEntries.erase(SubStreamID);
+                Ctx.StreamSessions.DestroyStreamRenderWindow(SubStreamID);
             } else if (Ctx.ActiveInstances && Ctx.ActiveInstances->contains(DeviceID)) {
                 auto& Instance = Ctx.ActiveInstances->at(DeviceID);
                 auto  Streams  = Instance.GetSubStreams(FeatureTypes::WindowLink);
                 for (uint16_t StreamID : Streams) {
-                    Ctx.CaptureStreams.DestroyStreamRenderWindow(StreamID);
+                    WindowStreamEntries.erase(StreamID);
+                    Ctx.StreamSessions.DestroyStreamRenderWindow(StreamID);
                 }
             }
         }
