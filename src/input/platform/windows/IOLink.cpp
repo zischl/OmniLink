@@ -223,7 +223,7 @@ void OmniInputLink::RemoveRelayMask(DeviceMap DeviceID)
 
 void OmniInputLink::ResetEdgeRelayMask()
 {
-    uint8_t ActiveMask = ActiveEdgeRelayMask.load(std::memory_order_release);
+    uint8_t ActiveMask = ActiveEdgeRelayMask.load(std::memory_order_acquire);
 
     while (ActiveMask) {
         auto DeviceID = static_cast<DeviceMap>(std::countr_zero(ActiveMask) + 1);
