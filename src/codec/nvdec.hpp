@@ -6,8 +6,6 @@
 
 #include <cuviddec.h>
 #include <d3d11.h>
-#include <fstream>
-#include <string>
 #include <windows.h>
 
 #include <cuda.h>
@@ -18,8 +16,9 @@
 #undef _TIMECODE
 #undef TIMECODE
 
-#pragma comment(lib, "nvcuvid.lib")
-// #pragma comment(lib, "cuda.lib")
+#include <fstream>
+#include <mutex>
+#include <string>
 
 typedef CUresult CUDAAPI tcuvidCreateVideoParser(CUvideoparser* pObj, CUVIDPARSERPARAMS* pParams);
 typedef CUresult CUDAAPI tcuvidParseVideoData(CUvideoparser obj, CUVIDSOURCEDATAPACKET* pPacket);
@@ -33,11 +32,11 @@ typedef CUresult CUDAAPI tcuvidDecodePicture(CUvideodecoder hDecoder, CUVIDPICPA
 typedef CUresult CUDAAPI
 tcuvidReconfigureDecoder(CUvideodecoder hDecoder, CUVIDRECONFIGUREDECODERINFO* pDecReconfigParams);
 typedef CUresult CUDAAPI tcuvidMapVideoFrame64(
-    CUvideodecoder hDecoder,
-    int nPicIdx,
+    CUvideodecoder      hDecoder,
+    int                 nPicIdx,
     unsigned long long* pDevPtr,
-    unsigned int* pPitch,
-    CUVIDPROCPARAMS* pVPP
+    unsigned int*       pPitch,
+    CUVIDPROCPARAMS*    pVPP
 );
 typedef CUresult CUDAAPI
 tcuvidUnmapVideoFrame64(CUvideodecoder hDecoder, unsigned long long DevPtr);
@@ -58,75 +57,88 @@ typedef CUresult CUDAAPI tcuGraphicsUnregisterResource(CUgraphicsResource resour
 #define GET_PROC(name, dll)                                                                        \
     name = reinterpret_cast<t##name*>(GetProcAddress(dll, #name));                                 \
     if (!name) {                                                                                   \
-        OutputDebugString("Get Proc Failed");                                                      \
+        Logger::log("Get Proc Failed");                                                            \
         CResult = CUDA_ERROR_UNKNOWN;                                                              \
         return CUDA_ERROR_UNKNOWN;                                                                 \
     }
 
 #endif
 
-class NVDecoder
+class NVDriver
 {
   public:
-    virtual ~NVDecoder() = default;
+    NVDriver() = delete;
 
     static CUresult Initialize();
-    static void Release();
-    static void CompatibilityCheck();
+    static void     Release();
+    static void     CompatibilityCheck(UINT Width, UINT Height);
 
-    static tcuvidCreateVideoParser* cuvidCreateVideoParser;
-    static tcuvidParseVideoData* cuvidParseVideoData;
+    static tcuvidCreateVideoParser*  cuvidCreateVideoParser;
+    static tcuvidParseVideoData*     cuvidParseVideoData;
     static tcuvidDestroyVideoParser* cuvidDestroyVideoParser;
 
-    static tcuvidGetDecoderCaps* cuvidGetDecoderCaps;
-    static tcuvidCreateDecoder* cuvidCreateDecoder;
-    static tcuvidDestroyDecoder* cuvidDestroyDecoder;
-    static tcuvidDecodePicture* cuvidDecodePicture;
+    static tcuvidGetDecoderCaps*     cuvidGetDecoderCaps;
+    static tcuvidCreateDecoder*      cuvidCreateDecoder;
+    static tcuvidDestroyDecoder*     cuvidDestroyDecoder;
+    static tcuvidDecodePicture*      cuvidDecodePicture;
     static tcuvidReconfigureDecoder* cuvidReconfigureDecoder;
-    static tcuvidMapVideoFrame64* cuvidMapVideoFrame64;
-    static tcuvidUnmapVideoFrame64* cuvidUnmapVideoFrame64;
+    static tcuvidMapVideoFrame64*    cuvidMapVideoFrame64;
+    static tcuvidUnmapVideoFrame64*  cuvidUnmapVideoFrame64;
 
-    static tcuGraphicsD3D11RegisterResource* cuGraphicsD3D11RegisterResource;
-    static tcuGraphicsMapResources* cuGraphicsMapResources;
+    static tcuGraphicsD3D11RegisterResource*     cuGraphicsD3D11RegisterResource;
+    static tcuGraphicsMapResources*              cuGraphicsMapResources;
     static tcuGraphicsSubResourceGetMappedArray* cuGraphicsSubResourceGetMappedArray;
-    static tcuGraphicsUnmapResources* cuGraphicsUnmapResources;
-    static tcuGraphicsUnregisterResource* cuGraphicsUnregisterResource;
+    static tcuGraphicsUnmapResources*            cuGraphicsUnmapResources;
+    static tcuGraphicsUnregisterResource*        cuGraphicsUnregisterResource;
 
-  protected:
-    static CUresult CResult;
-    static HMODULE NvDecAPIHandle;
-    static HMODULE NvCudaAPIHandle;
+    inline static CUcontext GetContext() { return CudaContext; };
+    inline static CUdevice  GetDevice() { return CudaDevice; };
 
-    static CUcontext CudaContext;
-    static CUdevice CudaDevice;
-    static bool Initialized;
+  private:
+    static inline CUresult CResult         = CUDA_SUCCESS;
+    static inline HMODULE  NvDecAPIHandle  = nullptr;
+    static inline HMODULE  NvCudaAPIHandle = nullptr;
+
+    static inline CUcontext CudaContext = nullptr;
+    static inline CUdevice  CudaDevice  = 0;
+    static inline bool      Initialized = false;
+
+    static inline std::once_flag InitFlag;
+
+    void EnsureInitialized()
+    {
+        std::call_once(InitFlag, []() { Initialize(); });
+    }
 };
 
 // Nvidia Decoder Sessions
 // Context and functions will be automatically Initialized if not done
 // Sessions after the creation of the first session will reuse that context
-// Context can be manually initialized with the base class NVDecoder
-// CloseSession to clean the session and NVDecoder::Release to.. well.. release context
-class NvdecSession : public NVDecoder
+// Context can be manually initialized with the base class NVDriver
+// CloseSession to clean the session and NVDriver::Release to.. well.. release context
+class NvdecSession
 {
   public:
     NvdecSession(UINT Width, UINT Height, ID3D11Texture2D* OutputTexture);
     ~NvdecSession();
 
     CUresult InitializeSession();
-    void Decode(const unsigned char* data, unsigned long size);
-    void CloseSession();
+    void     Decode(const unsigned char* data, unsigned long size);
+    void     CloseSession();
 
   private:
-    UINT Width;
-    UINT Height;
-    ID3D11Texture2D* OutputBuffer;
+    CUcontext CudaContext;
+    CUdevice  CudaDevice;
+
+    UINT               Width;
+    UINT               Height;
+    ID3D11Texture2D*   OutputBuffer;
     CUgraphicsResource CudaOutputResource;
 
-    CUvideoparser CudaParser;
+    CUvideoparser     CudaParser;
     CUVIDPARSERPARAMS CudaParserParams = {};
 
-    CUvideodecoder CudaDecoder;
+    CUvideodecoder        CudaDecoder;
     CUVIDDECODECREATEINFO CudaDecoderInfo = {};
 
     CUresult SessionResult;
@@ -134,6 +146,7 @@ class NvdecSession : public NVDecoder
     static int CUDAAPI ParserSequenceCallback(void* instanceData, CUVIDEOFORMAT* CuDecoderInfo);
     static int CUDAAPI PictureDecodeCallback(void* instanceData, CUVIDPICPARAMS* pPicParams);
     static int CUDAAPI PictureOutputCallback(void* instanceData, CUVIDPARSERDISPINFO* pDispInfo);
+
 };
 
 #endif
