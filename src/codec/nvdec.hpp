@@ -91,8 +91,17 @@ class NVDriver
     static tcuGraphicsUnmapResources*            cuGraphicsUnmapResources;
     static tcuGraphicsUnregisterResource*        cuGraphicsUnregisterResource;
 
-    inline static CUcontext GetContext() { return CudaContext; };
-    inline static CUdevice  GetDevice() { return CudaDevice; };
+    inline static CUcontext GetContext()
+    {
+        EnsureInitialized();
+        return CudaContext;
+    };
+
+    inline static CUdevice GetDevice()
+    {
+        EnsureInitialized();
+        return CudaDevice;
+    };
 
   private:
     static inline CUresult CResult         = CUDA_SUCCESS;
@@ -105,7 +114,7 @@ class NVDriver
 
     static inline std::once_flag InitFlag;
 
-    void EnsureInitialized()
+    static void EnsureInitialized()
     {
         std::call_once(InitFlag, []() { Initialize(); });
     }
@@ -119,10 +128,12 @@ class NVDriver
 class NvdecSession
 {
   public:
-    NvdecSession(UINT Width, UINT Height, ID3D11Texture2D* OutputTexture);
+    NvdecSession(
+        UINT MaxWidth, UINT MaxHeight, CUVIDEOFORMAT Format, ID3D11Texture2D* OutputTexture
+    );
     ~NvdecSession();
 
-    CUresult InitializeSession();
+    CUresult InitializeSession(CUVIDEOFORMAT Format);
     void     Decode(const unsigned char* data, unsigned long size);
     void     CloseSession();
 
@@ -130,8 +141,9 @@ class NvdecSession
     CUcontext CudaContext;
     CUdevice  CudaDevice;
 
-    UINT               Width;
-    UINT               Height;
+    UINT               SessionMaxWidth;
+    UINT               SessionMaxHeight;
+    CUVIDEOFORMAT      ActiveFormat = {};
     ID3D11Texture2D*   OutputBuffer;
     CUgraphicsResource CudaOutputResource;
 
@@ -146,7 +158,6 @@ class NvdecSession
     static int CUDAAPI ParserSequenceCallback(void* instanceData, CUVIDEOFORMAT* CuDecoderInfo);
     static int CUDAAPI PictureDecodeCallback(void* instanceData, CUVIDPICPARAMS* pPicParams);
     static int CUDAAPI PictureOutputCallback(void* instanceData, CUVIDPARSERDISPINFO* pDispInfo);
-
 };
 
 #endif
