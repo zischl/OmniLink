@@ -210,9 +210,7 @@ void NVDriver::CompatibilityCheck(UINT Width, UINT Height)
 }
 
 // Initializing CUDA Driver and a Decode session and registering output buffer
-NvdecSession::NvdecSession(
-    UINT MaxWidth, UINT MaxHeight, CUVIDEOFORMAT Format, ID3D11Texture2D* OutputTexture
-)
+NvdecSession::NvdecSession(UINT MaxWidth, UINT MaxHeight, ID3D11Texture2D* OutputTexture)
     : CudaContext(NVDriver::GetContext()), CudaDevice(NVDriver::GetDevice())
 {
     SessionMaxWidth    = MaxWidth;
@@ -230,7 +228,7 @@ NvdecSession::NvdecSession(
         return;
     }
 
-    SessionResult = InitializeSession(Format);
+    SessionResult = InitializeSession();
     if (SessionResult != CUDA_SUCCESS) {
         Logger::log(
             ("Decoder Session Initialization Failed: " + std::to_string(SessionResult)).c_str()
@@ -238,7 +236,7 @@ NvdecSession::NvdecSession(
         return;
     }
 
-    cuCtxPushCurrent(NVDriver::GetContext());
+    cuCtxPushCurrent(CudaContext);
 
     SessionResult = cuGraphicsD3D11RegisterResource(&CudaOutputResource, OutputBuffer, 0);
     if (SessionResult != CUDA_SUCCESS || CudaOutputResource == NULL) {
@@ -265,42 +263,13 @@ constexpr uint64_t AlignUp64(uint64_t value) noexcept
     return (value + 63ULL) & ~63ULL;
 }
 
-CUresult NvdecSession::InitializeSession(CUVIDEOFORMAT Format)
+CUresult NvdecSession::InitializeSession()
 {
-    if (CudaDecoder != nullptr && CudaParser != nullptr) {
+    if (CudaParser != nullptr) {
         return CUDA_SUCCESS;
     }
 
     cuCtxPushCurrent(CudaContext);
-
-    CudaDecoderInfo.CodecType      = cudaVideoCodec_H264;
-    CudaDecoderInfo.ulWidth        = Format.coded_width;
-    CudaDecoderInfo.ulHeight       = Format.coded_height;
-    CudaDecoderInfo.ulTargetWidth  = AlignEven(Format.coded_width);
-    CudaDecoderInfo.ulTargetHeight = AlignEven(Format.coded_height);
-    CudaDecoderInfo.ulMaxWidth     = AlignUp64(SessionMaxWidth);
-    CudaDecoderInfo.ulMaxHeight    = AlignUp64(SessionMaxHeight);
-
-    CudaDecoderInfo.ChromaFormat        = cudaVideoChromaFormat_420;
-    CudaDecoderInfo.bitDepthMinus8      = 0;
-    CudaDecoderInfo.ulIntraDecodeOnly   = 0;
-    CudaDecoderInfo.ulNumDecodeSurfaces = 4;
-    CudaDecoderInfo.ulNumOutputSurfaces = 1;
-    CudaDecoderInfo.OutputFormat        = cudaVideoSurfaceFormat_NV12;
-    CudaDecoderInfo.DeinterlaceMode     = cudaVideoDeinterlaceMode_Weave;
-    CudaDecoderInfo.ulCreationFlags     = cudaVideoCreate_Default;
-
-    CudaDecoderInfo.display_area.left   = 0;
-    CudaDecoderInfo.display_area.top    = 0;
-    CudaDecoderInfo.display_area.right  = CudaDecoderInfo.ulWidth;
-    CudaDecoderInfo.display_area.bottom = CudaDecoderInfo.ulHeight;
-
-    CUresult CuResult = cuvidCreateDecoder(&CudaDecoder, &CudaDecoderInfo);
-    if (CuResult != CUDA_SUCCESS || CudaDecoder == NULL) {
-        Logger::log(("Decoder Creation Failed: " + std::to_string(CuResult)).c_str());
-        cuCtxPopCurrent(nullptr);
-        return CuResult;
-    }
 
     CudaParserParams.CodecType              = cudaVideoCodec_H264;
     CudaParserParams.ulMaxNumDecodeSurfaces = 4;
@@ -310,22 +279,12 @@ CUresult NvdecSession::InitializeSession(CUVIDEOFORMAT Format)
     CudaParserParams.pfnDecodePicture       = PictureDecodeCallback;
     CudaParserParams.pfnDisplayPicture      = PictureOutputCallback;
 
-    CuResult = cuvidCreateVideoParser(&CudaParser, &CudaParserParams);
+    CUresult CuResult = cuvidCreateVideoParser(&CudaParser, &CudaParserParams);
     if (CuResult != CUDA_SUCCESS) {
         Logger::log(("Video Parser Creation Failed: " + std::to_string(CuResult)).c_str());
-        cuCtxPopCurrent(nullptr);
-        return CuResult;
     }
 
     cuCtxPopCurrent(nullptr);
-
-    ActiveFormat.codec                   = CudaDecoderInfo.CodecType;
-    ActiveFormat.coded_width             = CudaDecoderInfo.ulWidth;
-    ActiveFormat.coded_height            = CudaDecoderInfo.ulHeight;
-    ActiveFormat.min_num_decode_surfaces = CudaDecoderInfo.ulNumDecodeSurfaces;
-    ActiveFormat.bit_depth_luma_minus8   = CudaDecoderInfo.bitDepthMinus8;
-    ActiveFormat.chroma_format           = CudaDecoderInfo.ChromaFormat;
-
     return CuResult;
 }
 
@@ -380,33 +339,38 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* InstanceData, CUVIDEOFORM
     UINT RequiredSurfaces =
         (std::max)(4u, static_cast<UINT>(CuDecoderInfo->min_num_decode_surfaces));
 
+    short DisplayAreaL = CuDecoderInfo->display_area.left;
+    short DisplayAreaT = CuDecoderInfo->display_area.top;
+    short DisplayAreaR = CuDecoderInfo->display_area.right;
+    short DisplayAreaB = CuDecoderInfo->display_area.bottom;
+
+    if (DisplayAreaR <= DisplayAreaL || DisplayAreaB <= DisplayAreaT) {
+        DisplayAreaL = 0;
+        DisplayAreaT = 0;
+        DisplayAreaR = static_cast<short>(CuDecoderInfo->coded_width);
+        DisplayAreaB = static_cast<short>(CuDecoderInfo->coded_height);
+    }
+
+    UINT TargetW = static_cast<UINT>(DisplayAreaR - DisplayAreaL);
+    UINT TargetH = static_cast<UINT>(DisplayAreaB - DisplayAreaT);
+
     bool DecodeResChange =
         !(CuDecoderInfo->coded_width == ActiveFormat.coded_width &&
           CuDecoderInfo->coded_height == ActiveFormat.coded_height);
     bool DecSurfaceCountChanged = (RequiredSurfaces > ActiveFormat.min_num_decode_surfaces);
 
-    if (!DecodeResChange && !DecSurfaceCountChanged) {
+    bool InitialCreation = (DecoderSession->CudaDecoder == nullptr);
+
+    if (!InitialCreation && !DecodeResChange && !DecSurfaceCountChanged) {
         return ActiveFormat.min_num_decode_surfaces;
     }
-
-    if (DecoderSession->CudaDecoder == NULL) {
-        Logger::log("CudaDecoder is NULL in ParserSequenceCallback!");
-        return 0;
-    }
-
-    UINT TargetW = CuDecoderInfo->display_area.right - CuDecoderInfo->display_area.left;
-    UINT TargetH = CuDecoderInfo->display_area.bottom - CuDecoderInfo->display_area.top;
 
     bool MaxResExceeded = CuDecoderInfo->coded_width > DecoderSession->SessionMaxWidth ||
                           CuDecoderInfo->coded_height > DecoderSession->SessionMaxHeight;
 
-    bool DecoderRecreationRequired =
-        MaxResExceeded || CuDecoderInfo->codec != ActiveFormat.codec ||
-        CuDecoderInfo->chroma_format != ActiveFormat.chroma_format ||
-        CuDecoderInfo->bit_depth_luma_minus8 != ActiveFormat.bit_depth_luma_minus8;
+    bool DecoderRecreationRequired = InitialCreation || MaxResExceeded;
 
     if (!DecoderRecreationRequired) {
-
         CUVIDRECONFIGUREDECODERINFO ReConfig = {};
         ReConfig.ulWidth                     = CuDecoderInfo->coded_width;
         ReConfig.ulHeight                    = CuDecoderInfo->coded_height;
@@ -414,10 +378,10 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* InstanceData, CUVIDEOFORM
         ReConfig.ulTargetHeight              = AlignEven(TargetH);
         ReConfig.ulNumDecodeSurfaces         = RequiredSurfaces;
 
-        ReConfig.display_area.top    = CuDecoderInfo->display_area.top;
-        ReConfig.display_area.left   = CuDecoderInfo->display_area.left;
-        ReConfig.display_area.bottom = CuDecoderInfo->display_area.bottom;
-        ReConfig.display_area.right  = CuDecoderInfo->display_area.right;
+        ReConfig.display_area.left   = DisplayAreaL;
+        ReConfig.display_area.top    = DisplayAreaT;
+        ReConfig.display_area.right  = DisplayAreaR;
+        ReConfig.display_area.bottom = DisplayAreaB;
 
         ReConfig.target_rect = {
             0,
@@ -438,13 +402,13 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* InstanceData, CUVIDEOFORM
             return 0;
         }
 
-        ActiveFormat.coded_width             = CuDecoderInfo->coded_width;
-        ActiveFormat.coded_height            = CuDecoderInfo->coded_height;
+        ActiveFormat                         = *CuDecoderInfo;
         ActiveFormat.min_num_decode_surfaces = RequiredSurfaces;
+        DecoderSession->TargetWidth          = TargetW;
+        DecoderSession->TargetHeight         = TargetH;
 
         return ActiveFormat.min_num_decode_surfaces;
     } else {
-
         cuCtxPushCurrent(DecoderSession->CudaContext);
 
         if (DecoderSession->CudaDecoder) {
@@ -452,52 +416,54 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* InstanceData, CUVIDEOFORM
             DecoderSession->CudaDecoder = nullptr;
         }
 
+        DecoderSession->SessionMaxWidth = (std::max)(DecoderSession->SessionMaxWidth,
+                                                     static_cast<UINT>(CuDecoderInfo->coded_width));
+        DecoderSession->SessionMaxHeight =
+            (std::max)(DecoderSession->SessionMaxHeight,
+                       static_cast<UINT>(CuDecoderInfo->coded_height));
+
         CUVIDDECODECREATEINFO& CudaDecoderInfo = DecoderSession->CudaDecoderInfo;
 
         CudaDecoderInfo.CodecType      = CuDecoderInfo->codec;
         CudaDecoderInfo.ulWidth        = CuDecoderInfo->coded_width;
         CudaDecoderInfo.ulHeight       = CuDecoderInfo->coded_height;
-        CudaDecoderInfo.ulTargetWidth  = AlignEven(CuDecoderInfo->coded_width);
-        CudaDecoderInfo.ulTargetHeight = AlignEven(CuDecoderInfo->coded_height);
-        CudaDecoderInfo.ulMaxWidth     = AlignUp64(
-            MaxResExceeded ? CuDecoderInfo->coded_width : DecoderSession->SessionMaxWidth
-        );
-        CudaDecoderInfo.ulMaxHeight = AlignUp64(
-            MaxResExceeded ? CuDecoderInfo->coded_height : DecoderSession->SessionMaxHeight
-        );
+        CudaDecoderInfo.ulTargetWidth  = AlignEven(TargetW);
+        CudaDecoderInfo.ulTargetHeight = AlignEven(TargetH);
+        CudaDecoderInfo.ulMaxWidth     = AlignUp64(DecoderSession->SessionMaxWidth);
+        CudaDecoderInfo.ulMaxHeight    = AlignUp64(DecoderSession->SessionMaxHeight);
 
         CudaDecoderInfo.ChromaFormat        = cudaVideoChromaFormat_420;
         CudaDecoderInfo.bitDepthMinus8      = 0;
         CudaDecoderInfo.ulIntraDecodeOnly   = 0;
-        CudaDecoderInfo.ulNumDecodeSurfaces = 4;
-        CudaDecoderInfo.ulNumOutputSurfaces = 1;
+        CudaDecoderInfo.ulNumDecodeSurfaces = RequiredSurfaces;
+        CudaDecoderInfo.ulNumOutputSurfaces = 2;
         CudaDecoderInfo.OutputFormat        = cudaVideoSurfaceFormat_NV12;
         CudaDecoderInfo.DeinterlaceMode     = cudaVideoDeinterlaceMode_Weave;
         CudaDecoderInfo.ulCreationFlags     = cudaVideoCreate_Default;
 
-        CudaDecoderInfo.display_area.left   = 0;
-        CudaDecoderInfo.display_area.top    = 0;
-        CudaDecoderInfo.display_area.right  = CudaDecoderInfo.ulWidth;
-        CudaDecoderInfo.display_area.bottom = CudaDecoderInfo.ulHeight;
+        CudaDecoderInfo.display_area.left   = DisplayAreaL;
+        CudaDecoderInfo.display_area.top    = DisplayAreaT;
+        CudaDecoderInfo.display_area.right  = DisplayAreaR;
+        CudaDecoderInfo.display_area.bottom = DisplayAreaB;
 
         CUresult CuResult =
             cuvidCreateDecoder(&(DecoderSession->CudaDecoder), &(DecoderSession->CudaDecoderInfo));
-        if (CuResult != CUDA_SUCCESS || DecoderSession->CudaDecoder == NULL) {
-            Logger::log("Decoder ReCreation Failed");
-            return 0;
-        } else {
-            ActiveFormat.codec                   = CudaDecoderInfo.CodecType;
-            ActiveFormat.coded_width             = CudaDecoderInfo.ulWidth;
-            ActiveFormat.coded_height            = CudaDecoderInfo.ulHeight;
-            ActiveFormat.min_num_decode_surfaces = CudaDecoderInfo.ulNumDecodeSurfaces;
-            ActiveFormat.bit_depth_luma_minus8   = CudaDecoderInfo.bitDepthMinus8;
-            ActiveFormat.chroma_format           = CudaDecoderInfo.ChromaFormat;
+        cuCtxPopCurrent(nullptr);
 
-            DecoderSession->SessionMaxWidth  = CudaDecoderInfo.ulMaxWidth;
-            DecoderSession->SessionMaxHeight = CudaDecoderInfo.ulMaxHeight;
+        if (CuResult != CUDA_SUCCESS || DecoderSession->CudaDecoder == NULL) {
+            Logger::log(
+                ("Decoder Creation/Recreation Failed: " + std::to_string(CuResult)).c_str()
+            );
+            return 0;
         }
 
-        cuCtxPopCurrent(nullptr);
+        ActiveFormat                         = *CuDecoderInfo;
+        ActiveFormat.min_num_decode_surfaces = RequiredSurfaces;
+        DecoderSession->TargetWidth          = TargetW;
+        DecoderSession->TargetHeight         = TargetH;
+
+        DecoderSession->SessionMaxWidth  = CudaDecoderInfo.ulMaxWidth;
+        DecoderSession->SessionMaxHeight = CudaDecoderInfo.ulMaxHeight;
 
         return CudaDecoderInfo.ulNumDecodeSurfaces;
     }
@@ -540,6 +506,8 @@ int CUDAAPI NvdecSession::PictureOutputCallback(void* InstanceData, CUVIDPARSERD
         Logger::log(("\nDecoder Output Callback Failed: " +
                      std::to_string(DecoderSession->SessionResult))
                         .c_str());
+
+        cuCtxPopCurrent(nullptr);
         return 0;
     }
 
@@ -550,45 +518,56 @@ int CUDAAPI NvdecSession::PictureOutputCallback(void* InstanceData, CUVIDPARSERD
         Logger::log(("\nTexture Resource Mapping Failed: " +
                      std::to_string(DecoderSession->SessionResult))
                         .c_str());
+
+        NVDriver::cuvidUnmapVideoFrame64(DecoderSession->CudaDecoder, dpSrcFrame);
+        cuCtxPopCurrent(nullptr);
         return 0;
     }
 
-    CUarray MappedResArray;
+    CUarray MappedResArray        = nullptr;
     DecoderSession->SessionResult = NVDriver::cuGraphicsSubResourceGetMappedArray(
         &MappedResArray, DecoderSession->CudaOutputResource, 0, 0
     );
-    if (DecoderSession->SessionResult != CUDA_SUCCESS) {
+    if (DecoderSession->SessionResult != CUDA_SUCCESS || MappedResArray == nullptr) {
         Logger::log(("\nTexture Resource Mapped Array Retrieval Failed: " +
                      std::to_string(DecoderSession->SessionResult))
                         .c_str());
+
+        NVDriver::cuGraphicsUnmapResources(1, &DecoderSession->CudaOutputResource, 0);
+        NVDriver::cuvidUnmapVideoFrame64(DecoderSession->CudaDecoder, dpSrcFrame);
+        cuCtxPopCurrent(nullptr);
         return 0;
     }
 
-    cudaSurfaceObject_t OutputSurface;
+    CUDA_ARRAY_DESCRIPTOR arrayDesc = {};
+    cuArrayGetDescriptor_v2(&arrayDesc, MappedResArray);
+
+    cudaSurfaceObject_t OutputSurface = 0;
     cudaResourceDesc    OutputResDesc = {};
     OutputResDesc.resType             = cudaResourceTypeArray;
     OutputResDesc.res.array.array     = reinterpret_cast<cudaArray*>(MappedResArray);
 
     cudaError CudaResult = cudaCreateSurfaceObject(&OutputSurface, &OutputResDesc);
-    if (CudaResult != cudaSuccess) {
+    if (CudaResult == cudaSuccess) {
+        int renderW = static_cast<int>(arrayDesc.Width);
+        int renderH = static_cast<int>(arrayDesc.Height);
+
+        if (DecoderSession->TargetWidth > 0 && DecoderSession->TargetWidth < arrayDesc.Width) {
+            renderW = static_cast<int>(DecoderSession->TargetWidth);
+        }
+        if (DecoderSession->TargetHeight > 0 && DecoderSession->TargetHeight < arrayDesc.Height) {
+            renderH = static_cast<int>(DecoderSession->TargetHeight);
+        }
+
+        const uint8_t* NV12Buffer = reinterpret_cast<const uint8_t*>(dpSrcFrame);
+        Cast2BGRA(NV12Buffer, renderW, renderH, OutputSurface, pitch);
+
+        cudaDestroySurfaceObject(OutputSurface);
+    } else {
         Logger::log(
             ("\nTexture Surface Object Creation Failed: " + std::to_string(CudaResult)).c_str()
         );
     }
-
-    const uint8_t* NV12Buffer = reinterpret_cast<const uint8_t*>(dpSrcFrame);
-    Cast2BGRA(
-        NV12Buffer,
-        DecoderSession->ActiveFormat.coded_width,
-        DecoderSession->ActiveFormat.coded_height,
-        OutputSurface,
-        pitch
-    );
-
-    cudaDestroySurfaceObject(OutputSurface);
-
-    CUDA_ARRAY_DESCRIPTOR arrayDesc = {};
-    cuArrayGetDescriptor_v2(&arrayDesc, MappedResArray);
 
     DecoderSession->SessionResult =
         NVDriver::cuGraphicsUnmapResources(1, &DecoderSession->CudaOutputResource, 0);
@@ -596,8 +575,6 @@ int CUDAAPI NvdecSession::PictureOutputCallback(void* InstanceData, CUVIDPARSERD
         Logger::log(("\nTexture Resource Unmapping Failed: " +
                      std::to_string(DecoderSession->SessionResult))
                         .c_str());
-        cuCtxPopCurrent(nullptr);
-        return 0;
     }
 
     DecoderSession->SessionResult =

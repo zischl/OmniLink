@@ -16,6 +16,7 @@
 #undef _TIMECODE
 #undef TIMECODE
 
+#include <algorithm>
 #include <fstream>
 #include <mutex>
 #include <string>
@@ -128,12 +129,10 @@ class NVDriver
 class NvdecSession
 {
   public:
-    NvdecSession(
-        UINT MaxWidth, UINT MaxHeight, CUVIDEOFORMAT Format, ID3D11Texture2D* OutputTexture
-    );
+    NvdecSession(UINT MaxWidth, UINT MaxHeight, ID3D11Texture2D* OutputTexture);
     ~NvdecSession();
 
-    CUresult InitializeSession(CUVIDEOFORMAT Format);
+    CUresult InitializeSession();
     void     Decode(const unsigned char* data, unsigned long size);
     void     CloseSession();
 
@@ -143,6 +142,8 @@ class NvdecSession
 
     UINT               SessionMaxWidth;
     UINT               SessionMaxHeight;
+    UINT               TargetWidth  = 0;
+    UINT               TargetHeight = 0;
     CUVIDEOFORMAT      ActiveFormat = {};
     ID3D11Texture2D*   OutputBuffer;
     CUgraphicsResource CudaOutputResource;
