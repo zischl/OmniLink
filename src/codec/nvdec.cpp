@@ -238,7 +238,7 @@ NvdecSession::NvdecSession(UINT MaxWidth, UINT MaxHeight, ID3D11Texture2D* Outpu
 
     cuCtxPushCurrent(CudaContext);
 
-    SessionResult = cuGraphicsD3D11RegisterResource(&CudaOutputResource, OutputBuffer, 0);
+    SessionResult = NVDriver::cuGraphicsD3D11RegisterResource(&CudaOutputResource, OutputBuffer, 0);
     if (SessionResult != CUDA_SUCCESS || CudaOutputResource == NULL) {
         Logger::log(
             ("Decoder Output Texture Registration Failed: " + std::to_string(SessionResult)).c_str()
@@ -279,7 +279,7 @@ CUresult NvdecSession::InitializeSession()
     CudaParserParams.pfnDecodePicture       = PictureDecodeCallback;
     CudaParserParams.pfnDisplayPicture      = PictureOutputCallback;
 
-    CUresult CuResult = cuvidCreateVideoParser(&CudaParser, &CudaParserParams);
+    CUresult CuResult = NVDriver::cuvidCreateVideoParser(&CudaParser, &CudaParserParams);
     if (CuResult != CUDA_SUCCESS) {
         Logger::log(("Video Parser Creation Failed: " + std::to_string(CuResult)).c_str());
     }
@@ -298,7 +298,7 @@ void NvdecSession::Decode(const unsigned char* data, unsigned long size)
     CUVIDSOURCEDATAPACKET DataPacket = {};
     DataPacket.payload               = data;
     DataPacket.payload_size          = size;
-    CUresult res                     = cuvidParseVideoData(CudaParser, &DataPacket);
+    CUresult res                     = NVDriver::cuvidParseVideoData(CudaParser, &DataPacket);
     if (res != CUDA_SUCCESS) {
         Logger::log(("Parser Failed: " + std::to_string(res)).c_str());
     }
@@ -313,18 +313,18 @@ void NvdecSession::CloseSession()
     if (CudaParser) {
         CUVIDSOURCEDATAPACKET EosPacket = {};
         EosPacket.flags                 = CUVID_PKT_ENDOFSTREAM;
-        cuvidParseVideoData(CudaParser, &EosPacket);
+        NVDriver::cuvidParseVideoData(CudaParser, &EosPacket);
     }
     if (CudaOutputResource) {
-        cuGraphicsUnregisterResource(CudaOutputResource);
+        NVDriver::cuGraphicsUnregisterResource(CudaOutputResource);
         CudaOutputResource = nullptr;
     }
     if (CudaParser) {
-        cuvidDestroyVideoParser(CudaParser);
+        NVDriver::cuvidDestroyVideoParser(CudaParser);
         CudaParser = nullptr;
     }
     if (CudaDecoder) {
-        cuvidDestroyDecoder(CudaDecoder);
+        NVDriver::cuvidDestroyDecoder(CudaDecoder);
         CudaDecoder = nullptr;
     }
 
@@ -412,7 +412,7 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* InstanceData, CUVIDEOFORM
         cuCtxPushCurrent(DecoderSession->CudaContext);
 
         if (DecoderSession->CudaDecoder) {
-            cuvidDestroyDecoder(DecoderSession->CudaDecoder);
+            NVDriver::cuvidDestroyDecoder(DecoderSession->CudaDecoder);
             DecoderSession->CudaDecoder = nullptr;
         }
 
@@ -446,8 +446,9 @@ int CUDAAPI NvdecSession::ParserSequenceCallback(void* InstanceData, CUVIDEOFORM
         CudaDecoderInfo.display_area.right  = DisplayAreaR;
         CudaDecoderInfo.display_area.bottom = DisplayAreaB;
 
-        CUresult CuResult =
-            cuvidCreateDecoder(&(DecoderSession->CudaDecoder), &(DecoderSession->CudaDecoderInfo));
+        CUresult CuResult = NVDriver::cuvidCreateDecoder(
+            &(DecoderSession->CudaDecoder), &(DecoderSession->CudaDecoderInfo)
+        );
         cuCtxPopCurrent(nullptr);
 
         if (CuResult != CUDA_SUCCESS || DecoderSession->CudaDecoder == NULL) {
