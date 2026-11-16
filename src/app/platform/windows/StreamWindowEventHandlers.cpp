@@ -1,9 +1,9 @@
-#include "StreamSessions.hpp"
 #include "IOLinkContext.hpp"
 #include "OmniRouterContext.hpp"
 #include "SpatialRouter.hpp"
 #include "StreamControlPackets.hpp"
 #include "StreamPacketDispatch.hpp"
+#include "StreamSessions.hpp"
 #include "WindowLink.hpp"
 
 #include <dwmapi.h>
@@ -77,11 +77,27 @@ static void StreamWindowOnDecoderReady(void* Ctx)
 
 // Handles the OnClose event of a stream window, closes the sub stream, releases on peer
 // FYI it's delegating work to let the window proc msg end to safely deconstruct.
-// note to me in the future, need to send an alert back to the host..
+// Alerting the host with Cancel so the host recalls and restores the source window.
 static void StreamWindowOnWindowClose(void* Ctx)
 {
     auto* StreamContext = static_cast<WindowStreamEntry*>(Ctx);
-    if (StreamContext && StreamContext->ReleaseSubStream) {
+    if (!StreamContext)
+        return;
+
+    if (StreamContext->Session) {
+        DeviceMap ReverseEdge = ComputeRelativeSpatialID(StreamContext->DeviceID, DeviceMap::C0);
+        StreamPackets::TransmitDragPacket(
+            StreamContext->Session,
+            WinDragAction::Cancel,
+            StreamContext->WindowKey,
+            ReverseEdge,
+            0,
+            0,
+            0,
+            0
+        );
+    }
+    if (StreamContext->ReleaseSubStream) {
         StreamContext->ReleaseSubStream(StreamContext->DeviceID, StreamContext->WindowKey, true);
     }
 }

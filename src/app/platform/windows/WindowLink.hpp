@@ -66,8 +66,17 @@ struct SystemWindowLink
 
     WindowDragSession DragSession;
 
+    // Aero Snap suppression state during drag
+    bool AeroSnapSuppressed = false;
+
+    ~SystemWindowLink();
+
     // Window Focus helper
     static void EnsureWindowFocus(HWND TargetHwnd);
+
+    // Self explanatory right..
+    void SuppressAeroSnap();
+    void RestoreAeroSnap();
 
     // State transitions
     void OnLocalDragStart(HWND Hwnd, const RECT& WindowPos, POINT CursorPos);
@@ -77,7 +86,7 @@ struct SystemWindowLink
     void OnCrossCancel(SystemLinkContext& Ctx, HWND Hwnd);
     void OnRemoteDrop(SystemLinkContext& Ctx, HWND Hwnd);
     void OnReturnBegin(DeviceMap DeviceID, HWND SourceHwnd, int TargetX, int TargetY);
-    void OnReturnDrop(DeviceMap DeviceID, HWND SourceHwnd);
+    void OnReturnDrop(SystemLinkContext& Ctx, DeviceMap DeviceID, HWND SourceHwnd);
 
     // Local events & Forwarders
     bool TryInitiateDragFromCaptionTest(

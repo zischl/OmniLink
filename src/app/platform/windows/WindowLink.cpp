@@ -10,6 +10,18 @@
 #include "StreamWindowEventHandlers.cpp"
 #include "SubStream.hpp"
 
+#ifndef SPI_GETWINARRANGING
+#define SPI_GETWINARRANGING 0x0082
+#endif
+#ifndef SPI_SETWINARRANGING
+#define SPI_SETWINARRANGING 0x0083
+#endif
+
+SystemWindowLink::~SystemWindowLink()
+{
+    RestoreAeroSnap();
+}
+
 // Creates the WinForge render window on Client and attaches the forwarders
 OmniNet::PoolConfig SystemWindowLink::SetupClientStreamRenderWindow(
     SystemLinkContext& Ctx,
@@ -93,6 +105,29 @@ void SystemWindowLink::EnsureWindowFocus(HWND TargetHwnd)
         SetForegroundWindow(TargetHwnd);
         SetFocus(TargetHwnd);
     }
+}
+
+void SystemWindowLink::SuppressAeroSnap()
+{
+    if (AeroSnapSuppressed) {
+        return;
+    }
+
+    BOOL SystemSnapEnabled = FALSE;
+    if (SystemParametersInfoW(SPI_GETWINARRANGING, 0, &SystemSnapEnabled, 0) && SystemSnapEnabled) {
+        SystemParametersInfoW(SPI_SETWINARRANGING, FALSE, nullptr, 0);
+        AeroSnapSuppressed = true;
+    }
+}
+
+void SystemWindowLink::RestoreAeroSnap()
+{
+    if (!AeroSnapSuppressed) {
+        return;
+    }
+
+    SystemParametersInfoW(SPI_SETWINARRANGING, TRUE, nullptr, 0);
+    AeroSnapSuppressed = false;
 }
 
 void SystemWindowLink::CenterWindowOnDesktop(HWND TargetHwnd)
@@ -223,10 +258,22 @@ void SystemWindowLink::OnReturnBegin(DeviceMap DeviceID, HWND SourceHwnd, int Ta
     );
 }
 
-void SystemWindowLink::OnReturnDrop(DeviceMap DeviceID, HWND SourceHwnd)
+void SystemWindowLink::OnReturnDrop(SystemLinkContext& Ctx, DeviceMap DeviceID, HWND SourceHwnd)
 {
     (void)DeviceID;
-    CenterWindowOnDesktop(SourceHwnd);
+    (void)Ctx;
+
+    RECT CurRect{};
+    if (GetWindowRect(SourceHwnd, &CurRect)) {
+        int  ScreenW = GetSystemMetrics(SM_CXSCREEN);
+        int  ScreenH = GetSystemMetrics(SM_CYSCREEN);
+        bool FullyOffscreen =
+            (CurRect.right <= 0 || CurRect.left >= ScreenW || CurRect.bottom <= 0 ||
+             CurRect.top >= ScreenH);
+        if (FullyOffscreen) {
+            CenterWindowOnDesktop(SourceHwnd);
+        }
+    }
     DragSession = {};
 }
 
@@ -310,6 +357,12 @@ OmniStreamer::StreamID SystemWindowLink::StartWindowCaptureStream(
             static_cast<int>(DeviceID)
         );
         std::thread([this, &Ctx, DeviceID, SubStreamID]() {
+            auto* NetSession = Ctx.Router.GetWindowSession(DeviceID);
+            if (NetSession) {
+                StreamPackets::TransmitDragPacket(
+                    NetSession, WinDragAction::Cancel, SubStreamID, DeviceID, 0, 0, 0, 0
+                );
+            }
             StopWindowCaptureStream(Ctx, SubStreamID);
             if (Ctx.ReleaseSubStream) {
                 Ctx.ReleaseSubStream(DeviceID, SubStreamID, true);
@@ -414,7 +467,17 @@ SubStreamID SystemWindowLink::HandleWindowDragEvent(
 
     case WinDragAction::Drop:
         if (SubStreamExists) {
-            CenterWindowOnDesktop(Hwnd);
+            RECT CurRect{};
+            if (GetWindowRect(Hwnd, &CurRect)) {
+                int  ScreenW = GetSystemMetrics(SM_CXSCREEN);
+                int  ScreenH = GetSystemMetrics(SM_CYSCREEN);
+                bool FullyOffscreen =
+                    (CurRect.right <= 0 || CurRect.left >= ScreenW || CurRect.bottom <= 0 ||
+                     CurRect.top >= ScreenH);
+                if (FullyOffscreen) {
+                    CenterWindowOnDesktop(Hwnd);
+                }
+            }
             return IterSubStreams->second;
         }
         return 0;
@@ -514,7 +577,20 @@ void SystemWindowLink::HandleWindowDragMove(
     SystemLinkContext& Ctx, HWND Hwnd, const RECT& WindowPos, POINT CursorPos
 )
 {
-    if (DragSession.Phase == DragPhase::Idle || DragSession.Phase == DragPhase::LocalHover) {
+    const bool ModifierHeld = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) ||
+                              ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
+
+    if (ModifierHeld) {
+        SuppressAeroSnap();
+    } else {
+        RestoreAeroSnap();
+    }
+
+    if (DragSession.Phase == DragPhase::Idle || DragSession.SourceHwnd != Hwnd) {
+        if (DragSession.SourceHwnd != NULL && DragSession.SourceHwnd != Hwnd &&
+            DragSession.Phase == DragPhase::Crossing) {
+            OnCrossCancel(Ctx, DragSession.SourceHwnd);
+        }
         OnLocalDragStart(Hwnd, WindowPos, CursorPos);
     }
 
@@ -531,9 +607,6 @@ void SystemWindowLink::HandleWindowDragMove(
 
     OmniNetSession<OmniMTU>* NetSession =
         (ActiveEdge != DeviceMap::C0) ? Ctx.Router.GetWindowSession(ActiveEdge) : nullptr;
-
-    const bool ModifierHeld = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) ||
-                              ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
 
     if (DragSession.Phase == DragPhase::LocalHover && !ModifierHeld) {
         ActiveEdge = DeviceMap::C0;
@@ -573,15 +646,19 @@ void SystemWindowLink::HandleWindowDragMove(
 
 void SystemWindowLink::HandleWindowDragEnd(SystemLinkContext& Ctx, HWND Hwnd)
 {
-    if (DragSession.Phase == DragPhase::Crossing) {
-        OnRemoteDrop(Ctx, Hwnd);
-    }
+    RestoreAeroSnap();
 
-    const bool WasReturning = (DragSession.Phase == DragPhase::Returning);
-    DragSession             = {};
+    if (DragSession.SourceHwnd == Hwnd) {
+        if (DragSession.Phase == DragPhase::Crossing) {
+            OnRemoteDrop(Ctx, Hwnd);
+        }
 
-    if (WasReturning) {
-        RecallWindow(Ctx, Hwnd, false);
+        const bool ReturnState = (DragSession.Phase == DragPhase::Returning);
+        DragSession            = {};
+
+        if (ReturnState) {
+            RecallWindow(Ctx, Hwnd, false);
+        }
     }
 }
 
@@ -635,6 +712,7 @@ OmniNet::PoolConfig SystemWindowLink::SetState(
                 }
 
                 if (Ctx.Router.GetWindowSessionCount() == 0) {
+                    RestoreAeroSnap();
                     DragLink.WindowMoveListener(false);
                     DragLink.WindowExclusionCheck = nullptr;
                     DragLink.OnDragMove           = nullptr;

@@ -35,7 +35,7 @@ void SystemWindowLink::HandleStreamSourceDrag(
         break;
     }
     case WinDragAction::Drop: {
-        OnReturnDrop(DeviceID, SourceHwnd);
+        OnReturnDrop(Ctx, DeviceID, SourceHwnd);
         break;
     }
     case WinDragAction::Cancel: {
